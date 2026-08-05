@@ -17,6 +17,12 @@ from __future__ import annotations
 
 import pytest
 
+# Imported for its side effect: this sets CrewAI's first-run kill switches
+# before any test module can import crewai. See nornyx_lab.optional for why a
+# fresh CrewAI install otherwise makes the adapter conformance suite report
+# `nonconformant: process-execution attempt blocked`.
+import nornyx_lab.optional  # noqa: F401  isort:skip
+
 
 def pytest_configure(config: pytest.Config) -> None:
     """Refuse to run under xdist, with an explanation rather than a crash."""

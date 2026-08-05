@@ -11,7 +11,32 @@ extras so nothing is skipped there at all.
 
 from __future__ import annotations
 
+import os
 from types import ModuleType
+
+# ---------------------------------------------------------------------------
+# CrewAI first-run kill switches. These MUST be set before the first `crewai`
+# import anywhere in the process, so they live at module import time and every
+# framework import in this repository goes through the helpers below.
+#
+# On a *fresh* install CrewAI runs a one-time tracing-consent step that prints a
+# banner, writes a preference file, and spawns a process. The adapter's
+# conformance suite runs guarded — a conforming suite must not spawn a process —
+# so that first run makes conformance report `nonconformant` on a clean machine
+# while passing on any machine where CrewAI has already been run once.
+#
+# That is a genuinely nasty failure mode: it passes locally for the author and
+# fails in CI, and the error names process execution rather than telemetry.
+# `CREWAI_TESTING` short-circuits the consent step entirely; the other three
+# switch off telemetry and tracing. None of them changes the model or the
+# `Crew.kickoff()` execution path, so the labs observe the same behaviour.
+for _key, _value in (
+    ("CREWAI_DISABLE_TELEMETRY", "true"),
+    ("OTEL_SDK_DISABLED", "true"),
+    ("CREWAI_TRACING_ENABLED", "false"),
+    ("CREWAI_TESTING", "true"),
+):
+    os.environ.setdefault(_key, _value)
 
 
 class FrameworkMissing(RuntimeError):

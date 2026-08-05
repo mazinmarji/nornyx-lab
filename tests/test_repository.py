@@ -7,6 +7,7 @@ reader is least able to check for themselves.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -145,6 +146,45 @@ def test_the_readme_states_the_tier_and_the_bypass():
     assert "not governed by Nornyx" in readme, (
         "the README must say that nornyx-lab does not self-apply the control"
     )
+
+
+def test_a_lab_survives_a_legacy_console_encoding():
+    """Regression: the labs print ✔, ✘, ⊘ and box drawing.
+
+    On Windows, piped stdout gets the console code page (cp1252), and those
+    purely decorative glyphs killed the run with UnicodeEncodeError three
+    sections in — in CI, and for anyone doing `nornyx-lab run 00 > out.txt`.
+    `nornyx_lab.ui` now forces UTF-8 on stdout/stderr at import.
+    """
+    env = dict(os.environ)
+    env["PYTHONIOENCODING"] = "cp1252"
+    proc = subprocess.run(
+        [sys.executable, "-m", "nornyx_lab.cli", "run", "00"],
+        cwd=str(ROOT),
+        capture_output=True,
+        env=env,
+    )
+    stderr = proc.stderr.decode("utf-8", "replace")
+
+    assert "UnicodeEncodeError" not in stderr, stderr[-800:]
+    assert proc.returncode == 0
+    assert proc.stdout, "the lab produced no output at all"
+
+
+def test_crewai_first_run_kill_switches_are_set_on_import():
+    """A fresh CrewAI spawns a process during first-run tracing consent.
+
+    The adapter's conformance suite runs guarded and reports `nonconformant`
+    when anything spawns a process — so a clean machine failed while any
+    machine that had already run CrewAI once passed. Importing
+    `nornyx_lab.optional` sets the kill switches before any framework import.
+    """
+    import nornyx_lab.optional  # noqa: F401
+
+    assert os.environ.get("CREWAI_TESTING") == "true"
+    assert os.environ.get("CREWAI_DISABLE_TELEMETRY") == "true"
+    assert os.environ.get("CREWAI_TRACING_ENABLED") == "false"
+    assert os.environ.get("OTEL_SDK_DISABLED") == "true"
 
 
 def test_no_lab_claims_tier_3():

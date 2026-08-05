@@ -21,6 +21,18 @@ env:
   # a pipeline that reads the wall clock would go red one week after merge.
   LAB_AS_OF: "2026-06-01T12:00:00Z"
 
+  # CrewAI's one-time first-run tracing consent spawns a process, writes a
+  # preference file, and prints a banner. The adapter conformance suite runs
+  # guarded — a conforming suite must not spawn a process — so on a FRESH
+  # runner that first run reports `nonconformant`, while passing on any machine
+  # where CrewAI has been run once before. Setting these at the workflow level
+  # covers the jobs that invoke the conformance kit directly; `nornyx_lab.optional`
+  # sets the same values for anything running inside the package.
+  CREWAI_DISABLE_TELEMETRY: "true"
+  CREWAI_TRACING_ENABLED: "false"
+  CREWAI_TESTING: "true"
+  OTEL_SDK_DISABLED: "true"
+
 jobs:
   # ---------------------------------------------------------------- gate 1
   contracts:

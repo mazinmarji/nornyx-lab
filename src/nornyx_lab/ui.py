@@ -8,6 +8,8 @@ whole subject is about.
 
 from __future__ import annotations
 
+import sys
+
 from rich.align import Align
 from rich.console import Console, Group
 from rich.markdown import Markdown
@@ -16,6 +18,30 @@ from rich.rule import Rule
 from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
+
+
+def _use_utf8(stream: object) -> None:
+    """Force a text stream to UTF-8 so the box drawing survives Windows.
+
+    On Windows, Python picks the console code page for stdout — cp1252 when the
+    output is piped or redirected. The labs print ✔, ✘, ⊘, and box-drawing
+    characters, so `nornyx-lab run 00 > out.txt` (and every CI job, which pipes
+    by definition) died with UnicodeEncodeError on a purely decorative glyph.
+
+    `errors="replace"` is deliberate: a terminal that genuinely cannot render a
+    character should show a placeholder, not abort a lab three sections in.
+    """
+    reconfigure = getattr(stream, "reconfigure", None)
+    if reconfigure is None:
+        return
+    try:
+        reconfigure(encoding="utf-8", errors="replace")
+    except (ValueError, OSError):  # pragma: no cover - detached or unusual streams
+        pass
+
+
+_use_utf8(sys.stdout)
+_use_utf8(sys.stderr)
 
 console = Console(highlight=False)
 
