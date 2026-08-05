@@ -112,6 +112,54 @@ def nornyx(*args: str, cwd: Path | str | None = None) -> CliResult:
     return CliResult(tuple(args), proc.returncode, proc.stdout, proc.stderr)
 
 
+# --------------------------------------------------------------- newlines
+def normalize_newlines(path: Path | str) -> bool:
+    """Rewrite a file with LF line endings. Returns True if it changed.
+
+    WHY THIS EXISTS, and why it is not cheating.
+
+    Python's text writes translate ``\\n`` to ``os.linesep``, so the same
+    generator produces CRLF on Windows and LF on Linux. The *content* is
+    identical; only the line terminator differs.
+
+    That is fatal for a byte-comparison drift gate: artifacts generated on
+    Windows and committed would report drift against a fresh generation on
+    Linux CI, on a repository where nothing is wrong.
+
+    So the build pipeline normalizes to LF as an explicit, declared step
+    **before** the lock is computed. The digests then bind the normalized
+    bytes, and byte-equality means what it says on every platform. This is what
+    real pipelines do; the alternative — comparing "bytes, but ignore some of
+    them" — would quietly weaken the gate Lab 17 teaches.
+    """
+    target = Path(path)
+    original = target.read_bytes()
+    normalized = original.replace(b"\r\n", b"\n")
+    if normalized == original:
+        return False
+    target.write_bytes(normalized)
+    return True
+
+
+def normalize_tree(root: Path | str, patterns: tuple[str, ...] = ("*",)) -> int:
+    """Normalize every matching file under `root`. Returns the number changed."""
+    base = Path(root)
+    changed = 0
+    for pattern in patterns:
+        for path in sorted(base.rglob(pattern)):
+            if path.is_file():
+                changed += normalize_newlines(path)
+    return changed
+
+
+def write_text_lf(path: Path | str, text: str) -> Path:
+    """Write text with LF endings on every platform."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(text.replace("\r\n", "\n").encode("utf-8"))
+    return target
+
+
 # ------------------------------------------------------------------- hashing
 def content_hash(path: Path | str) -> str:
     """The exact binding Nornyx uses: sha256 over the artifact's bytes."""
@@ -153,7 +201,7 @@ def seal_evidence(contract_path: Path | str) -> list[tuple[str, str, str]]:
             current_artifact = None
 
     if changes:
-        path.write_text("".join(lines), encoding="utf-8")
+        write_text_lf(path, "".join(lines))
     return changes
 
 

@@ -44,6 +44,9 @@ STATUS_MARK = {
 }
 UNSTARTED = Text("  —", style="dim")
 
+# Widest title column that keeps the whole row inside 80 columns.
+TITLE_WIDTH = 42
+
 
 # --------------------------------------------------------------------- views
 def _dashboard() -> None:
@@ -121,13 +124,16 @@ def list_labs() -> None:
             console.print()
             console.print(Text(f"  {current_part}", style="bold white on grey23"))
         status = STATUS_MARK.get(progress.get(meta.id, ""), UNSTARTED)
+        # Titles vary from 18 to 56 characters. Pad short ones and ellipsize
+        # long ones so the columns stay columns on an 80-wide terminal.
+        title = meta.title if len(meta.title) <= TITLE_WIDTH else meta.title[: TITLE_WIDTH - 1] + "…"
         line = Text()
         line.append(f"  {meta.id}  ", style="bold cyan")
-        line.append(f"{meta.title:<44}", style="white")
-        line.append(f"{meta.difficulty:<12}", style="dim")
+        line.append(f"{title:<{TITLE_WIDTH}}  ", style="white")
+        line.append(f"{meta.difficulty:<13}", style="dim")
         line.append(f"{meta.minutes:>3}m  ", style="dim")
         line.append_text(status)
-        console.print(line)
+        console.print(line, overflow="ellipsis", no_wrap=True)
     console.print()
     console.print(Text("  Textbook chapters covered by these labs: 1–41", style="dim italic"))
     console.print(Text("  nornyx-lab coverage   shows the chapter-by-chapter matrix", style="dim"))
