@@ -17,6 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
+from nornyx_lab.contract import write_text_lf  # noqa: E402
 from nornyx_lab.engine import LabMeta, all_labs  # noqa: E402
 
 OUT = ROOT / "notebooks"
@@ -125,7 +126,7 @@ def main() -> int:
     OUT.mkdir(exist_ok=True)
     for meta in labs:
         path = OUT / f"{meta.slug}.ipynb"
-        path.write_text(json.dumps(notebook(meta), indent=1) + "\n", encoding="utf-8")
+        write_text_lf(path, json.dumps(notebook(meta), indent=1) + "\n")
 
     index = [
         "# Notebook companions",
@@ -143,7 +144,7 @@ def main() -> int:
     ]
     for meta in labs:
         index.append(f"| {meta.id} — {meta.title} | [`{meta.slug}.ipynb`](./{meta.slug}.ipynb) |")
-    (OUT / "README.md").write_text("\n".join(index) + "\n", encoding="utf-8")
+    write_text_lf(OUT / "README.md", "\n".join(index) + "\n")
 
     print(f"Wrote {len(labs)} notebooks to notebooks/")
     return 0

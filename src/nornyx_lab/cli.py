@@ -126,7 +126,9 @@ def list_labs() -> None:
         status = STATUS_MARK.get(progress.get(meta.id, ""), UNSTARTED)
         # Titles vary from 18 to 56 characters. Pad short ones and ellipsize
         # long ones so the columns stay columns on an 80-wide terminal.
-        title = meta.title if len(meta.title) <= TITLE_WIDTH else meta.title[: TITLE_WIDTH - 1] + "…"
+        title = (
+            meta.title if len(meta.title) <= TITLE_WIDTH else meta.title[: TITLE_WIDTH - 1] + "…"
+        )
         line = Text()
         line.append(f"  {meta.id}  ", style="bold cyan")
         line.append(f"{title:<{TITLE_WIDTH}}  ", style="white")

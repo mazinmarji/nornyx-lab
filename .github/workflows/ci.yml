@@ -66,20 +66,31 @@ jobs:
       - name: Environment check
         run: uv run nornyx-lab doctor
 
-      # -rs prints every skip with its reason, so a skip is visible in the log
-      # rather than hidden behind a dot.
-      - name: Run every lab's concept checks
-        run: uv run pytest labs tests -q -rs
-
-      - name: Fail if anything skipped
+      # One run, two gates. `-rs` prints every skip with its reason, so a skip
+      # is visible in the log rather than hidden behind a dot; the second gate
+      # then fails the build on any skip at all, because a silently skipped
+      # test is a governance failure rather than a hygiene problem (Ch. 15).
+      #
+      # The suite is slow — each lab shells out to the real `nornyx` CLI many
+      # times — so it deliberately runs ONCE and both gates read that output.
+      - name: Run every lab's concept check, and fail on any skip
         shell: bash
         run: |
-          uv run pytest labs tests -q -rs 2>&1 | tee /tmp/pytest.log
-          if grep -qE "^SKIPPED|[0-9]+ skipped" /tmp/pytest.log; then
+          set -o pipefail
+          uv run pytest labs tests -q -rs 2>&1 | tee pytest.log
+          status=$?
+          if grep -qE "[0-9]+ skipped" pytest.log; then
             echo "::error::Tests were skipped. A silent skip is a governance failure (Ch. 15)."
-            grep -E "^SKIPPED|skipped" /tmp/pytest.log
+            grep -E "^SKIPPED" pytest.log || true
             exit 1
           fi
+          exit $status
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: pytest-log-${{ matrix.os }}-py${{ matrix.python }}
+          path: pytest.log
 
   # ---------------------------------------------------------------- gate 3
   conformance:
