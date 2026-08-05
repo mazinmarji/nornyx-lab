@@ -1,0 +1,21 @@
+[lab]
+id = "00"
+title = "From assistant to agent"
+part = "PART I — Why governed agentic systems are needed"
+chapters = "Ch. 1 — From Deterministic Software to Agentic Behavior"
+difficulty = "beginner"
+minutes = 10
+objectives = [
+  "Distinguish a response-generating assistant from a tool-using agent",
+  "Explain why a plausible answer is not evidence of policy compliance",
+  "Use a side-effect ledger to tell a refusal apart from a prevention",
+  "Name the four properties of agentic execution that break inherited controls",
+]
+concepts = [
+  "agentic execution",
+  "side-effect ledger",
+  "reachability vs authorization",
+  "instruction-data confusion",
+  "observe-decide-act loop",
+]
+requires = []

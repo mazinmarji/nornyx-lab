@@ -1,0 +1,168 @@
+{
+  "approval_requirements": [
+    "agentic_network_authority",
+    "governance_authority"
+  ],
+  "artifacts": [
+    {
+      "path": "a2a_declaration.json",
+      "sha256": "754fd0cb5d9ab161cbc9100818920410e1a8f561f224a4f4cee8f60353d43d47"
+    },
+    {
+      "path": "agentic_generation_manifest.json",
+      "sha256": "da9098a91f3503ee342d75480f0ded512d70bf2df97520fc95fde27a89ed6f74"
+    },
+    {
+      "path": "capability_matrix.json",
+      "sha256": "3992da1b1fc7d8d0680f95635400dac8423da55e7bbaacebbd72a10cba296486"
+    },
+    {
+      "path": "delegation_policy_bundle.json",
+      "sha256": "2a6f8c437c6bad6b97ed25555d2c242b8345f22b686251942687973b8b6940e3"
+    },
+    {
+      "path": "handoff_manifest.json",
+      "sha256": "089fd12ece51135bf26f04bd84203a4c83446867b2db881b50685b64b7a0f155"
+    },
+    {
+      "path": "identity_manifest.json",
+      "sha256": "0ed331c9a8d7082016a119da8c7b8c155b3206440d00d8347f0d47291d9f30e1"
+    },
+    {
+      "path": "mcp_capability_declaration.json",
+      "sha256": "e172ae2adcc4daef390c62df181f79423e014ad8b087a7129dc85a43f851720d"
+    },
+    {
+      "path": "network_manifest.json",
+      "sha256": "6fc08084421541aeae5e84a1c33caef2e84e2eeb0c8c3746fcfae66b4b6bef54"
+    },
+    {
+      "path": "runtime_evidence_contract.json",
+      "sha256": "df703f16436436a6d3d2995a385583d8d9cddd7781aa4b5499aa2fba367beeee"
+    },
+    {
+      "path": "trust_zone_map.json",
+      "sha256": "842a9d40433a88fe461d42b2f33017809f0572f409fa6d4a6746fb3e3adf0532"
+    }
+  ],
+  "block_schemas": [
+    {
+      "block": "agent_identities",
+      "schema_id": "https://nornyx.dev/schemas/agent_identities_v1.schema.json"
+    },
+    {
+      "block": "agentic_network",
+      "schema_id": "https://nornyx.dev/schemas/agentic_network_v1.schema.json"
+    },
+    {
+      "block": "capabilities",
+      "schema_id": "https://nornyx.dev/schemas/agentic_capabilities_v1.schema.json"
+    },
+    {
+      "block": "governance_evidence",
+      "schema_id": "https://nornyx.dev/schemas/governance_evidence_v1.schema.json"
+    }
+  ],
+  "evidence_requirements": [
+    "agentic_network_contract_review",
+    "approval_record",
+    "evidence_manifest"
+  ],
+  "generation_format_version": "1.0",
+  "lock_format_version": "1.0",
+  "modules": [
+    {
+      "content_hash": "sha256:bd2642620c670ef4320b76b3f4263c50f787279f1a613d4ab7f962bb08186d7b",
+      "id": "nornyx.builtin.module.agentic_network_governance",
+      "name": "agentic_network_governance",
+      "version": "0.2.0"
+    },
+    {
+      "content_hash": "sha256:460d9ca1ad53f634a2f7a344d7a8f3809546c49c78ee564e6b5bc466b8bb9ef8",
+      "id": "nornyx.builtin.module.evidence_integrity",
+      "name": "evidence_integrity",
+      "version": "1.0.0"
+    },
+    {
+      "content_hash": "sha256:8bc640928cba203cbdd2dba2d4f0eb3e4fabb5377f4c9d6821bd7624b7d34e46",
+      "id": "nornyx.builtin.module.human_approval",
+      "name": "human_approval",
+      "version": "1.0.0"
+    }
+  ],
+  "network_id": "network.northstar_atlas",
+  "profile": {
+    "content_hash": "sha256:94ab4650c2a24e8829e0df9accf8ca539a8e3e1f4dc477f9835eebfdbe62f944",
+    "id": "nornyx.builtin.agentic_network",
+    "name": "agentic_network",
+    "version": "0.1.0"
+  },
+  "protocol_declarations": [],
+  "records": {
+    "agent_identities": [
+      {
+        "digest": "sha256:6b59f254c386beadcc5664ed7699b6df64423d6804af3dc0111fee9d581e1d24",
+        "id": "identity.research_assistant"
+      }
+    ],
+    "capabilities": [
+      {
+        "digest": "sha256:b7752712f79008f239f576588fb425a68777cb50c9a08c1c5a89d7eb47d38ec0",
+        "id": "draft_briefing"
+      },
+      {
+        "digest": "sha256:ccd8cdf130b4362cc43e796f02fc86e6a77a3d6b7a4d8443c9ee382f42d68545",
+        "id": "publish_external"
+      },
+      {
+        "digest": "sha256:61d3e63344fe871949b464db473350d3415426aeb4f7981aada10426a7aad108",
+        "id": "search_web"
+      }
+    ],
+    "delegations": [],
+    "handoffs": [],
+    "memberships": [
+      {
+        "digest": "sha256:b8b1cc9571cd86b753cfb19f6ab3e6f99a8590cd01c1bdf0d21d1cd3df0d4533",
+        "id": "membership.research_assistant"
+      }
+    ],
+    "network_gates": [
+      {
+        "digest": "sha256:f9929004631fa009400b15f1426ebf7eac0050b87817dde6e697d81ff86463b2",
+        "id": "gate.publication_review"
+      }
+    ],
+    "protocol_targets": [],
+    "relations": [
+      {
+        "digest": "sha256:ecfb118f739fe23b6f126b283b76c583abc426ee55f70950a66cab935eb00855",
+        "id": "relation.publication_approval"
+      }
+    ],
+    "revocations": [],
+    "trust_zones": [
+      {
+        "digest": "sha256:b1ed734de0cb123f95df966bffdeaf22fd748f187ab2f4c03077a5d0825b9bb2",
+        "id": "zone.public_web"
+      },
+      {
+        "digest": "sha256:bec87ad4e19796e8442ae6d7e8d8a976aca9fa21fd2cb67a5b5f7d9d279d56d0",
+        "id": "zone.research_internal"
+      }
+    ]
+  },
+  "runtime_events_schema": {
+    "id": "nornyx.agentic_runtime_events.v1",
+    "version": "1.1"
+  },
+  "schema": "nornyx.agentic_network_lock.v1",
+  "source_contract_digest": "sha256:ed6aeda0cfa9f7f5e0a43190c60012c24564941cf4b2d99cfa36d83e4732d944",
+  "structural_checks": [
+    "agentic_network_delegation.v1",
+    "agentic_network_foundation.v1",
+    "evidence_integrity.v1",
+    "human_approval.v1"
+  ],
+  "subject_revision": "git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11"
+}

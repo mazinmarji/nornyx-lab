@@ -1,0 +1,22 @@
+[lab]
+id = "09"
+title = "Enforcement models and fail-closed design"
+part = "PART II — Foundations of executable governance"
+chapters = "Ch. 10 — Enforcement Models and Fail-Closed Design"
+difficulty = "intermediate"
+minutes = 25
+objectives = [
+  "Place six enforcement models relative to the agent process",
+  "Compare them on bypassability, evidence quality, cost, blast radius, and identity",
+  "Inject a failure into the enforcement point itself and observe the system's behaviour",
+  "Design a fail-closed default with a bounded, accountable fallback",
+]
+concepts = [
+  "enforcement placement",
+  "fail-closed",
+  "fail-open",
+  "failure injection",
+  "bounded fallback",
+  "blast radius",
+]
+requires = ["08"]

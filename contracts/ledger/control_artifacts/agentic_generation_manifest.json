@@ -1,0 +1,45 @@
+{
+  "artifacts": [
+    {
+      "path": "a2a_declaration.json",
+      "sha256": "a3240b5274232e607ae718e236f639fbb56e1017866d3a793ae34614ed345a25"
+    },
+    {
+      "path": "capability_matrix.json",
+      "sha256": "91aaa7d59b52c0e983821f0fb6dad0e099319babbdf338a6cfec99e0faa16b8c"
+    },
+    {
+      "path": "delegation_policy_bundle.json",
+      "sha256": "b881e1bdae7382839be6bdfa8cdcf3ea285a24d6b80448781143ce388b1266d2"
+    },
+    {
+      "path": "handoff_manifest.json",
+      "sha256": "84368b707dd0574dd7f3cc3014e8e92eafaaab7abd9856792797bee9ab1f3ab6"
+    },
+    {
+      "path": "identity_manifest.json",
+      "sha256": "ac338deabf598ce62b861922228e13ebd85ff9c831d595f9ca67cf3381957492"
+    },
+    {
+      "path": "mcp_capability_declaration.json",
+      "sha256": "2fab21d025c7835d56335ef3d86d9cdc8688a463e27cf287f14b2c9d9f2f1ede"
+    },
+    {
+      "path": "network_manifest.json",
+      "sha256": "9b1fde19b8a1d1e5839b7cccc415a3376b8a0c89fa611b488e77691abedbc0cf"
+    },
+    {
+      "path": "runtime_evidence_contract.json",
+      "sha256": "70f0fc1b3585feeb913ea65dd41f7ebedcd6ca10045c2e540b1b5ea63b03e914"
+    },
+    {
+      "path": "trust_zone_map.json",
+      "sha256": "17c93420a33e339d37b02ab0f7fb7d69fdb7624de79fb8f355780ca90361daec"
+    }
+  ],
+  "generation_format_version": "1.0",
+  "network_id": "network.northstar_ledger",
+  "schema": "nornyx.agentic_generation_manifest.v1",
+  "source_contract_digest": "sha256:2bbee2dd4ada7a2eedd21e7cc3d1279c1e1b3c7c8fd3f7dbf0874bbae3cfa215",
+  "subject_revision": "git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11"
+}

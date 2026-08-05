@@ -1,0 +1,40 @@
+{
+  "identities": [
+    {
+      "authority": "non_human",
+      "can_approve": false,
+      "capability_refs": [
+        "search_web",
+        "draft_briefing"
+      ],
+      "digest": "sha256:6b59f254c386beadcc5664ed7699b6df64423d6804af3dc0111fee9d581e1d24",
+      "expires_at": "2026-12-01T00:00:00Z",
+      "framework_bindings": [
+        {
+          "agent_key": "research_assistant",
+          "framework": "contract_fixture"
+        },
+        {
+          "agent_key": "research_assistant",
+          "framework": "crewai"
+        },
+        {
+          "agent_key": "research_assistant",
+          "framework": "langgraph"
+        }
+      ],
+      "id": "identity.research_assistant",
+      "identity_class": "local_agent",
+      "namespace": "northstar.research",
+      "revocation_refs": [],
+      "role_ref": "ResearchAssistant",
+      "status": "active",
+      "subject": "research_assistant",
+      "valid_from": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "network_id": "network.northstar_atlas",
+  "schema": "nornyx.agentic_identity_manifest.v1",
+  "source_contract_digest": "sha256:ed6aeda0cfa9f7f5e0a43190c60012c24564941cf4b2d99cfa36d83e4732d944",
+  "subject_revision": "git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11"
+}

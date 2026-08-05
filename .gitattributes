@@ -1,0 +1,31 @@
+# Line endings are a governance control in this repository, not a style choice.
+#
+# The drift gate (Lab 17, and scripts/build_contracts.py --verify) compares
+# generated artifacts and locks BYTE FOR BYTE against a fresh generation. Git's
+# default `core.autocrlf` on Windows rewrites LF to CRLF on checkout, which
+# changes those bytes — and every digest computed over them.
+#
+# The symptom would be: clone on Windows, run `make check`, and watch a
+# perfectly correct repository report drift. So: everything is LF, everywhere.
+
+* text=auto eol=lf
+
+# Belt and braces for the files whose exact bytes are load-bearing.
+*.nyx           text eol=lf
+*.lock          text eol=lf
+*.json          text eol=lf
+*.yaml          text eol=lf
+*.yml           text eol=lf
+*.py            text eol=lf
+*.toml          text eol=lf
+*.md            text eol=lf
+*.sh            text eol=lf
+Makefile        text eol=lf
+
+# Notebooks are JSON; keep them diffable and LF.
+*.ipynb         text eol=lf
+
+# Never touch binaries.
+*.png           binary
+*.jpg           binary
+*.pdf           binary

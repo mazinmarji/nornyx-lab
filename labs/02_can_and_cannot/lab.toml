@@ -1,0 +1,23 @@
+[lab]
+id = "02"
+title = "What governance can and cannot guarantee"
+part = "PART I — Why governed agentic systems are needed"
+chapters = "Ch. 3 — What Governance Can and Cannot Guarantee"
+difficulty = "beginner"
+minutes = 20
+objectives = [
+  "Distinguish the five assertion layers and what each establishes",
+  "Treat integrity, authenticity, and completeness as independent dimensions",
+  "Say exactly which dimension a signature improves and which two it does not",
+  "Choose fail-open or fail-closed deliberately and observe the difference",
+]
+concepts = [
+  "assertion layers",
+  "integrity",
+  "authenticity",
+  "completeness",
+  "fail-closed",
+  "fail-open",
+  "the eight questions",
+]
+requires = ["01"]

@@ -1,0 +1,39 @@
+{
+  "name": "nornyx-lab",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  // uv installs the whole toolchain, including both framework extras, so that
+  // no lab skips. A silent skip is the failure Lab 13 is about, and a lab
+  // environment that produces one on first run teaches the wrong lesson.
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+
+  // Greet the learner with the dashboard rather than a bare prompt.
+  "postAttachCommand": "nornyx-lab",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-toolsai.jupyter",
+        "charliermarsh.ruff",
+        "redhat.vscode-yaml"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/workspaces/nornyx-lab/.venv/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["labs", "tests"],
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "files.associations": { "*.nyx": "yaml" }
+      }
+    },
+    "codespaces": {
+      "openFiles": ["README.md", "labs/00_assistant_to_agent/lab.py"]
+    }
+  },
+
+  "remoteUser": "vscode"
+}

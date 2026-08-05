@@ -1,0 +1,33 @@
+{
+  "schema": "nornyx.profiles_lock.v1",
+  "resolved": [
+    {
+      "id": "nornyx.builtin.agentic_network",
+      "version": "0.1.0",
+      "source_tier": "builtin",
+      "content_hash": "sha256:94ab4650c2a24e8829e0df9accf8ca539a8e3e1f4dc477f9835eebfdbe62f944",
+      "path_hint": "nornyx/profiles_data/agentic_network.yaml"
+    },
+    {
+      "id": "nornyx.builtin.module.agentic_network_governance",
+      "version": "0.2.0",
+      "source_tier": "builtin",
+      "content_hash": "sha256:bd2642620c670ef4320b76b3f4263c50f787279f1a613d4ab7f962bb08186d7b",
+      "path_hint": "nornyx/profiles_data/module_agentic_network_governance.yaml"
+    },
+    {
+      "id": "nornyx.builtin.module.evidence_integrity",
+      "version": "1.0.0",
+      "source_tier": "builtin",
+      "content_hash": "sha256:460d9ca1ad53f634a2f7a344d7a8f3809546c49c78ee564e6b5bc466b8bb9ef8",
+      "path_hint": "nornyx/profiles_data/module_evidence_integrity.yaml"
+    },
+    {
+      "id": "nornyx.builtin.module.human_approval",
+      "version": "1.0.0",
+      "source_tier": "builtin",
+      "content_hash": "sha256:8bc640928cba203cbdd2dba2d4f0eb3e4fabb5377f4c9d6821bd7624b7d34e46",
+      "path_hint": "nornyx/profiles_data/module_human_approval.yaml"
+    }
+  ]
+}

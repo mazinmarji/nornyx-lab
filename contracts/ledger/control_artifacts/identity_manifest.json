@@ -1,0 +1,137 @@
+{
+  "identities": [
+    {
+      "authority": "non_human",
+      "can_approve": false,
+      "capability_refs": [
+        "read_customer_case",
+        "analyze_case",
+        "propose_refund",
+        "share_case_context"
+      ],
+      "digest": "sha256:4dd334b21d57bd3e3771efa88ce5fb295d46bd8de04518262df50cbffb78835b",
+      "expires_at": "2026-12-01T00:00:00Z",
+      "framework_bindings": [
+        {
+          "agent_key": "case_analyst",
+          "framework": "contract_fixture"
+        },
+        {
+          "agent_key": "case_analyst",
+          "framework": "crewai"
+        },
+        {
+          "agent_key": "analyst",
+          "framework": "langgraph"
+        }
+      ],
+      "id": "identity.case_analyst",
+      "identity_class": "local_agent",
+      "namespace": "remediation.analysis",
+      "revocation_refs": [],
+      "role_ref": "CaseAnalyst",
+      "status": "active",
+      "subject": "case_analyst",
+      "valid_from": "2026-01-01T00:00:00Z"
+    },
+    {
+      "authority": "non_human",
+      "can_approve": false,
+      "capability_refs": [
+        "read_customer_case",
+        "request_human_approval",
+        "close_case"
+      ],
+      "digest": "sha256:ae82619b6ef44c150fb95da711af1ca5dea977fcbbb8ab1d6206429cdf1e5298",
+      "expires_at": "2026-12-01T00:00:00Z",
+      "framework_bindings": [
+        {
+          "agent_key": "compliance_officer",
+          "framework": "contract_fixture"
+        },
+        {
+          "agent_key": "compliance_officer",
+          "framework": "crewai"
+        }
+      ],
+      "id": "identity.compliance_officer",
+      "identity_class": "local_agent",
+      "namespace": "remediation.compliance",
+      "revocation_refs": [],
+      "role_ref": "ComplianceOfficer",
+      "status": "active",
+      "subject": "compliance_officer",
+      "valid_from": "2026-01-01T00:00:00Z"
+    },
+    {
+      "authority": "non_human",
+      "can_approve": false,
+      "capability_refs": [
+        "read_customer_case",
+        "analyze_case",
+        "close_case"
+      ],
+      "digest": "sha256:907e488512b0400a9052a90d3db70725e7dcd763e07ad7ecb94fa5c90a6ec1ff",
+      "expires_at": "2026-12-01T00:00:00Z",
+      "framework_bindings": [
+        {
+          "agent_key": "intake_agent",
+          "framework": "contract_fixture"
+        },
+        {
+          "agent_key": "intake_agent",
+          "framework": "crewai"
+        },
+        {
+          "agent_key": "intake",
+          "framework": "langgraph"
+        }
+      ],
+      "id": "identity.intake_agent",
+      "identity_class": "local_agent",
+      "namespace": "remediation.intake",
+      "revocation_refs": [],
+      "role_ref": "IntakeAgent",
+      "status": "active",
+      "subject": "intake_agent",
+      "valid_from": "2026-01-01T00:00:00Z"
+    },
+    {
+      "authority": "non_human",
+      "can_approve": false,
+      "capability_refs": [
+        "read_customer_case",
+        "issue_refund",
+        "notify_customer_external"
+      ],
+      "digest": "sha256:48cc1af5a047768cb6649d9c33d116c3e4e83a753803e8120e0c69cacf292997",
+      "expires_at": "2026-12-01T00:00:00Z",
+      "framework_bindings": [
+        {
+          "agent_key": "remediation_agent",
+          "framework": "contract_fixture"
+        },
+        {
+          "agent_key": "remediation_agent",
+          "framework": "crewai"
+        },
+        {
+          "agent_key": "remediator",
+          "framework": "langgraph"
+        }
+      ],
+      "id": "identity.remediation_agent",
+      "identity_class": "local_agent",
+      "namespace": "remediation.disbursement",
+      "revocation_refs": [],
+      "role_ref": "RemediationAgent",
+      "status": "active",
+      "subject": "remediation_agent",
+      "valid_from": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "network_id": "network.northstar_ledger",
+  "schema": "nornyx.agentic_identity_manifest.v1",
+  "source_contract_digest": "sha256:2bbee2dd4ada7a2eedd21e7cc3d1279c1e1b3c7c8fd3f7dbf0874bbae3cfa215",
+  "subject_revision": "git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11"
+}

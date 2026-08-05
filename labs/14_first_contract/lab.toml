@@ -1,0 +1,23 @@
+[lab]
+id = "14"
+title = "Your first contract, and the wall you hit"
+part = "PART IV — Nornyx architecture and language"
+chapters = "Ch. 16 — Nornyx in Context · Ch. 17 — The Nornyx Policy Model"
+difficulty = "intermediate"
+minutes = 35
+objectives = [
+  "Name the top-level blocks of a .nyx contract and why the top level is closed",
+  "Declare a context with inclusion, exclusion, authority, and taint",
+  "Describe the two policy rule verbs precisely",
+  "Read a Nornyx diagnostic: severity, code, path, hint — and fix what it names",
+]
+concepts = [
+  "contract blocks",
+  "deny verb",
+  "require verb",
+  "recorded obligation",
+  "diagnostic codes",
+  "declared non-goals",
+  "version axes",
+]
+requires = ["13"]

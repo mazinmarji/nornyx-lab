@@ -1,0 +1,22 @@
+[lab]
+id = "21"
+title = "The authoring workflow and the CI gate set"
+part = "PART VI — Engineering governed systems"
+chapters = "Ch. 28 — The Policy Authoring Workflow · Ch. 29 — Continuous Integration and Delivery Gates"
+difficulty = "advanced"
+minutes = 30
+objectives = [
+  "Name the authoring stages and which command belongs to each",
+  "Distinguish the source diff, the effective-governance diff, and the generated-artifact diff",
+  "Enumerate the CI gates, what each proves, and its exit code",
+  "Explain how release governance can fail closed",
+]
+concepts = [
+  "authoring lifecycle",
+  "three diffs",
+  "governance gate set",
+  "exit codes as interface",
+  "zero-skip detection",
+  "trusted publishing",
+]
+requires = ["20"]

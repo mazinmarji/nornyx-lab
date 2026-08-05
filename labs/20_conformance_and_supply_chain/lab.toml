@@ -1,0 +1,24 @@
+[lab]
+id = "20"
+title = "Conformance, external enforcement, and the supply chain"
+part = "PART V — Framework and runtime integration"
+chapters = "Ch. 25 — Adapter Conformance and Coverage · Ch. 26 — External Policy Engines · Ch. 27 — Tool Protocols and Package Governance"
+difficulty = "advanced"
+minutes = 35
+objectives = [
+  "Distinguish runtime adapter conformance from static adapter conformance",
+  "State the four properties independent enforcement requires",
+  "Divide responsibility between a governance layer and an external enforcement system",
+  "Run a deterministic package scan and read its claim-versus-evidence mismatches",
+]
+concepts = [
+  "runtime conformance",
+  "static conformance",
+  "independent enforcement",
+  "dual-evidence problem",
+  "projection drift",
+  "package scanning",
+  "claim vs evidence",
+  "protocol boundary",
+]
+requires = ["19"]

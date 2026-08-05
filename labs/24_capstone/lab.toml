@@ -1,0 +1,23 @@
+[lab]
+id = "24"
+title = "Capstone: design, build, verify, and audit Northstar"
+part = "PART VIII — Capstone"
+chapters = "Ch. 39 — Designing the Complete System · Ch. 40 — Implementation, Verification, and Assurance Review · Ch. 41 — Lessons and Trade-offs"
+difficulty = "advanced"
+minutes = 60
+objectives = [
+  "Compose the Northstar threads into one system with a single governance source",
+  "Run a failure-injection programme and map each failure to the boundary that stops it",
+  "Produce a verification matrix tying every claim to its verifying mechanism",
+  "Account honestly for what the governance layer cost, and where it should not be deployed",
+]
+concepts = [
+  "system composition",
+  "failure injection programme",
+  "verification matrix",
+  "claim register",
+  "cost ledger",
+  "overgovernance",
+  "the road from Tier 2 to Tier 3",
+]
+requires = ["23"]

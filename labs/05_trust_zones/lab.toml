@@ -1,0 +1,24 @@
+[lab]
+id = "05"
+title = "Trust zones, and prompt injection as authority confusion"
+part = "PART II — Foundations of executable governance"
+chapters = "Ch. 6 — Trust Zones and Boundaries"
+difficulty = "intermediate"
+minutes = 25
+objectives = [
+  "Explain how a trust zone differs from a network segment or a process boundary",
+  "Model a context item by origin, authority, and taint",
+  "Apply share allowlists and never-share categories",
+  "Analyse prompt injection as authority confusion rather than a model defect",
+]
+concepts = [
+  "trust zone",
+  "zone membership",
+  "share allowlist",
+  "never-share categories",
+  "context authority",
+  "taint",
+  "prompt injection",
+  "ingress and egress gates",
+]
+requires = ["04"]

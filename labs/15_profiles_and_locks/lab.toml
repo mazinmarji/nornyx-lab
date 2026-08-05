@@ -1,0 +1,22 @@
+[lab]
+id = "15"
+title = "Profiles, modules, locks, and what a lock cannot prove"
+part = "PART IV — Nornyx architecture and language"
+chapters = "Ch. 18 — Profiles, Modules, Locks, and Digests"
+difficulty = "advanced"
+minutes = 25
+objectives = [
+  "Distinguish a domain profile from a governance module",
+  "Trace composition: dependency ordering, monotone merge, provenance, closed output",
+  "Describe what the agentic-network lock binds, and read the AN_LOCK_* family",
+  "State precisely what a lock does not prove, and name the control that covers the rest",
+]
+concepts = [
+  "domain profile",
+  "governance module",
+  "effective governance",
+  "agentic-network lock",
+  "AN_LOCK diagnostics",
+  "four controls, four questions",
+]
+requires = ["14"]

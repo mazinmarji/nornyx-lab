@@ -1,0 +1,24 @@
+[lab]
+id = "17"
+title = "Occurrence identity, drift gates, and generated artifacts"
+part = "PART IV — Nornyx architecture and language"
+chapters = "Ch. 20 — Evidence Architecture · Ch. 21 — Diagnostics and Generated Artifacts"
+difficulty = "advanced"
+minutes = 30
+objectives = [
+  "Explain why a runtime-event schema must carry execution identity",
+  "Apply the attempt rules and classify retry, repeated work, and duplicate",
+  "Explain resume semantics and why cumulative evidence is the safer contract",
+  "Run a drift gate end to end and treat diagnostic codes as a public interface",
+]
+concepts = [
+  "occurrence identity",
+  "attempt rules",
+  "legacy vs explicit mode",
+  "resume semantics",
+  "drift gate",
+  "byte-determinism",
+  "exit codes as interface",
+  "forbidden-content scanning",
+]
+requires = ["16"]

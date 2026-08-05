@@ -1,0 +1,22 @@
+[lab]
+id = "10"
+title = "Evidence is not logging"
+part = "PART III — Evidence and assurance"
+chapters = "Ch. 11 — Runtime Evidence as an Engineering Artifact"
+difficulty = "intermediate"
+minutes = 25
+objectives = [
+  "Distinguish evidence from logs and telemetry by purpose, binding, and admissibility",
+  "Identify the evidence producer and state what trust is placed in it",
+  "Write and validate an evidence contract for one governed action",
+  "Apply the supplied-versus-observed distinction",
+]
+concepts = [
+  "evidence contract",
+  "evidence producer",
+  "binding fields",
+  "supplied vs observed",
+  "decision intent vs observation",
+  "data minimization",
+]
+requires = ["09"]

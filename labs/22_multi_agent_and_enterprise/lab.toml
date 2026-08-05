@@ -1,0 +1,23 @@
+[lab]
+id = "22"
+title = "Dev agents, multi-agent networks, hierarchies, and operations"
+part = "PART VI — Engineering governed systems"
+chapters = "Ch. 30 — Governing Software-Development Agents · Ch. 31 — Multi-Agent Governance · Ch. 32 — Enterprise Governance Hierarchies · Ch. 33 — Operations and Incident Response"
+difficulty = "advanced"
+minutes = 40
+objectives = [
+  "Design the capability set for a software-development agent and place the approval boundary",
+  "Express a multi-agent workflow as typed declarations rather than code plus convention",
+  "Apply separation of duties over identities and capabilities, not roles or processes",
+  "Reconstruct an incident from contract, lock, approvals, and events — and know where it stops",
+]
+concepts = [
+  "maker-checker over identities",
+  "delegation chain",
+  "separation of duties",
+  "consequence-tiered escalation",
+  "five-level policy stack",
+  "incident reconstruction",
+  "governance operational signals",
+]
+requires = ["21"]

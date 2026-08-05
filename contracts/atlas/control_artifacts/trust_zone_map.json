@@ -1,0 +1,83 @@
+{
+  "memberships": [
+    {
+      "identity": "identity.research_assistant",
+      "membership": "membership.research_assistant",
+      "status": "authorized",
+      "trust_zone": "zone.research_internal"
+    }
+  ],
+  "network_gates": [
+    {
+      "action_classes": [
+        "publish_external",
+        "external_share"
+      ],
+      "digest": "sha256:f9929004631fa009400b15f1426ebf7eac0050b87817dde6e697d81ff86463b2",
+      "id": "gate.publication_review",
+      "required_approval_refs": [
+        "agentic_network_authority"
+      ],
+      "required_evidence_refs": [
+        "agentic_network_contract_review"
+      ],
+      "required_policy_refs": [
+        "AtlasGovernance"
+      ],
+      "source_zone_refs": [
+        "zone.research_internal"
+      ],
+      "target_zone_refs": [
+        "zone.public_web"
+      ]
+    }
+  ],
+  "network_id": "network.northstar_atlas",
+  "schema": "nornyx.agentic_trust_zone_map.v1",
+  "source_contract_digest": "sha256:ed6aeda0cfa9f7f5e0a43190c60012c24564941cf4b2d99cfa36d83e4732d944",
+  "subject_revision": "git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11",
+  "trust_zones": [
+    {
+      "allowed_transition_targets": [],
+      "classification": "external_contract_only",
+      "digest": "sha256:b1ed734de0cb123f95df966bffdeaf22fd748f187ab2f4c03077a5d0825b9bb2",
+      "egress_gate_refs": [],
+      "id": "zone.public_web",
+      "ingress_gate_refs": [
+        "gate.publication_review"
+      ],
+      "never_share": [
+        "secrets",
+        "credentials",
+        "tokens",
+        "private_memory"
+      ],
+      "share_allowlist": [
+        "evidence_digest"
+      ]
+    },
+    {
+      "allowed_transition_targets": [
+        "zone.public_web"
+      ],
+      "classification": "governed_local",
+      "digest": "sha256:bec87ad4e19796e8442ae6d7e8d8a976aca9fa21fd2cb67a5b5f7d9d279d56d0",
+      "egress_gate_refs": [
+        "gate.publication_review"
+      ],
+      "id": "zone.research_internal",
+      "ingress_gate_refs": [],
+      "never_share": [
+        "secrets",
+        "credentials",
+        "tokens",
+        "private_memory"
+      ],
+      "share_allowlist": [
+        "briefing_draft",
+        "analysis",
+        "evidence_digest"
+      ]
+    }
+  ]
+}

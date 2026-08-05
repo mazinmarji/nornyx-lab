@@ -1,0 +1,21 @@
+[lab]
+id = "12"
+title = "Assurance tiers: what you are allowed to claim"
+part = "PART III — Evidence and assurance"
+chapters = "Ch. 13 — Assurance Tiers"
+difficulty = "intermediate"
+minutes = 20
+objectives = [
+  "State the three assurance tiers and the property that separates each from the one below",
+  "Select a tier from consequence of failure and adversary in scope",
+  "Recognise tier inflation and rewrite an inflated claim so it is accurate",
+  "Explain why a tier applies to a surface, never automatically to a system",
+]
+concepts = [
+  "assurance tier",
+  "tier inflation",
+  "claim boundary",
+  "self-reported evidence",
+  "the eight questions",
+]
+requires = ["11"]

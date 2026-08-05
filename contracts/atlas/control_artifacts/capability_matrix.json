@@ -1,0 +1,83 @@
+{
+  "capabilities": [
+    {
+      "actions": [
+        "draft_briefing"
+      ],
+      "delegable": false,
+      "digest": "sha256:b7752712f79008f239f576588fb425a68777cb50c9a08c1c5a89d7eb47d38ec0",
+      "name": "draft_briefing",
+      "required_approval_refs": [],
+      "required_evidence_refs": [],
+      "required_gate_refs": [],
+      "risk": "low",
+      "scope_refs": [
+        "ResearchContext"
+      ],
+      "scope_type": "context"
+    },
+    {
+      "actions": [
+        "publish_external",
+        "external_share"
+      ],
+      "delegable": false,
+      "digest": "sha256:ccd8cdf130b4362cc43e796f02fc86e6a77a3d6b7a4d8443c9ee382f42d68545",
+      "name": "publish_external",
+      "required_approval_refs": [
+        "agentic_network_authority"
+      ],
+      "required_evidence_refs": [
+        "agentic_network_contract_review"
+      ],
+      "required_gate_refs": [
+        "gate.publication_review"
+      ],
+      "risk": "high",
+      "scope_refs": [
+        "ResearchContext"
+      ],
+      "scope_type": "context"
+    },
+    {
+      "actions": [
+        "search_web"
+      ],
+      "delegable": false,
+      "digest": "sha256:61d3e63344fe871949b464db473350d3415426aeb4f7981aada10426a7aad108",
+      "name": "search_web",
+      "required_approval_refs": [],
+      "required_evidence_refs": [],
+      "required_gate_refs": [],
+      "risk": "low",
+      "scope_refs": [
+        "ResearchContext"
+      ],
+      "scope_type": "context"
+    }
+  ],
+  "identity_assignments": [
+    {
+      "capabilities": [
+        "draft_briefing",
+        "search_web"
+      ],
+      "identity": "identity.research_assistant"
+    }
+  ],
+  "membership_assignments": [
+    {
+      "capabilities": [
+        "draft_briefing",
+        "search_web"
+      ],
+      "identity": "identity.research_assistant",
+      "membership": "membership.research_assistant",
+      "trust_zone": "zone.research_internal"
+    }
+  ],
+  "network_id": "network.northstar_atlas",
+  "schema": "nornyx.agentic_capability_matrix.v1",
+  "source_contract_digest": "sha256:ed6aeda0cfa9f7f5e0a43190c60012c24564941cf4b2d99cfa36d83e4732d944",
+  "subject_revision": "git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11"
+}

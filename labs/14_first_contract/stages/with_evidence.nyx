@@ -1,0 +1,196 @@
+nornyx: "0.2"
+project:
+  name: NorthstarAtlas
+  profile: agentic_network
+  profile_pack:
+    name: agentic_network
+    version: 0.1.0
+    status: candidate
+  purpose: Governed research assistant for Northstar Services Research & Insights.
+  non_goals:
+    - live agent runtime
+    - agent orchestration
+    - agent authentication
+    - tool execution
+    - model execution
+    - credential loading
+    - automatic approvals
+
+intents:
+  - name: GovernAtlasResearch
+    goal: Produce competitor briefings without unapproved external publication.
+
+contexts:
+  - name: ResearchContext
+    include: [README.md, briefings/**/*.md]
+    exclude: [.env, secrets/**]
+    authority: [network.nyx]
+    budget:
+      max_tokens: 32000
+      reserve_output_tokens: 4000
+
+agents:
+  - name: ResearchAssistant
+    role: Draft competitor briefings from retrieved sources.
+    policy: AtlasGovernance
+
+policies:
+  - name: AtlasGovernance
+    deny:
+      - secrets_to_agents
+      - autonomous_approval
+      - undeclared_capability_use
+      - undeclared_cross_zone_transition
+    require:
+      - exact_revision_binding
+      - evidence_before_external_share
+
+capabilities:
+  - name: search_web
+    actions: [search_web]
+    risk: low
+    scope_type: context
+    scope_refs: [ResearchContext]
+    delegable: false
+    required_gate_refs: []
+    required_approval_refs: []
+    required_evidence_refs: []
+  - name: draft_briefing
+    actions: [draft_briefing]
+    risk: low
+    scope_type: context
+    scope_refs: [ResearchContext]
+    delegable: false
+    required_gate_refs: []
+    required_approval_refs: []
+    required_evidence_refs: []
+  - name: publish_external
+    actions: [publish_external, external_share]
+    risk: high
+    scope_type: context
+    scope_refs: [ResearchContext]
+    delegable: false
+    required_gate_refs: [gate.publication_review]
+    required_approval_refs: [publication_authority]
+    required_evidence_refs: [agentic_network_contract_review]
+
+agent_identities:
+  - id: identity.research_assistant
+    role_ref: ResearchAssistant
+    identity_class: local_agent
+    namespace: northstar.research
+    subject: research_assistant
+    framework_bindings:
+      - {framework: contract_fixture, agent_key: research_assistant}
+      - {framework: crewai, agent_key: research_assistant}
+      - {framework: langgraph, agent_key: research_assistant}
+    capability_refs: [search_web, draft_briefing]
+    status: active
+    valid_from: "2026-01-01T00:00:00Z"
+    expires_at: "2026-12-01T00:00:00Z"
+    revocation_refs: []
+    authority: non_human
+    can_approve: false
+
+approvals:
+  - name: publication_authority
+    required_roles: [research_governance_owner]
+    eligible_roles: [research_governance_owner, security_reviewer, architecture_reviewer]
+    denied_actor_types: [ai_tool, execution_surface, autonomous_agent, model, connector, generated_output]
+    required_evidence: [approval_record, agentic_network_contract_review]
+    required_for: [approve_agentic_network_contract, publish_external, external_share]
+    timing: before_action
+    accountable_authority: research_governance_owner
+    revision_binding:
+      kind: git
+      revision: git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11
+      exact: true
+    invalidation_conditions: [revision_change, identity_change, capability_change, trust_zone_change, membership_change]
+    expires_at: "2026-06-08T00:00:00Z"
+
+governance_evidence:
+  schema: nornyx.governance_evidence.v1
+  subject_revision: git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11
+  records:
+    - id: evidence_manifest
+      type: evidence_manifest
+      schema_id: nornyx.example_evidence.v1
+      producer: {id: local.nornyx_lab, type: tool}
+      artifact: governance_evidence/evidence_manifest.json
+      content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
+      subject_revision: git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11
+      tool: {name: nornyx_lab, version: 1.0.0}
+      generated_at: "2026-01-01T00:00:00Z"
+      expires_at: "2026-12-01T00:00:00Z"
+      status: pass
+      dependencies: []
+    - id: agentic_network_contract_review
+      type: network_contract_review
+      schema_id: nornyx.example_evidence.v1
+      producer: {id: human.security_reviewer, type: human}
+      artifact: governance_evidence/independent_review_record.json
+      content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
+      subject_revision: git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11
+      tool: {name: local_record, version: 1.0.0}
+      generated_at: "2026-01-01T00:00:00Z"
+      expires_at: "2026-12-01T00:00:00Z"
+      status: pass
+      dependencies: [evidence_manifest]
+    - id: approval_record
+      type: approval_record
+      schema_id: nornyx.example_evidence.v1
+      producer: {id: human.research_governance_owner, type: human}
+      artifact: governance_evidence/approval_record.json
+      content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000000
+      subject_revision: git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11
+      tool: {name: local_record, version: 1.0.0}
+      generated_at: "2026-06-01T00:00:00Z"
+      expires_at: "2026-06-08T00:00:00Z"
+      status: pass
+      dependencies: [agentic_network_contract_review]
+
+agentic_network:
+  schema: nornyx.agentic_network.v1
+  id: network.northstar_atlas
+  subject_revision: git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11
+  trust_zones:
+    - id: zone.research_internal
+      classification: governed_local
+      allowed_transition_targets: [zone.public_web]
+      share_allowlist: [briefing_draft, analysis, evidence_digest]
+      never_share: [secrets, credentials, tokens, private_memory]
+      ingress_gate_refs: []
+      egress_gate_refs: [gate.publication_review]
+    - id: zone.public_web
+      classification: external_contract_only
+      allowed_transition_targets: []
+      share_allowlist: [evidence_digest]
+      never_share: [secrets, credentials, tokens, private_memory]
+      ingress_gate_refs: [gate.publication_review]
+      egress_gate_refs: []
+  memberships:
+    - id: membership.research_assistant
+      identity_ref: identity.research_assistant
+      trust_zone_ref: zone.research_internal
+      capability_refs: [search_web, draft_briefing]
+      status: authorized
+      valid_from: "2026-01-01T00:00:00Z"
+      expires_at: "2026-12-01T00:00:00Z"
+      revocation_refs: []
+  protocol_targets: []
+  network_gates:
+    - id: gate.publication_review
+      action_classes: [publish_external, external_share]
+      source_zone_refs: [zone.research_internal]
+      target_zone_refs: [zone.public_web]
+      required_policy_refs: [AtlasGovernance]
+      required_approval_refs: [publication_authority]
+      required_evidence_refs: [agentic_network_contract_review]
+  revocations: []
+  delegations: []
+  handoffs: []
+  relations:
+    - id: relation.publication_approval
+      type: requires_approval_from
+      source: {kind: capability, ref: publish_external}
+      target: {kind: human_role, ref: research_governance_owner}

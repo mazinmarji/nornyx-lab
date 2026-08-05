@@ -1,0 +1,22 @@
+[lab]
+id = "07"
+title = "Composition, provenance, and silent weakening"
+part = "PART II — Foundations of executable governance"
+chapters = "Ch. 8 — Policy Composition, Provenance, and Inheritance"
+difficulty = "intermediate"
+minutes = 20
+objectives = [
+  "Distinguish merge, override, and narrow, and state precedence for each",
+  "Recover the provenance of a composed control — which pack contributed it",
+  "Demonstrate that a lower layer cannot silently widen a superior control",
+  "Explain why deterministic composition is a prerequisite for locking",
+]
+concepts = [
+  "policy composition",
+  "monotone merge",
+  "provenance",
+  "silent weakening",
+  "profiles lock",
+  "effective governance",
+]
+requires = ["06"]

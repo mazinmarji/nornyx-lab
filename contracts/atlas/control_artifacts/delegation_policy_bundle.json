@@ -1,0 +1,28 @@
+{
+  "capability_policies": [
+    {
+      "capability": "draft_briefing",
+      "delegable": false,
+      "max_delegation_depth": null,
+      "risk": "low"
+    },
+    {
+      "capability": "publish_external",
+      "delegable": false,
+      "max_delegation_depth": null,
+      "risk": "high"
+    },
+    {
+      "capability": "search_web",
+      "delegable": false,
+      "max_delegation_depth": null,
+      "risk": "low"
+    }
+  ],
+  "delegations": [],
+  "network_id": "network.northstar_atlas",
+  "revocations": [],
+  "schema": "nornyx.agentic_delegation_policy_bundle.v1",
+  "source_contract_digest": "sha256:ed6aeda0cfa9f7f5e0a43190c60012c24564941cf4b2d99cfa36d83e4732d944",
+  "subject_revision": "git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11"
+}

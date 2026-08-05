@@ -1,0 +1,25 @@
+[lab]
+id = "23"
+title = "Threats, standards, audit packages, and honest limits"
+part = "PART VII — Risk, standards, and adoption"
+chapters = "Ch. 34 — Threat Modeling · Ch. 35 — Mapping Controls to Standards · Ch. 36 — Audit and Evidence Packages · Ch. 37 — Enterprise Adoption · Ch. 38 — Limitations and Open Problems"
+difficulty = "advanced"
+minutes = 40
+objectives = [
+  "Enumerate the assets of a governed agentic system, including claims and coverage matrices",
+  "Build a threat tree and map each threat to a mitigation, evidence, residual risk, and owner",
+  "Write a mapping row that is checkable, and recognise compliance-washing",
+  "Assemble an auditor-facing package with a claim register",
+]
+concepts = [
+  "asset classes",
+  "attacker models",
+  "threat tree",
+  "mitigation register",
+  "interpretive mapping",
+  "compliance-washing",
+  "claim register",
+  "audit package",
+  "open problems",
+]
+requires = ["22"]

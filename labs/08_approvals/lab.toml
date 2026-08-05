@@ -1,0 +1,24 @@
+[lab]
+id = "08"
+title = "Approvals: eight ways to not be approved"
+part = "PART II — Foundations of executable governance"
+chapters = "Ch. 9 — Approvals, Exceptions, and Human Accountability"
+difficulty = "intermediate"
+minutes = 30
+objectives = [
+  "State the bindings a durable approval record must carry and what each prevents",
+  "Distinguish expiry, revocation, and invalidation",
+  "Explain from three arguments why a non-human identity can never approve",
+  "Apply maker-checker separation when the maker is a probabilistic planner",
+]
+concepts = [
+  "approval binding",
+  "revision binding",
+  "approval expiry",
+  "revocation",
+  "invalidation",
+  "maker-checker separation",
+  "approval fatigue",
+  "bounded exception",
+]
+requires = ["07"]

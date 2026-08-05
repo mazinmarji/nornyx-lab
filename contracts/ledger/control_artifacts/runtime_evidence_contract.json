@@ -1,0 +1,39 @@
+{
+  "allowed_event_types": [
+    "agent_invoked",
+    "approval_granted",
+    "approval_rejected",
+    "approval_requested",
+    "capability_allowed",
+    "capability_denied",
+    "capability_requested",
+    "data_shared",
+    "delegation_accepted",
+    "delegation_rejected",
+    "delegation_requested",
+    "handoff_completed",
+    "handoff_initiated",
+    "identity_revoked",
+    "policy_violation",
+    "runtime_failed",
+    "tool_invoked",
+    "trust_zone_crossed"
+  ],
+  "events_schema": "nornyx.agentic_runtime_events.v1",
+  "events_schema_version": "1.1",
+  "limitations": [
+    "Validated evidence proves conformance of supplied records only.",
+    "Hash validity proves content binding, not event truth.",
+    "Nornyx does not observe, operate, or monitor the runtime."
+  ],
+  "network_id": "network.northstar_ledger",
+  "required_event_binding": {
+    "contract_digest": true,
+    "network_id": true,
+    "network_lock_digest": true,
+    "subject_revision": true
+  },
+  "schema": "nornyx.agentic_runtime_evidence_contract.v1",
+  "source_contract_digest": "sha256:2bbee2dd4ada7a2eedd21e7cc3d1279c1e1b3c7c8fd3f7dbf0874bbae3cfa215",
+  "subject_revision": "git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11"
+}

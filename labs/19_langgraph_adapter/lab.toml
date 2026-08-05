@@ -1,0 +1,22 @@
+[lab]
+id = "19"
+title = "LangGraph: occurrence identity under retries and loops"
+part = "PART V — Framework and runtime integration"
+chapters = "Ch. 24 — LangGraph Integration"
+difficulty = "advanced"
+minutes = 30
+objectives = [
+  "Describe LangGraph's execution model at the level a governance integration depends on",
+  "Explain how occurrence identity is derived from public framework execution metadata",
+  "Predict what appears in evidence for a retry, a loop visit, and a parallel branch",
+  "Distinguish an unsupported surface from an unwrapped one",
+]
+concepts = [
+  "state graph",
+  "node invocation",
+  "occurrence identity derivation",
+  "attempt identity",
+  "interrupt as incomplete attempt",
+  "cumulative resumed evidence",
+]
+requires = ["18"]

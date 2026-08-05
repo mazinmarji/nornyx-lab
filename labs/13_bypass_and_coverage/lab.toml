@@ -1,0 +1,23 @@
+[lab]
+id = "13"
+title = "Bypass, coverage, and negative controls"
+part = "PART III — Evidence and assurance"
+chapters = "Ch. 14 — Bypass, Coverage, and Negative Controls · Ch. 15 — Testing Governance Claims"
+difficulty = "advanced"
+minutes = 30
+objectives = [
+  "Distinguish wrapped, unsupported, and unwrapped, and say why two states are not enough",
+  "Identify the three structural sources of wrapper bypass",
+  "Design negative controls that prove a denial happened",
+  "Apply the five-test rule to a claimed surface",
+]
+concepts = [
+  "coverage inventory",
+  "wrapped / unsupported / unwrapped",
+  "wrapper bypass",
+  "negative control",
+  "five-test rule",
+  "failure injection",
+  "skipped test as governance failure",
+]
+requires = ["12"]

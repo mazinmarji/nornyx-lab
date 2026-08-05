@@ -1,0 +1,24 @@
+[lab]
+id = "04"
+title = "Identity, capability, and authority"
+part = "PART II — Foundations of executable governance"
+chapters = "Ch. 5 — Identity, Capabilities, and Authority"
+difficulty = "intermediate"
+minutes = 20
+objectives = [
+  "Explain why a framework role string cannot serve as a governance identity",
+  "Resolve a framework name to a governance identity, and watch an unmapped one fail",
+  "Distinguish capability, permission, and authority",
+  "Distinguish delegation from handoff and predict the escalation defect",
+]
+concepts = [
+  "governance identity",
+  "framework binding",
+  "capability",
+  "ambient authority",
+  "least privilege",
+  "delegation",
+  "handoff",
+  "confused deputy",
+]
+requires = ["03"]

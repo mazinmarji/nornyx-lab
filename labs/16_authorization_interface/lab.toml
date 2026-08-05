@@ -1,0 +1,21 @@
+[lab]
+id = "16"
+title = "The authorization interface"
+part = "PART IV — Nornyx architecture and language"
+chapters = "Ch. 19 — The Authorization Interface"
+difficulty = "advanced"
+minutes = 25
+objectives = [
+  "Explain the split-brain hazard and why it is an interface problem",
+  "Describe the assured construction path and why a plain constructor carries no assurance",
+  "Explain why state is exposed as frozen, detached views",
+  "Trace an approval assertion through its ordered evaluation sequence",
+]
+concepts = [
+  "split-brain hazard",
+  "assured construction path",
+  "frozen detached views",
+  "single interpretation principle",
+  "load taxonomy",
+]
+requires = ["15"]

@@ -1,0 +1,458 @@
+# ---------------------------------------------------------------------------
+# Northstar / Ledger — the billing-remediation agent network.
+#
+# Four agents, two zones, one delegation, one handoff, and one action that moves
+# money. This is the contract labs 04-13 and 22 evaluate against when they need
+# more than one identity.
+#
+# The shape to notice: nothing here is code. Delegation, handoff, and zone
+# membership are TYPED DECLARATIONS with validity intervals and depth limits,
+# not conventions expressed in Python.
+# ---------------------------------------------------------------------------
+nornyx: "0.2"
+project:
+  name: NorthstarLedger
+  profile: agentic_network
+  profile_pack:
+    name: agentic_network
+    version: 0.1.0
+    status: candidate
+  purpose: Governed customer billing remediation for Northstar Services.
+  non_goals:
+    - live agent runtime
+    - agent orchestration
+    - agent authentication
+    - service discovery
+    - protocol transport
+    - tool execution
+    - model execution
+    - credential loading
+    - automatic approvals
+
+intents:
+  - name: GovernRemediation
+    goal: Remediate billing cases with bounded, evidence-backed, human-approved automation.
+
+# A mission. Handoffs must name one, so that "who is responsible for this now?"
+# always has an answer that outlives the individual agents.
+goals:
+  - id: GOAL-REMEDIATION-001
+    title: Operate the governed billing remediation network
+    phase: LAB-001
+    goal: Remediate billing cases with declared capabilities, bounded delegation, and human-approved disbursement.
+    scope: [network.nyx, governance_evidence/]
+    non_goals:
+      - live customer traffic
+      - real refunds or payments
+      - credential loading
+    validation:
+      - nornyx check network.nyx --as-of 2026-06-01T12:00:00Z
+      - nornyx agentic-network lock-check network.nyx --lock nornyx.agentic_network.lock --artifacts control_artifacts --as-of 2026-06-01T12:00:00Z
+    evidence: governance_evidence/
+    approval: required before accepting the exact network-contract revision
+    stop_rules:
+      - stop on identity, capability, trust-zone, approval, or evidence ambiguity
+      - stop if endpoints, commands, credentials, or runtime execution are required
+
+contexts:
+  - name: RemediationContext
+    include: [README.md, sanitized_cases/**/*.json]
+    exclude: [.env, secrets/**, customer_pii/**]
+    authority: [network.nyx]
+    budget:
+      max_tokens: 32000
+      reserve_output_tokens: 4000
+
+agents:
+  - name: IntakeAgent
+    role: Read and triage sanitized customer cases.
+    policy: RemediationGovernance
+  - name: CaseAnalyst
+    role: Analyze a case and propose bounded remediation.
+    policy: RemediationGovernance
+  - name: RemediationAgent
+    role: Execute approved refunds and customer notifications.
+    policy: RemediationGovernance
+  - name: ComplianceOfficer
+    role: Request human approval and close remediated cases.
+    policy: RemediationGovernance
+
+policies:
+  - name: RemediationGovernance
+    deny:
+      - secrets_to_agents
+      - autonomous_approval
+      - undeclared_capability_use
+      - undeclared_cross_zone_transition
+      - customer_pii_exposure
+    require:
+      - exact_revision_binding
+      - evidence_before_external_share
+      - human_approval_for_disbursement
+
+capabilities:
+  - name: read_customer_case
+    actions: [read_case]
+    risk: low
+    scope_type: context
+    scope_refs: [RemediationContext]
+    delegable: false
+    required_gate_refs: []
+    required_approval_refs: []
+    required_evidence_refs: []
+  - name: analyze_case
+    actions: [analyze_case]
+    risk: low
+    scope_type: context
+    scope_refs: [RemediationContext]
+    delegable: false
+    required_gate_refs: []
+    required_approval_refs: []
+    required_evidence_refs: []
+  # Delegable, but only one hop. Compare with issue_refund below.
+  - name: propose_refund
+    actions: [propose_refund]
+    risk: medium
+    scope_type: context
+    scope_refs: [RemediationContext]
+    delegable: true
+    max_delegation_depth: 1
+    required_gate_refs: [gate.refund_review]
+    required_approval_refs: []
+    required_evidence_refs: [agentic_network_contract_review]
+  # Proposing a refund and issuing one are DIFFERENT capabilities. That split
+  # is the single most reusable idea in this contract.
+  - name: issue_refund
+    actions: [issue_refund]
+    risk: high
+    scope_type: context
+    scope_refs: [RemediationContext]
+    delegable: false
+    required_gate_refs: [gate.disbursement_review]
+    required_approval_refs: [agentic_network_authority]
+    required_evidence_refs: [agentic_network_contract_review]
+  - name: share_case_context
+    actions: [share_context]
+    risk: medium
+    scope_type: context
+    scope_refs: [RemediationContext]
+    delegable: false
+    required_gate_refs: []
+    required_approval_refs: []
+    required_evidence_refs: []
+  - name: notify_customer_external
+    actions: [notify_customer, external_share]
+    risk: medium
+    scope_type: context
+    scope_refs: [RemediationContext]
+    delegable: false
+    required_gate_refs: [gate.customer_notice]
+    required_approval_refs: []
+    required_evidence_refs: [agentic_network_contract_review]
+  - name: close_case
+    actions: [close_case]
+    risk: low
+    scope_type: context
+    scope_refs: [RemediationContext]
+    delegable: false
+    required_gate_refs: []
+    required_approval_refs: []
+    required_evidence_refs: []
+  - name: request_human_approval
+    actions: [request_approval]
+    risk: low
+    scope_type: context
+    scope_refs: [RemediationContext]
+    delegable: false
+    required_gate_refs: []
+    required_approval_refs: []
+    required_evidence_refs: []
+
+agent_identities:
+  - id: identity.intake_agent
+    role_ref: IntakeAgent
+    identity_class: local_agent
+    namespace: remediation.intake
+    subject: intake_agent
+    framework_bindings:
+      - {framework: contract_fixture, agent_key: intake_agent}
+      - {framework: crewai, agent_key: intake_agent}
+      - {framework: langgraph, agent_key: intake}
+    capability_refs: [read_customer_case, analyze_case, close_case]
+    status: active
+    valid_from: "2026-01-01T00:00:00Z"
+    expires_at: "2026-12-01T00:00:00Z"
+    revocation_refs: []
+    authority: non_human
+    can_approve: false
+  - id: identity.case_analyst
+    role_ref: CaseAnalyst
+    identity_class: local_agent
+    namespace: remediation.analysis
+    subject: case_analyst
+    framework_bindings:
+      - {framework: contract_fixture, agent_key: case_analyst}
+      - {framework: crewai, agent_key: case_analyst}
+      - {framework: langgraph, agent_key: analyst}
+    capability_refs: [read_customer_case, analyze_case, propose_refund, share_case_context]
+    status: active
+    valid_from: "2026-01-01T00:00:00Z"
+    expires_at: "2026-12-01T00:00:00Z"
+    revocation_refs: []
+    authority: non_human
+    can_approve: false
+  - id: identity.remediation_agent
+    role_ref: RemediationAgent
+    identity_class: local_agent
+    namespace: remediation.disbursement
+    subject: remediation_agent
+    framework_bindings:
+      - {framework: contract_fixture, agent_key: remediation_agent}
+      - {framework: crewai, agent_key: remediation_agent}
+      - {framework: langgraph, agent_key: remediator}
+    capability_refs: [read_customer_case, issue_refund, notify_customer_external]
+    status: active
+    valid_from: "2026-01-01T00:00:00Z"
+    expires_at: "2026-12-01T00:00:00Z"
+    revocation_refs: []
+    authority: non_human
+    can_approve: false
+  # Note `can_approve: false` here too. An agent whose JOB is to route approvals
+  # still cannot BE the approver. Lab 08 is about why that is not a detail.
+  - id: identity.compliance_officer
+    role_ref: ComplianceOfficer
+    identity_class: local_agent
+    namespace: remediation.compliance
+    subject: compliance_officer
+    framework_bindings:
+      - {framework: contract_fixture, agent_key: compliance_officer}
+      - {framework: crewai, agent_key: compliance_officer}
+    capability_refs: [read_customer_case, request_human_approval, close_case]
+    status: active
+    valid_from: "2026-01-01T00:00:00Z"
+    expires_at: "2026-12-01T00:00:00Z"
+    revocation_refs: []
+    authority: non_human
+    can_approve: false
+
+approvals:
+  - name: agentic_network_authority
+    required_roles: [network_governance_owner]
+    eligible_roles: [network_governance_owner, security_reviewer, architecture_reviewer]
+    denied_actor_types: [ai_tool, execution_surface, autonomous_agent, model, connector, generated_output]
+    required_evidence: [approval_record, agentic_network_contract_review]
+    required_for: [approve_agentic_network_contract, external_share, notify_customer, issue_refund, handoff]
+    timing: before_action
+    accountable_authority: network_governance_owner
+    revision_binding:
+      kind: git
+      revision: git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11
+      exact: true
+    invalidation_conditions: [revision_change, identity_change, capability_change, trust_zone_change, membership_change]
+    expires_at: "2026-06-08T00:00:00Z"
+
+governance_evidence:
+  schema: nornyx.governance_evidence.v1
+  subject_revision: git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11
+  records:
+    - id: evidence_manifest
+      type: evidence_manifest
+      schema_id: nornyx.example_evidence.v1
+      producer: {id: local.nornyx_lab, type: tool}
+      artifact: governance_evidence/evidence_manifest.json
+      content_hash: sha256:67965c3608e60dae9c5c2b8e3bfc84a1162543a3fb11ce3d9239d06b249deb05
+      subject_revision: git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11
+      tool: {name: nornyx_lab, version: 1.0.0}
+      generated_at: "2026-01-01T00:00:00Z"
+      expires_at: "2026-12-01T00:00:00Z"
+      status: pass
+      dependencies: []
+    - id: agentic_network_contract_review
+      type: network_contract_review
+      schema_id: nornyx.example_evidence.v1
+      producer: {id: human.security_reviewer, type: human}
+      artifact: governance_evidence/independent_review_record.json
+      content_hash: sha256:57058d1fd695116d871a83aa745b35bfe4953dbe1de5f10049ec1ad917690725
+      subject_revision: git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11
+      tool: {name: local_record, version: 1.0.0}
+      generated_at: "2026-01-01T00:00:00Z"
+      expires_at: "2026-12-01T00:00:00Z"
+      status: pass
+      dependencies: [evidence_manifest]
+    - id: approval_record
+      type: approval_record
+      schema_id: nornyx.example_evidence.v1
+      producer: {id: human.network_governance_owner, type: human}
+      artifact: governance_evidence/approval_record.json
+      content_hash: sha256:c9b935676bfb0e3dfc61d28789dc7cdc2ed8665c2ab91c1eb738cbcab411a38d
+      subject_revision: git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11
+      tool: {name: local_record, version: 1.0.0}
+      generated_at: "2026-06-01T00:00:00Z"
+      expires_at: "2026-06-08T00:00:00Z"
+      status: pass
+      dependencies: [agentic_network_contract_review]
+
+agentic_network:
+  schema: nornyx.agentic_network.v1
+  id: network.northstar_ledger
+  subject_revision: git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11
+  trust_zones:
+    - id: zone.remediation_internal
+      classification: governed_local
+      allowed_transition_targets: [zone.customer_channel]
+      share_allowlist: [sanitized_case, classification, analysis, refund_proposal, refund_receipt, customer_message, evidence_digest]
+      never_share: [secrets, credentials, tokens, private_memory]
+      ingress_gate_refs: []
+      egress_gate_refs: [gate.customer_notice]
+    - id: zone.customer_channel
+      classification: external_contract_only
+      allowed_transition_targets: []
+      share_allowlist: [customer_message, evidence_digest]
+      never_share: [secrets, credentials, tokens, private_memory]
+      ingress_gate_refs: [gate.customer_notice]
+      egress_gate_refs: []
+  memberships:
+    - id: membership.intake_agent
+      identity_ref: identity.intake_agent
+      trust_zone_ref: zone.remediation_internal
+      capability_refs: [read_customer_case, analyze_case, close_case]
+      status: authorized
+      valid_from: "2026-01-01T00:00:00Z"
+      expires_at: "2026-12-01T00:00:00Z"
+      revocation_refs: []
+    - id: membership.case_analyst
+      identity_ref: identity.case_analyst
+      trust_zone_ref: zone.remediation_internal
+      capability_refs: [read_customer_case, analyze_case, propose_refund, share_case_context]
+      status: authorized
+      valid_from: "2026-01-01T00:00:00Z"
+      expires_at: "2026-12-01T00:00:00Z"
+      revocation_refs: []
+    - id: membership.remediation_agent
+      identity_ref: identity.remediation_agent
+      trust_zone_ref: zone.remediation_internal
+      capability_refs: [read_customer_case, issue_refund, notify_customer_external]
+      status: authorized
+      valid_from: "2026-01-01T00:00:00Z"
+      expires_at: "2026-12-01T00:00:00Z"
+      revocation_refs: []
+    - id: membership.compliance_officer
+      identity_ref: identity.compliance_officer
+      trust_zone_ref: zone.remediation_internal
+      capability_refs: [read_customer_case, request_human_approval, close_case]
+      status: authorized
+      valid_from: "2026-01-01T00:00:00Z"
+      expires_at: "2026-12-01T00:00:00Z"
+      revocation_refs: []
+  protocol_targets:
+    - id: protocol.customer_notice
+      protocol: a2a
+      version: declared-by-project
+      # contract_only: this DESCRIBES a boundary. It carries no endpoint, no
+      # credential, and no command, because those are structurally
+      # unrepresentable here. Lab 20 returns to why that is deliberate.
+      execution_mode: contract_only
+      live_connector_execution: false
+      identity_refs: [identity.remediation_agent]
+      source_membership_refs: [membership.remediation_agent]
+      source_zone_ref: zone.remediation_internal
+      capability_refs: [notify_customer_external]
+      trust_zone_ref: zone.customer_channel
+      share: [customer_message, evidence_digest]
+      never_share: [secrets, credentials, tokens, private_memory]
+      required_gate_refs: [gate.customer_notice]
+      required_approval_refs: [agentic_network_authority]
+      required_evidence_refs: [agentic_network_contract_review]
+  network_gates:
+    - id: gate.case_review
+      action_classes: [read_case, analyze_case, close_case, request_approval, handoff]
+      source_zone_refs: [zone.remediation_internal]
+      target_zone_refs: [zone.remediation_internal]
+      required_policy_refs: [RemediationGovernance]
+      required_approval_refs: []
+      required_evidence_refs: [agentic_network_contract_review]
+    - id: gate.refund_review
+      action_classes: [propose_refund, delegate]
+      source_zone_refs: [zone.remediation_internal]
+      target_zone_refs: [zone.remediation_internal]
+      required_policy_refs: [RemediationGovernance]
+      required_approval_refs: []
+      required_evidence_refs: [agentic_network_contract_review]
+    - id: gate.disbursement_review
+      action_classes: [issue_refund, modify_account]
+      source_zone_refs: [zone.remediation_internal]
+      target_zone_refs: [zone.remediation_internal]
+      required_policy_refs: [RemediationGovernance]
+      required_approval_refs: [agentic_network_authority]
+      required_evidence_refs: [agentic_network_contract_review]
+    - id: gate.customer_notice
+      action_classes: [notify_customer, external_share]
+      source_zone_refs: [zone.remediation_internal]
+      target_zone_refs: [zone.customer_channel]
+      required_policy_refs: [RemediationGovernance]
+      required_approval_refs: [agentic_network_authority]
+      required_evidence_refs: [agentic_network_contract_review]
+  revocations: []
+  delegations:
+    # Bounded on four axes at once: capability, scope, time, and depth.
+    # `onward_delegation: denied` is what stops a chain from growing.
+    - id: delegation.refund_proposal
+      delegator_ref: identity.case_analyst
+      delegate_ref: identity.remediation_agent
+      capability_ref: propose_refund
+      purpose: Delegate bounded refund proposals to the remediation specialist.
+      actions: [propose_refund]
+      scope_refs: [RemediationContext]
+      status: active
+      valid_from: "2026-01-01T00:00:00Z"
+      expires_at: "2026-12-01T00:00:00Z"
+      max_depth: 1
+      current_depth: 0
+      onward_delegation: denied
+      source_zone_ref: zone.remediation_internal
+      target_zone_ref: zone.remediation_internal
+      required_gate_refs: [gate.refund_review]
+      required_policy_refs: [RemediationGovernance]
+      required_approval_refs: []
+      required_evidence_refs: [agentic_network_contract_review]
+      revocation_refs: []
+  handoffs:
+    # A handoff TRANSFERS responsibility; a delegation LENDS a capability while
+    # the delegator stays accountable. Lab 04 makes you predict the difference.
+    - id: handoff.compliance_closure
+      from_identity_ref: identity.intake_agent
+      to_identity_ref: identity.compliance_officer
+      purpose: Transfer responsibility for closing a remediated case.
+      mission_ref: GOAL-REMEDIATION-001
+      from_zone_ref: zone.remediation_internal
+      to_zone_ref: zone.remediation_internal
+      required_capability_refs: [close_case]
+      delegation_refs: []
+      shared_context: [sanitized_case, classification]
+      never_share: [secrets, credentials, tokens, private_memory]
+      status: initiated
+      valid_from: "2026-01-01T00:00:00Z"
+      expires_at: "2026-12-01T00:00:00Z"
+      required_gate_refs: [gate.case_review]
+      required_approval_refs: [agentic_network_authority]
+      required_evidence_refs: [agentic_network_contract_review]
+      revocation_refs: []
+  relations:
+    - id: relation.refund_delegation
+      type: delegates_to
+      source: {kind: agent_identity, ref: identity.case_analyst}
+      target: {kind: agent_identity, ref: identity.remediation_agent}
+      delegation_ref: delegation.refund_proposal
+    - id: relation.compliance_handoff
+      type: hands_off_to
+      source: {kind: agent_identity, ref: identity.intake_agent}
+      target: {kind: agent_identity, ref: identity.compliance_officer}
+      handoff_ref: handoff.compliance_closure
+    - id: relation.disbursement_approval
+      type: requires_approval_from
+      source: {kind: capability, ref: issue_refund}
+      target: {kind: human_role, ref: network_governance_owner}
+    - id: relation.notice_advertisement
+      type: advertises_capability
+      source: {kind: agent_identity, ref: identity.remediation_agent}
+      target: {kind: capability, ref: notify_customer_external}

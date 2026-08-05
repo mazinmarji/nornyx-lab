@@ -1,0 +1,83 @@
+# One file. Everything the four scattered artifacts were trying to say, said
+# once, in a form a tool can check and generate from.
+#
+# This is a `nornyx: "0.1"` contract — the small surface. No trust zones, no
+# identities, no runtime authorization yet. Those arrive in Lab 14.
+nornyx: "0.1"
+project:
+  name: NorthstarForge
+  category: governed_ai_service
+
+constitution:
+  principles:
+    - tests_required_before_completion
+    - human_approval_before_merge
+    - evidence_required_for_ai_changes
+
+intents:
+  - name: SafeCodeDelivery
+    goal: "Let a development agent change code without letting it ship unreviewed."
+    success:
+      - "No merge occurs without a passing test run."
+      - "No merge occurs without a named human approver."
+
+contexts:
+  - name: DeliveryContext
+    include:
+      - "src/**/*.py"
+      - "docs/delivery/**/*.md"
+    exclude:
+      - "secrets/**"
+      - ".env"
+    budget:
+      max_tokens: 16000
+
+skills:
+  - name: PatchAuthor
+    purpose: "Propose a minimal patch for one issue."
+    input: [IssueDescription, DeliveryContext]
+    output: [Patch]
+  - name: TestRunner
+    purpose: "Run the test suite and report the result."
+    input: [Patch]
+    output: [TestReport]
+
+policies:
+  - name: DeliveryPolicy
+    rules:
+      # These two lines are the whole of what AGENTS.md and policy.yaml were
+      # arguing about. Now there is one place to disagree with.
+      - require tests_before_task_completion
+      - require human_approval_before_merge
+      - reject_if_tests_skipped
+
+agents:
+  - name: ForgeAgent
+    role: "Author patches and run tests. May not merge."
+    skills: [PatchAuthor, TestRunner]
+    policy: DeliveryPolicy
+
+harnesses:
+  - name: DeliveryHarness
+    context: DeliveryContext
+    flow:
+      - agent: ForgeAgent
+        action: patch
+      - eval: DeliveryEval
+        action: run
+      - evidence: DeliveryEvidence
+        action: pack
+    gate:
+      - require: tests_passed
+      - require: human_approval_before_merge
+
+evals:
+  - name: DeliveryEval
+    metrics:
+      - test_pass_rate == 1.0
+      - regression_count == 0
+
+evidence:
+  required:
+    - test_report.json
+    - approval_log.json

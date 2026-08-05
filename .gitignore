@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Your progress through the labs, and anything a lab wrote while running.
+.nornyx-lab/
+labs/*/work/
+labs/*/generated/
+labs/*/.generated-again/
+labs/*/fresh/
+labs/*/scan-out/
+labs/*/audit-package/
+labs/*/artifacts-now/
+labs/*/drift-probe/
+labs/*/conformance.json
+labs/*/claim_register.json
+
+# Author-side scratch from scripts/build_contracts.py --verify
+.build-verify/
+
+# Probe files a lab writes beside a contract. These are always cleaned up in a
+# `finally`, but an interrupted run can leave one behind — and a stray .nyx in
+# contracts/ would be picked up by the build script.
+contracts/*/weakened.nyx
+contracts/*/weakened_probe.nyx
+contracts/*/narrowed_probe.nyx
+contracts/*/threat_probe.nyx
+contracts/*/gate_probe.nyx
+contracts/*/closed_schema_probe.nyx
+contracts/*/probe_unknown.nyx
+contracts/*/widen_probe.nyx
+contracts/*/.determinism-probe/
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db

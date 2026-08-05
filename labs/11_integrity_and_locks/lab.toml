@@ -1,0 +1,23 @@
+[lab]
+id = "11"
+title = "Digests, locks, ordering, and replay"
+part = "PART III — Evidence and assurance"
+chapters = "Ch. 12 — Integrity, Replay, Ordering, and Determinism"
+difficulty = "intermediate"
+minutes = 30
+objectives = [
+  "State precisely what a digest binds and the things it does not",
+  "Describe a lock as a multi-way binding and run a generate-lock-tamper-verify cycle",
+  "Apply the stream-local ordering checks and say what each rules out",
+  "Use the mission / operation / occurrence / attempt hierarchy to classify similar events",
+]
+concepts = [
+  "content addressing",
+  "digest",
+  "multi-way binding",
+  "lock verification",
+  "ordering checks",
+  "occurrence identity",
+  "replay detection",
+]
+requires = ["10"]

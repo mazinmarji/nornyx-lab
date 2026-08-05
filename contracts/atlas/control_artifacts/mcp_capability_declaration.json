@@ -1,0 +1,17 @@
+{
+  "compatibility": "mcp-compatible declaration; not a runtime, server, endpoint, or transport",
+  "declared_targets": [],
+  "denied_sensitive_categories": [
+    "credentials",
+    "private_memory",
+    "secrets",
+    "tokens"
+  ],
+  "execution_mode": "contract_only",
+  "live_connector_execution": false,
+  "network_id": "network.northstar_atlas",
+  "protocol": "mcp",
+  "schema": "nornyx.mcp_compatible_capability_declaration.v1",
+  "source_contract_digest": "sha256:ed6aeda0cfa9f7f5e0a43190c60012c24564941cf4b2d99cfa36d83e4732d944",
+  "subject_revision": "git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11"
+}

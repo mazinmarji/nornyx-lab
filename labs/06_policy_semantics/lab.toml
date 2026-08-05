@@ -1,0 +1,22 @@
+[lab]
+id = "06"
+title = "Policy semantics and deterministic evaluation"
+part = "PART II — Foundations of executable governance"
+chapters = "Ch. 7 — Policy Semantics and Deterministic Evaluation"
+difficulty = "intermediate"
+minutes = 25
+objectives = [
+  "Name the four things a policy language must define",
+  "Justify a three-valued decision domain and distinguish approval-required from deny",
+  "Apply default-deny and explain why it makes a rule set total",
+  "Identify the three mechanisms that destroy evaluation determinism",
+]
+concepts = [
+  "three-valued decision domain",
+  "default-deny",
+  "evaluation determinism",
+  "closed schema",
+  "ambient state",
+  "wall-clock time",
+]
+requires = ["05"]

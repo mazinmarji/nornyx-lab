@@ -1,0 +1,22 @@
+[lab]
+id = "18"
+title = "The adapter boundary, and CrewAI end to end"
+part = "PART V — Framework and runtime integration"
+chapters = "Ch. 22 — Designing an Adapter Boundary · Ch. 23 — CrewAI Integration"
+difficulty = "advanced"
+minutes = 35
+objectives = [
+  "Assign each responsibility in a governed call to the adapter, the core, or the runtime",
+  "Build one governed tool: bind, wrap, allow, deny, and read the evidence",
+  "Read the machine-readable coverage inventory and say what each unsupported surface means",
+  "Apply the eight questions to 'CrewAI is governed' and produce its defensible replacement",
+]
+concepts = [
+  "adapter boundary",
+  "surface binding",
+  "protected execution sequence",
+  "injected dependencies",
+  "version pinning as governance",
+  "exactly-once is local",
+]
+requires = ["17"]

@@ -1,0 +1,23 @@
+[lab]
+id = "03"
+title = "The vocabulary: PDP, PEP, and what a tier claims"
+part = "PART I — Why governed agentic systems are needed"
+chapters = "Ch. 4 — Core Concepts and Vocabulary"
+difficulty = "beginner"
+minutes = 15
+objectives = [
+  "Separate the policy decision point from the policy enforcement point",
+  "Separate design-time governance from runtime governance",
+  "Distinguish evidence from assurance, and cooperative from independent enforcement",
+  "Position governed agentic systems against neighbouring technology families",
+]
+concepts = [
+  "policy decision point",
+  "policy enforcement point",
+  "design-time governance",
+  "runtime governance",
+  "evidence vs assurance",
+  "cooperative enforcement",
+  "independent enforcement",
+]
+requires = ["02"]

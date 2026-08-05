@@ -1,0 +1,22 @@
+[lab]
+id = "01"
+title = "The governance gap"
+part = "PART I — Why governed agentic systems are needed"
+chapters = "Ch. 2 — The Governance Gap"
+difficulty = "beginner"
+minutes = 15
+objectives = [
+  "Inventory the informal controls a team accumulates around an agent",
+  "Explain why they form a distributed control system with no protocol",
+  "Name and identify the four kinds of drift",
+  "Generate coordinated artifacts from one contract instead of maintaining four",
+]
+concepts = [
+  "governance debt",
+  "control drift",
+  "policy drift",
+  "configuration drift",
+  "framework-adapter drift",
+  "single source of truth",
+]
+requires = ["00"]

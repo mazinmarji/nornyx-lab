@@ -1,0 +1,119 @@
+name: CI
+
+# This pipeline is itself a teaching artifact — Lab 21 reads it.
+#
+# Every job below is one of the governance gates from Chapter 29, and each one
+# fails closed. The ordering is deliberate: cheap structural gates first, so a
+# broken contract does not wait behind a framework install.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned for the same reason the labs pin it: approvals expire after P7D, and
+  # a pipeline that reads the wall clock would go red one week after merge.
+  LAB_AS_OF: "2026-06-01T12:00:00Z"
+
+jobs:
+  # ---------------------------------------------------------------- gate 1
+  contracts:
+    name: Contract gates (check · generate · lock · drift)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv venv
+      - run: uv pip install -e ".[dev]"
+
+      # Rebuilds every contract into a scratch tree and byte-compares against
+      # what is committed. This is the drift gate: it catches a hand-edited
+      # generated artifact, a stale lock, and a contract whose evidence digests
+      # no longer bind.
+      - name: Verify committed contract artifacts (drift gate)
+        run: uv run python scripts/build_contracts.py --verify
+
+  # ---------------------------------------------------------------- gate 2
+  labs:
+    name: Labs (${{ matrix.os }} · py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv venv --python ${{ matrix.python }}
+
+      # The framework extras are installed ON PURPOSE. Without them the adapter
+      # labs skip, the suite reports green, and the gate asserts nothing —
+      # exactly the failure Chapter 15 calls a governance failure rather than a
+      # hygiene problem.
+      - run: uv pip install -e ".[dev,crewai,langgraph]"
+
+      - name: Environment check
+        run: uv run nornyx-lab doctor
+
+      # -rs prints every skip with its reason, so a skip is visible in the log
+      # rather than hidden behind a dot.
+      - name: Run every lab's concept checks
+        run: uv run pytest labs tests -q -rs
+
+      - name: Fail if anything skipped
+        shell: bash
+        run: |
+          uv run pytest labs tests -q -rs 2>&1 | tee /tmp/pytest.log
+          if grep -qE "^SKIPPED|[0-9]+ skipped" /tmp/pytest.log; then
+            echo "::error::Tests were skipped. A silent skip is a governance failure (Ch. 15)."
+            grep -E "^SKIPPED|skipped" /tmp/pytest.log
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------- gate 3
+  conformance:
+    name: Adapter runtime conformance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv venv
+      - run: uv pip install -e ".[dev,crewai,langgraph]"
+
+      # --require turns a missing framework into a FAILURE rather than a skip.
+      - name: Runtime conformance (no silent skips)
+        run: >
+          uv run python -m nornyx_agentic_adapters.conformance
+          --require crewai --require langgraph
+          --json conformance-report.json --summary
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: conformance-report
+          path: conformance-report.json
+
+  # ---------------------------------------------------------------- gate 4
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv venv
+      - run: uv pip install -e ".[dev]"
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .

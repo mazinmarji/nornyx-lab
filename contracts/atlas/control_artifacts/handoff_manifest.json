@@ -1,0 +1,22 @@
+{
+  "handoffs": [],
+  "network_id": "network.northstar_atlas",
+  "relations": [
+    {
+      "digest": "sha256:ecfb118f739fe23b6f126b283b76c583abc426ee55f70950a66cab935eb00855",
+      "id": "relation.publication_approval",
+      "source": {
+        "kind": "capability",
+        "ref": "publish_external"
+      },
+      "target": {
+        "kind": "human_role",
+        "ref": "network_governance_owner"
+      },
+      "type": "requires_approval_from"
+    }
+  ],
+  "schema": "nornyx.agentic_handoff_manifest.v1",
+  "source_contract_digest": "sha256:ed6aeda0cfa9f7f5e0a43190c60012c24564941cf4b2d99cfa36d83e4732d944",
+  "subject_revision": "git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11"
+}
