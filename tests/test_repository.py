@@ -148,6 +148,34 @@ def test_the_readme_states_the_tier_and_the_bypass():
     )
 
 
+def test_every_lab_has_a_valid_notebook_companion():
+    """The README promises one notebook per lab. Check the promise.
+
+    Cell ids are required by nbformat 4.5+. Without them Jupyter warns that it
+    will become a hard error, then generates a RANDOM id at execution time —
+    which, for committed notebooks, would make regenerate-and-compare report
+    drift that is not drift.
+    """
+    import json
+
+    notebooks = ROOT / "notebooks"
+    labs = all_labs()
+    assert notebooks.is_dir(), "run `python scripts/build_notebooks.py`"
+
+    for meta in labs:
+        path = notebooks / f"{meta.slug}.ipynb"
+        assert path.is_file(), f"lab {meta.id} has no notebook"
+
+        nb = json.loads(path.read_text(encoding="utf-8"))
+        assert nb["nbformat"] == 4
+        assert nb["nbformat_minor"] >= 5, "cell ids need nbformat 4.5+"
+        assert nb["cells"], f"{path.name} has no cells"
+
+        ids = [cell.get("id") for cell in nb["cells"]]
+        assert all(ids), f"{path.name} has a cell with no id"
+        assert len(set(ids)) == len(ids), f"{path.name} has duplicate cell ids"
+
+
 def test_a_lab_survives_a_legacy_console_encoding():
     """Regression: the labs print ✔, ✘, ⊘ and box drawing.
 

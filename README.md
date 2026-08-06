@@ -136,7 +136,10 @@ Eight parts, 25 labs, all 41 chapters of the book.
 
 </details>
 
-Prefer notebooks? Every lab has one: `make notebooks && jupyter lab notebooks/`.
+Prefer notebooks? Every lab has one — `jupyter lab notebooks/`. Each runs the
+*same* `lab.py` the CLI runs, so the two surfaces cannot drift. `make setup`
+installs Jupyter; if you used `make setup-min`, add it with
+`uv pip install -e ".[notebooks]"`.
 
 ---
 

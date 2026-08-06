@@ -37,6 +37,22 @@ def code(text: str) -> dict:
     }
 
 
+def _with_ids(cells: list[dict]) -> list[dict]:
+    """Stamp every cell with an id, as nbformat 4.5+ requires.
+
+    Without one, Jupyter warns `MissingIDFieldWarning: ... this will become a
+    hard error in future nbformat versions` and then generates a random id at
+    execution time. Random is the problem: these notebooks are committed, so a
+    generated id would differ on every machine and the regenerate-and-compare
+    check would report drift that is not drift.
+
+    The ids are therefore positional and deterministic.
+    """
+    for position, cell in enumerate(cells):
+        cell["id"] = f"cell-{position:02d}"
+    return cells
+
+
 def notebook(meta: LabMeta) -> dict:
     labs = all_labs()
     index = [m.id for m in labs].index(meta.id)
@@ -107,7 +123,7 @@ def notebook(meta: LabMeta) -> dict:
     ]
 
     return {
-        "cells": cells,
+        "cells": _with_ids(cells),
         "metadata": {
             "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
             "language_info": {"name": "python", "version": "3.12"},
