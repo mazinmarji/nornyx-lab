@@ -33,6 +33,12 @@ env:
   CREWAI_TESTING: "true"
   OTEL_SDK_DISABLED: "true"
 
+  # Belt-and-braces for the Windows runners. `nornyx_lab.ui` reconfigures
+  # stdout to UTF-8, but that only helps once our package is imported — pytest
+  # itself prints test names and docstrings (which contain ✔ and ⊘) through a
+  # stream Python opened with the console code page before any of our code ran.
+  PYTHONIOENCODING: "utf-8"
+
 jobs:
   # ---------------------------------------------------------------- gate 1
   contracts:
