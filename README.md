@@ -133,6 +133,27 @@ The academy therefore keeps these distinctions visible:
 - cooperative adapter coverage is not an unavoidable external control;
 - governing one named path is not governing the entire application.
 
+### The academy's own assurance tier
+
+Everything the browser demonstrates is **Tier 2 — cooperative, in-process,
+self-reported**. The scenario engine asks Nornyx for a decision and then honours it
+before entering the business callable. That is a real control, and it is bounded:
+
+- the acting identity is **asserted** by the engine, never authenticated;
+- the approver is a **supplied claim**, never authenticated;
+- evidence is produced by a `synthetic_harness`, in the same process as the action —
+  Nornyx validates its construction, ordering, and binding, not its truth;
+- any code in that process can call the inert business function directly and bypass
+  the whole path. The curriculum teaches that bypass rather than hiding it.
+
+Tier 3 would require a control the acting process cannot reach and an attestor it does
+not own. The academy does not implement one and never claims one.
+
+**The academy itself is not governed by Nornyx.** No `.nyx` contract authorizes the
+API service, and no capability check gates writing a progress record. Shipping a
+control and self-applying it are different commitments, and conflating them would be
+the exact overclaim this curriculum exists to teach against.
+
 The default runtime is deliberately pinned to released `nornyx==1.11.0` and
 `nornyx-agentic-adapters==0.3.0`. The latest authoritative `main` audited for this release is
 recorded separately; unreleased behavior is never silently advertised as installed behavior.

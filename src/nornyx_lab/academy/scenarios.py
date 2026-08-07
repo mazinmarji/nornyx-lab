@@ -593,7 +593,15 @@ def _governed_variant(
                 eval_ctx,
                 producer_id="nornyx-lab.academy.atlas",
                 producer_version="1.0",
-                producer_type="academy_application",
+                # Nornyx permits exactly three producer types: external_runtime,
+                # framework_adapter, and synthetic_harness. `synthetic_harness`
+                # is the honest one here — this scenario engine is a
+                # deterministic teaching harness that SUPPLIES events. Calling it
+                # a framework_adapter would overclaim (no framework executes this
+                # path), and external_runtime would imply an independent
+                # producer, which is exactly the Tier 3 claim the academy must
+                # not make.
+                producer_type="synthetic_harness",
             )
             recorder.record_decision(capability_decision, mission_id=MISSION_ID)
             recorder.record_decision(crossing_decision, mission_id=MISSION_ID)
