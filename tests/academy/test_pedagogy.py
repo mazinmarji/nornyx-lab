@@ -450,6 +450,44 @@ def test_the_demo_asks_for_a_prediction_before_the_first_run():
     )
 
 
+def test_the_demo_story_note_describes_the_screens_it_ships_with():
+    """The note is prose about the file it lives in, so it can rot silently.
+
+    It had: it described eight screens with engine runs on 3 and 5, while the
+    file held nine with runs on 4 and 6. Nothing compared the sentence to the
+    structure, so a reviewer trusting the note would have mis-numbered every
+    gate it names. Assert the prose against the data, not just the data.
+    """
+    story = json.loads(
+        (REPO_ROOT / "src" / "nornyx_lab" / "academy" / "content" / "demo_story.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    screens = story["screens"]
+
+    assert len(screens) == 9
+    assert [screen["number"] for screen in screens] == list(range(1, 10)), (
+        "screen numbers must match position, or the note's numbering means nothing"
+    )
+
+    runs = [screen for screen in screens if screen["kind"] == "run"]
+    assert [screen["number"] for screen in runs] == [4, 6]
+    assert [screen["variant"] for screen in runs] == ["ungoverned", "governed"], (
+        "the ungoverned run must come first; the governed run is the contrast to it"
+    )
+
+    # The four screens the learner cannot pass without doing something.
+    gates = [
+        screen["number"] for screen in screens if screen["kind"] in {"predict", "run", "choose"}
+    ]
+    assert gates == [3, 4, 5, 6]
+
+    note = story["note"]
+    assert "nine screens" in note
+    assert "Screens 4 and 6 execute the real engine" in note
+    assert "Screens 3, 4, 5 and 6 gate progress" in note
+
+
 def test_the_demo_states_its_limits_after_the_proof():
     story = json.loads(
         (REPO_ROOT / "src" / "nornyx_lab" / "academy" / "content" / "demo_story.json").read_text(
