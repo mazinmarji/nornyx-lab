@@ -1052,3 +1052,5 @@ tbody th { color: var(--ink-900); }
    example as "Send_email()" and turns plain sentences into headline case, at
    exactly the point the learner is being told these are ordinary things. */
 .orientation-diagram .diagram-title { text-transform: none; }
+.concept-reveal { margin: 1.6rem 0; padding: 1.4rem 1.6rem; background: var(--surface-cool); border-radius: 12px; }
+.concept-reveal > p { color: var(--ink-700); margin: 0.3rem 0 0; }

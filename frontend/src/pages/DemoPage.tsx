@@ -6,6 +6,7 @@ import { ErrorNotice, InfoNotice, LoadingState } from "../components/Feedback";
 import { ScenarioResults } from "../components/ScenarioResults";
 import {
   ExploreOnly,
+  GlossaryStrip,
   ModeSwitch,
   PredictionStep,
   RunExplanation,
@@ -14,7 +15,7 @@ import {
 import { useAsyncTask } from "../components/useAsyncTask";
 import { useAcademy } from "../context/AcademyContext";
 import { useMode } from "../context/ModeContext";
-import type { ActionCounter, DemoOptions, DemoStory, DemoStoryScreen, ScenarioRun } from "../types";
+import type { ActionCounter, DemoOptions, DemoStory, DemoStoryScreen, GlossaryTerm, ScenarioRun } from "../types";
 
 export const defaultDemoOptions: DemoOptions = {
   injection_enabled: true,
@@ -311,6 +312,7 @@ export function DemoPage() {
   const task = useAsyncTask<ScenarioRun>();
 
   const [story, setStory] = useState<DemoStory | null>(null);
+  const [glossary, setGlossary] = useState<GlossaryTerm[]>([]);
   const [storyError, setStoryError] = useState<string | null>(null);
   const [index, setIndex] = useState(0);
   const [prediction, setPrediction] = useState<string | null>(null);
@@ -323,6 +325,12 @@ export function DemoPage() {
       .demoStory()
       .then((value) => active && setStory(value))
       .catch((cause) => active && setStoryError(toErrorMessage(cause)));
+    // The glossary is a reading aid for the reveal below; failing to load it
+    // must not break the demonstration itself.
+    academyApi
+      .glossary()
+      .then((value) => active && setGlossary(value.terms))
+      .catch(() => undefined);
     return () => {
       active = false;
     };
@@ -366,6 +374,11 @@ export function DemoPage() {
       </div>
     );
   }
+
+  const revealIds = arr<string>(screen as unknown as Field, "reveal_after");
+  const revealedTerms = revealIds
+    .map((id) => glossary.find((term) => term.id === id))
+    .filter(Boolean) as GlossaryTerm[];
 
   const runForScreen = screen.variant === "ungoverned" ? ungovernedRun : governedRun;
   const canAdvance =
@@ -424,7 +437,22 @@ export function DemoPage() {
       {/* The derived explanation appears once the governed run exists, and only
           after the learner has watched both outcomes. */}
       {screen.kind === "run" && screen.variant === "governed" && governedRun?.explanation ? (
-        <RunExplanation explanation={governedRun.explanation} />
+        <>
+          <RunExplanation explanation={governedRun.explanation} />
+          {/* The vocabulary is released here and nowhere earlier. Each of these
+              terms now refers to something the learner has just watched happen,
+              which is the only reason they are comprehensible at all. */}
+          {revealedTerms.length ? (
+            <section className="concept-reveal" data-testid="concept-reveal">
+              <p className="eyebrow">These all have names now</p>
+              <p>
+                Everything you just watched has a technical term. You do not need to memorise
+                them — they are here so the words are not new when you meet them again.
+              </p>
+              <GlossaryStrip terms={revealedTerms} />
+            </section>
+          ) : null}
+        </>
       ) : null}
 
       <nav className="demo-nav">
