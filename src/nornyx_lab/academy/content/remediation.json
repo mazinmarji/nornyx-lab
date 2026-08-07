@@ -1,0 +1,263 @@
+{
+  "version": "1.0.0",
+  "note": "Academy remediation guidance, authored per diagnostic code. Diagnostic semantics are stable code-level knowledge, so this text is authored; whether a correction worked is never authored, it is observed from a re-run. Every entry carries all five parts, and `verify` always names something to re-run and the evidence that would support closure. No entry may assert that following it fixes, resolves, or makes anything safe: the guidance is a hypothesis to test, not a verdict. Unknown codes are not guessed at — the UI states that no guidance is registered.",
+  "provenance_label": "Academy remediation guidance for diagnostic code",
+  "entries": {
+    "NO_GOVERNANCE_EVIDENCE": {
+      "title": "No Nornyx decision evidence was produced on this path",
+      "means": "This path never asked Nornyx for a decision, so there is no decision-event stream bound to it.",
+      "matters": "Without a bound stream there is nothing to validate, so no claim about what the software did on this path can rest on evidence. Absence of evidence is not evidence that nothing happened.",
+      "inspect": "Which variant produced this. On the ungoverned path this is expected and is the point of the comparison. On a governed path it means the control path was not entered at all.",
+      "correction": "If you expected a governed run, check that enforcement was enabled and that the action you care about was actually planned. If this is the ungoverned variant, nothing needs correcting.",
+      "verify": "Re-run the scenario and look at the governed variant's evidence block. Guidance is supported only if validation_status is reported and the decision events name the capability you expected — not because this hint was followed."
+    },
+    "NO_GOVERNED_ACTION_PLANNED": {
+      "title": "The action was never proposed, so nothing was decided",
+      "means": "The planner did not propose the sensitive action, so the application never asked whether it was permitted.",
+      "matters": "Counters of 0 and 0 here mean the action was never attempted, not that a control prevented it. Reading this as a prevention is the single most common overclaim these lessons exist to prevent.",
+      "inspect": "The captured plan for this run, and whether the injection or input that would trigger the action was present.",
+      "correction": "If you meant to observe a prevention, restore the input that causes the action to be planned, then run the governed path again.",
+      "verify": "Compare the ungoverned and governed runs of the same plan. Prevention is supported only when the action appears in the plan and the ungoverned path records a completion while the governed path records none."
+    },
+    "ENFORCEMENT_DISABLED": {
+      "title": "The enforcement point was switched off for this run",
+      "means": "The application did not consult Nornyx before calling the tool, because the enforcement surface was disabled.",
+      "matters": "A contract can be perfectly correct and still change nothing if no enforcement point applies its decision. This diagnostic is what that failure looks like from the outside.",
+      "inspect": "The run configuration for this variant, specifically whether the enforcement point was enabled.",
+      "correction": "Enable the enforcement point and run again if you intended a governed comparison. If you disabled it deliberately, this diagnostic is the expected result of that experiment.",
+      "verify": "Re-run with enforcement enabled and check that a decision event appears for the capability, and that the tool counters change. A policy alone changing nothing is the lesson here."
+    },
+    "AUTHORIZER_UNAVAILABLE": {
+      "title": "The application could not obtain a decision",
+      "means": "The authorizer could not be reached or failed, so the application fell back to its configured failure behaviour instead of acting on a decision.",
+      "matters": "What the application does when it cannot get an answer is a design choice with consequences. Fail-open allows the action; fail-closed blocks it. Neither is a Nornyx decision, and neither should be described as one.",
+      "inspect": "The configured failure mode for this run, and which fallback branch the trace shows was taken.",
+      "correction": "Decide which failure behaviour is appropriate for the action's blast radius, and set it deliberately rather than by default.",
+      "verify": "Re-run each failure mode and read the counters. Support for a claim comes from observing whether the tool was entered under each mode, not from the mode's name."
+    },
+    "EVIDENCE_BINDING_REFUSED": {
+      "title": "The recorder refused to bind these events",
+      "means": "The observed subject revision does not match the contract's subject revision, so the recorder would not bind the events to that subject.",
+      "matters": "Evidence bound to the wrong revision would describe a different subject than the one evaluated. Refusing to bind is the recorder protecting the meaning of the record.",
+      "inspect": "The observed subject revision supplied for this run against the revision in the contract.",
+      "correction": "Supply the revision that matches the contract under evaluation, or leave it unset to use the contract's own revision.",
+      "verify": "Re-run and confirm the evidence block reports a validation status rather than a binding refusal. A matching revision is necessary for the record to mean anything, and is not by itself proof the run behaved correctly."
+    },
+    "BYPASS_NO_DECISION": {
+      "title": "The tool was reached without any decision being requested",
+      "means": "A code path called the business function directly, without passing through the governed path.",
+      "matters": "This is the boundary of a cooperative, in-process control: it governs the path that calls it, and nothing else. A bypass is not a malfunction of the contract — it is the honest limit of this assurance tier.",
+      "inspect": "Which call path reached the tool, and whether it was wrapped by the enforcement surface.",
+      "correction": "Route the call through the governed path, or accept and document that this path is outside the control's coverage. Do not describe overall coverage as complete while an unwrapped path exists.",
+      "verify": "Re-run and check whether a decision event exists for the capability. A claim of coverage is supported only for paths where a decision was requested and applied."
+    },
+    "EVIDENCE_COMPLETENESS_NOT_ESTABLISHED": {
+      "title": "Evidence integrity was checked; completeness was not",
+      "means": "Nornyx validated how the supplied records were constructed, ordered and bound. It did not and cannot establish that every relevant event was supplied.",
+      "matters": "Integrity and completeness are different properties. A well-formed stream that omits events is still well-formed, so an integrity pass must never be reported as a complete account of what happened.",
+      "inspect": "The validation status and its stated limitation, and who produced the stream relative to who performed the action.",
+      "correction": "Treat completeness as an open question. Where it matters, obtain records from a producer that does not share fate with the actor.",
+      "verify": "Nothing you can re-run inside this process settles completeness. Independent corroboration is what would support the stronger claim; state the weaker claim until then."
+    },
+    "CONTRACT_PARSE_FAILED": {
+      "title": "Nornyx could not parse the contract",
+      "means": "The contract source is not valid enough for Nornyx to build a document from it, so nothing downstream was evaluated.",
+      "matters": "Everything else — composition, controls, locks, decisions — depends on a parseable contract. Until this clears, later diagnostics are absent rather than passing.",
+      "inspect": "The reported path and the surrounding syntax in the contract source.",
+      "correction": "Correct the syntax at the reported location, one change at a time, so the next diagnostic is attributable.",
+      "verify": "Re-check the contract and confirm parsing succeeds and later stages now report their own results. A parse success means the file is readable, not that its rules are right."
+    },
+    "CONTROL_RENDER_FAILED": {
+      "title": "Generated controls could not be rendered",
+      "means": "The contract parsed, but Nornyx could not produce the derived control artifacts from it.",
+      "matters": "Generated controls are what a surrounding system consumes. A contract that parses but produces no controls governs nothing in practice.",
+      "inspect": "The reported construct and the composition step immediately before the failure.",
+      "correction": "Reduce the contract to the smallest form that renders, then reintroduce constructs until the failure returns.",
+      "verify": "Re-run generation and confirm control artifacts are produced. Their existence shows they can be generated; it does not show any runtime used them."
+    },
+    "LOCK_CHECK_FAILED": {
+      "title": "Nornyx could not read or verify the lock",
+      "means": "The lock file could not be loaded or its verification did not complete.",
+      "matters": "The lock is how drift between a contract and its derived artifacts is detected. Without it, drift is unobserved rather than absent.",
+      "inspect": "The lock file at the reported path, and whether it corresponds to the current contract.",
+      "correction": "Regenerate the lock from the current contract if the change was intended, and inspect the difference first if it was not.",
+      "verify": "Re-run the lock verification and read its status. A verified lock shows the artifacts match the contract, not that the contract expresses the policy you intended."
+    },
+    "LOCK_NOT_EVALUATED": {
+      "title": "The lock was not evaluated",
+      "means": "The lock check was skipped because the contract did not compose successfully, so there was nothing stable to compare against.",
+      "matters": "This is a skipped check, not a passed one. Treating it as a pass would report drift as absent when it was never looked for.",
+      "inspect": "The earlier composition diagnostics in this same result — they are the cause, and this is the consequence.",
+      "correction": "Resolve the composition failures first; the lock stage will then run on its own.",
+      "verify": "Re-check and confirm the lock stage now reports its own status rather than this notice."
+    },
+    "AN_LOCK_SOURCE_STALE": {
+      "title": "The contract source has changed since the lock was written",
+      "means": "Nornyx observed that the contract no longer matches the source recorded in the lock.",
+      "matters": "A stale lock means the artifacts in the repository may describe an older policy than the contract does. Which one a runtime consumes is then ambiguous.",
+      "inspect": "What changed in the contract since the lock was generated, and whether that change was deliberate.",
+      "correction": "Regenerate the lock if the contract change was intended. If it was not, revert the contract rather than regenerating over it.",
+      "verify": "Re-run the drift check and confirm the source no longer reports as stale. This shows the two agree now; it does not show which of them was correct."
+    },
+    "AN_LOCK_RECORD_MISMATCH": {
+      "title": "A locked record does not match the contract",
+      "means": "An individual record in the lock differs from what the current contract composes to.",
+      "matters": "Per-record mismatches localise drift to a specific construct, which is more informative than a whole-file difference.",
+      "inspect": "The named record, and the same construct in the contract.",
+      "correction": "Decide which side is authoritative for that construct, then bring the other into line deliberately.",
+      "verify": "Re-run verification and confirm that record no longer reports a mismatch, and that no new mismatches appeared elsewhere."
+    },
+    "AN_LOCK_ARTIFACT_MISMATCH": {
+      "title": "A generated artifact does not match its locked digest",
+      "means": "A derived artifact differs from the digest recorded in the lock.",
+      "matters": "This is how silent edits to generated files are caught. A hand-edited control artifact would otherwise be consumed as if it were generated.",
+      "inspect": "The named artifact, and whether it was edited by hand rather than regenerated.",
+      "correction": "Regenerate derived artifacts from the contract instead of editing them. If a change is needed, make it in the contract.",
+      "verify": "Regenerate and re-run verification, then confirm the digest matches. Matching digests show the artifact is the generated one, not that the contract is correct."
+    },
+    "WORKBENCH_TARGET_UNKNOWN": {
+      "title": "The edit named a construct that does not exist",
+      "means": "The requested change referred to a target the contract does not define, so it was not applied.",
+      "matters": "Refusing an edit against a missing target keeps the workbench from silently creating something you did not intend.",
+      "inspect": "The target name against the constructs listed in this contract.",
+      "correction": "Use an existing target name, or add the construct first and then edit it.",
+      "verify": "Re-apply the edit and confirm it appears in the resulting document, then re-check the contract validates."
+    },
+    "WORKBENCH_VALUE_INVALID": {
+      "title": "The supplied value is not allowed here",
+      "means": "The edit was rejected because the value is outside what this field accepts.",
+      "matters": "The workbench refuses invalid values rather than writing a contract that cannot compose, so the failure surfaces at the edit rather than several steps later.",
+      "inspect": "The permitted values for this field, and the profile in force, which may constrain them further.",
+      "correction": "Supply a value the field and the active profile both allow.",
+      "verify": "Re-apply the edit and re-check the contract. Acceptance shows the value is well-formed, not that the policy it expresses is the one you want."
+    },
+    "WORKBENCH_CAPABILITY_UNKNOWN": {
+      "title": "The capability is not declared in this contract",
+      "means": "The edit referenced a capability the contract does not define, so it was not applied to the identity.",
+      "matters": "Capabilities are the vocabulary an identity can be granted. Granting an undeclared one would produce a rule that can never match.",
+      "inspect": "The capabilities this contract declares, and the exact spelling used in the edit.",
+      "correction": "Reference a declared capability, or declare the new capability before granting it.",
+      "verify": "Re-apply the edit, then run the scenario and confirm a decision event names that capability."
+    },
+    "WORKBENCH_CONSTRUCT_UNSUPPORTED": {
+      "title": "This construct cannot be edited from the workbench",
+      "means": "The requested operation is not supported for that construct in the guided editor.",
+      "matters": "The workbench exposes a deliberately bounded set of edits so a learner cannot reach a state the lesson cannot explain. This is a limit of the teaching surface, not of Nornyx.",
+      "inspect": "Which operations this construct supports in the guided editor.",
+      "correction": "Use a supported operation, or work with the contract source directly outside the guided editor if you need the full language.",
+      "verify": "Re-apply a supported edit and confirm the contract still validates."
+    },
+    "LAB_EXECUTION_FAILED": {
+      "title": "The lesson's scenario did not finish",
+      "means": "The isolated run for this lesson exited before producing a complete result.",
+      "matters": "A failed run produces no observation, so neither a positive nor a negative conclusion about governance follows from it.",
+      "inspect": "The reported error and the lesson's configuration inputs.",
+      "correction": "Restore the lesson's default configuration and run again, then reintroduce your change.",
+      "verify": "Re-run and confirm a complete result with its checks reported. A completed run is what makes any later claim inspectable."
+    },
+    "OPTIONAL_FRAMEWORK_UNAVAILABLE": {
+      "title": "An optional framework is not installed",
+      "means": "This lesson can use an optional integration that is not present in this environment, so that portion did not run.",
+      "matters": "The lesson reports this rather than quietly skipping, because a silent skip would look identical to a pass.",
+      "inspect": "Which extra this lesson needs, and whether the environment was installed with it.",
+      "correction": "Install the optional extra if you want that portion to run. The rest of the lesson is unaffected.",
+      "verify": "Re-run and confirm the section reports a real result rather than this notice. Coverage claims should name only the frameworks that actually ran."
+    },
+    "CAPSTONE_FRAMEWORK_UNAVAILABLE": {
+      "title": "The capstone could not use the selected framework",
+      "means": "The chosen agent framework is not available in this environment, so that configuration did not execute.",
+      "matters": "The capstone compares governance across frameworks. A framework that did not run contributes no evidence to that comparison.",
+      "inspect": "The selected framework and the extras installed in this environment.",
+      "correction": "Select an available framework, or install the missing extra.",
+      "verify": "Re-run the capstone and confirm the framework produces its own decisions and counters."
+    },
+    "LANGGRAPH_RUNTIME_UNAVAILABLE": {
+      "title": "The LangGraph runtime is not available",
+      "means": "The LangGraph integration could not be loaded in this environment.",
+      "matters": "Adapter coverage claims apply only to adapters that actually ran. This diagnostic keeps an unavailable adapter from being counted as covered.",
+      "inspect": "Whether the LangGraph extra is installed for this interpreter.",
+      "correction": "Install the LangGraph extra if you intend to exercise that path.",
+      "verify": "Re-run and confirm LangGraph decisions appear in the result."
+    },
+    "LANGGRAPH_EXECUTION_FAILED": {
+      "title": "The LangGraph run did not finish",
+      "means": "The LangGraph integration loaded but the run ended before producing a complete result.",
+      "matters": "As with any incomplete run, no conclusion about the adapter's governance behaviour follows from it.",
+      "inspect": "The reported error and the graph configuration used.",
+      "correction": "Return to the default graph configuration, confirm it runs, then reapply your change.",
+      "verify": "Re-run and confirm a complete result with decisions recorded for the governed step."
+    },
+    "AN_REVISION_MISMATCH": {
+      "title": "The governance evidence names a different subject revision",
+      "means": "The evidence block declares a subject revision that is not the revision of the subject being governed.",
+      "matters": "Evidence is only about the thing it is bound to. Bound to the wrong revision, it describes a different subject than the one evaluated, while still looking well-formed.",
+      "inspect": "The subject revision on the governance evidence block against the contract's own subject revision.",
+      "correction": "Bind the evidence to the revision actually under evaluation, rather than editing the contract to match a stale record.",
+      "verify": "Re-check the contract and confirm this mismatch is gone and no record-level mismatch replaced it. Agreement shows the two now refer to the same subject, not that the records are complete."
+    },
+    "EVIDENCE_REVISION_MISMATCH": {
+      "title": "An evidence record is bound to the wrong subject revision",
+      "means": "An individual record inside the evidence block names a revision other than the governed subject's.",
+      "matters": "This localises the problem to specific records rather than the block as a whole, which usually means some records were carried over from an earlier revision.",
+      "inspect": "The record index reported in the path, and where that record's revision value came from.",
+      "correction": "Regenerate the affected records against the current subject rather than editing their revision field by hand.",
+      "verify": "Re-check and confirm no record reports a mismatch. Passing records show correct binding only for the records that are present."
+    },
+    "APPROVAL_REVISION_MISMATCH": {
+      "title": "The approval refers to a different revision of the subject",
+      "means": "The approval assertion is bound to a revision other than the one being evaluated.",
+      "matters": "An approval is permission for a specific thing. If the subject has changed since, the approver did not see what is now being decided, so treating it as current would attribute a decision to a human who never made it.",
+      "inspect": "The revision named in the approval against the subject revision in force, and when each was produced.",
+      "correction": "Obtain an approval for the current revision. Re-pointing an old approval at a new revision defeats the purpose of binding it.",
+      "verify": "Re-run the scenario and confirm the approval is accepted for this revision. Acceptance shows freshness and binding, not that the approver was authorised — that is checked separately."
+    },
+    "APPROVAL_GOVERNED_REVISION_CONFLICT": {
+      "title": "A governance record contradicts the governed subject's revision",
+      "means": "A record that carries its own revision disagrees with the revision of the subject it belongs to.",
+      "matters": "Two records describing the same subject with different revisions cannot both be right. The conflict has to be resolved rather than averaged over.",
+      "inspect": "The conflicting record named in the path, and which revision each side asserts.",
+      "correction": "Establish which revision is authoritative, then regenerate the other side from it.",
+      "verify": "Re-check and confirm the conflict is absent. A consistent set of revisions is necessary for the evidence to be interpretable, and is not by itself a statement about behaviour."
+    },
+    "EVIDENCE_ARTIFACT_HASH_MISMATCH": {
+      "title": "An evidence artifact does not match its recorded hash",
+      "means": "The content hash recorded for an artifact does not match the artifact as it now stands.",
+      "matters": "The hash is what makes tampering or drift detectable. A mismatch means the recorded and actual content differ; it does not by itself say which one changed or why.",
+      "inspect": "The artifact named in the path, and whether it was regenerated or edited after the hash was recorded.",
+      "correction": "Regenerate the artifact and its hash together from the same source, rather than updating the hash to match an edited artifact.",
+      "verify": "Re-check and confirm the hash matches. A matching hash shows the content is what was recorded, not that the recorded content was correct."
+    },
+    "EVIDENCE_SOURCE_VALUE_INVALID": {
+      "title": "A required evidence value is missing or malformed",
+      "means": "A field the evidence schema requires is absent, empty, or not in an accepted form.",
+      "matters": "The validator checks the construction of what it is given. A missing required field means the record cannot be interpreted, which is different from the record describing a failure.",
+      "inspect": "The field named in the path, and what the schema requires for it.",
+      "correction": "Supply the field at the point the record is produced, so it is present by construction rather than patched afterwards.",
+      "verify": "Re-run and confirm the validator returns a status for these records. Structural validity is a precondition for reading them, not a result."
+    },
+    "GOVERNANCE_BLOCK_SCHEMA_INVALID": {
+      "title": "The governance evidence block does not satisfy its schema",
+      "means": "The block as a whole is not shaped the way the profile requires, so it could not be interpreted as governance evidence.",
+      "matters": "The `agentic_network` profile makes this block mandatory and constrains its shape. A block that does not parse is not weak evidence — it is no evidence.",
+      "inspect": "The reported path, and the block against what the active profile requires of it.",
+      "correction": "Restore the required structure from the profile's definition rather than removing the failing field.",
+      "verify": "Re-check the contract and confirm the block validates and later evidence checks now report their own results rather than being skipped."
+    },
+    "EVIDENCE_DIAGNOSTIC": {
+      "title": "The evidence validator returned a diagnostic",
+      "means": "Nornyx reported something about the supplied event stream that did not fit a more specific code.",
+      "matters": "Validator output describes the records supplied to it. It is a statement about the stream, not about what happened in the world.",
+      "inspect": "The message text and any path it names, against the events in the evidence block.",
+      "correction": "Address what the message identifies in how events are produced or ordered.",
+      "verify": "Re-run and read the validation status and remaining diagnostics. A clean validation supports a claim about record construction only."
+    },
+    "NORNYX_DIAGNOSTIC": {
+      "title": "Nornyx returned a diagnostic without a more specific code",
+      "means": "The checker reported an issue that this academy does not map to a more specific entry.",
+      "matters": "The message is authoritative even when the code is generic, so it should be read rather than dismissed.",
+      "inspect": "The message and path exactly as reported, and the construct they refer to.",
+      "correction": "Act on what the message identifies. If this code appears often in a recognisable pattern, it is a candidate for its own guidance entry.",
+      "verify": "Re-check the contract and confirm the diagnostic no longer appears, and that no new diagnostic replaced it."
+    }
+  }
+}

@@ -52,6 +52,7 @@ from .schemas import (
     PlatformInfo,
     ProgressExport,
     PublicAssessment,
+    RemediationRegistry,
     RunStatus,
     ScenarioRun,
     StageMap,
@@ -220,6 +221,20 @@ def create_app(
     @app.get(f"/api/{API_VERSION}/glossary", response_model=Glossary, tags=["pedagogy"])
     def glossary() -> Glossary:
         return app.state.pedagogy.glossary()
+
+    @app.get(
+        f"/api/{API_VERSION}/remediation",
+        response_model=RemediationRegistry,
+        tags=["pedagogy"],
+    )
+    def remediation() -> RemediationRegistry:
+        """Authored guidance keyed by diagnostic code.
+
+        Deliberately its own endpoint rather than a field on each diagnostic:
+        this is academy teaching material, not a Nornyx runtime decision, and
+        the browser labels it as such where it renders.
+        """
+        return app.state.pedagogy.remediation()
 
     @app.get(f"/api/{API_VERSION}/stages", response_model=StageMap, tags=["pedagogy"])
     def stages() -> StageMap:

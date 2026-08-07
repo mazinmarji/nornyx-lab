@@ -1090,3 +1090,22 @@ tbody th { color: var(--ink-900); }
 .demo-dots li.is-locked button { background-color: var(--line); opacity: 0.45; cursor: not-allowed; }
 .demo-blocked { margin: -0.6rem 0 1.4rem; padding: 0.75rem 1rem; background: var(--amber-soft);
   border-radius: 8px; color: var(--ink-800); font-size: 0.94rem; }
+
+/* ------------------------------------------------ remediation guidance (B1)
+   Visually subordinate to the diagnostic it sits inside: this is the academy
+   talking, not the checker. `.remediation-verify` and `.remediation-status`
+   are deliberately the most prominent parts of the panel, because the whole
+   point is that the hint is a hypothesis to test rather than a fix. */
+.remediation { margin-top: 0.7rem; border-left: 3px solid var(--cyan-dark); background: var(--surface-cool); border-radius: 0 8px 8px 0; }
+.remediation > summary { padding: 0.5rem 0.8rem; cursor: pointer; font-size: 0.9rem; font-weight: 600; color: var(--ink-800); }
+.remediation > summary:focus-visible { outline: 3px solid var(--cyan-dark); outline-offset: 2px; }
+.remediation-body { padding: 0 0.9rem 0.9rem; }
+.remediation-body h4 { margin: 0.2rem 0 0.6rem; font-size: 0.98rem; color: var(--ink-900); }
+.remediation-body dl { display: grid; gap: 0.6rem; margin: 0; }
+.remediation-body dt { font-size: 0.74rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-600); }
+.remediation-body dd { margin: 0.15rem 0 0; color: var(--ink-800); font-size: 0.92rem; line-height: 1.5; }
+.remediation-verify dt { color: var(--cyan-dark); }
+.remediation-verify dd { font-weight: 500; }
+.remediation-status { margin: 0.8rem 0 0; padding: 0.5rem 0.7rem; background: var(--amber-soft); border-radius: 6px; color: var(--ink-800); font-size: 0.87rem; }
+.remediation-provenance { margin: 0.6rem 0 0; color: var(--ink-600); font-size: 0.8rem; }
+.remediation-none { margin-top: 0.7rem; color: var(--ink-600); font-size: 0.87rem; font-style: italic; }

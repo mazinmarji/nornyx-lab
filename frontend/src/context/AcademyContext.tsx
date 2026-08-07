@@ -8,7 +8,14 @@ import {
   type ReactNode,
 } from "react";
 import { academyApi, toErrorMessage } from "../api/client";
-import type { CurriculumCatalog, Dashboard, PlatformInfo, ScenarioRun } from "../types";
+import type {
+  CurriculumCatalog,
+  Dashboard,
+  PlatformInfo,
+  RemediationGuidance,
+  RemediationRegistry,
+  ScenarioRun,
+} from "../types";
 
 interface AcademyContextValue {
   catalog: CurriculumCatalog | null;
@@ -17,6 +24,9 @@ interface AcademyContextValue {
   lastRun: ScenarioRun | null;
   booting: boolean;
   serviceError: string | null;
+  remediation: RemediationRegistry | null;
+  /** Guidance for a diagnostic code, or null when none is registered. */
+  remediationFor: (code: string) => RemediationGuidance | null;
   setLastRun: (run: ScenarioRun | null) => void;
   refreshProgress: () => Promise<void>;
   refreshCatalog: () => Promise<void>;
@@ -32,6 +42,7 @@ export function AcademyProvider({ children }: { children: ReactNode }) {
   const [lastRun, setLastRun] = useState<ScenarioRun | null>(null);
   const [booting, setBooting] = useState(true);
   const [serviceError, setServiceError] = useState<string | null>(null);
+  const [remediation, setRemediation] = useState<RemediationRegistry | null>(null);
 
   const refreshProgress = useCallback(async () => {
     setDashboard(await academyApi.progress());
@@ -50,16 +61,19 @@ export function AcademyProvider({ children }: { children: ReactNode }) {
     let active = true;
     async function bootstrap() {
       setBooting(true);
-      const [healthResult, platformResult, catalogResult, progressResult] = await Promise.allSettled([
-        academyApi.health(),
-        academyApi.platform(),
-        academyApi.catalog(),
-        academyApi.progress(),
-      ]);
+      const [healthResult, platformResult, catalogResult, progressResult, remediationResult] =
+        await Promise.allSettled([
+          academyApi.health(),
+          academyApi.platform(),
+          academyApi.catalog(),
+          academyApi.progress(),
+          academyApi.remediation(),
+        ]);
       if (!active) return;
       if (platformResult.status === "fulfilled") setPlatform(platformResult.value);
       if (catalogResult.status === "fulfilled") setCatalog(catalogResult.value);
       if (progressResult.status === "fulfilled") setDashboard(progressResult.value);
+      if (remediationResult.status === "fulfilled") setRemediation(remediationResult.value);
       const rejection = [healthResult, platformResult, catalogResult, progressResult].find(
         (result) => result.status === "rejected",
       );
@@ -74,6 +88,12 @@ export function AcademyProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const remediationFor = useCallback(
+    (code: string): RemediationGuidance | null =>
+      remediation?.entries.find((entry) => entry.code === code) ?? null,
+    [remediation],
+  );
+
   const value = useMemo<AcademyContextValue>(
     () => ({
       catalog,
@@ -82,6 +102,8 @@ export function AcademyProvider({ children }: { children: ReactNode }) {
       lastRun,
       booting,
       serviceError,
+      remediation,
+      remediationFor,
       setLastRun,
       refreshProgress,
       refreshCatalog,
@@ -93,6 +115,8 @@ export function AcademyProvider({ children }: { children: ReactNode }) {
       dashboard,
       lastRun,
       platform,
+      remediation,
+      remediationFor,
       refreshCatalog,
       refreshProgress,
       resetProgress,
@@ -107,5 +131,18 @@ export function useAcademy(): AcademyContextValue {
   const value = useContext(AcademyContext);
   if (!value) throw new Error("useAcademy must be used inside AcademyProvider");
   return value;
+}
+
+/**
+ * Context read that tolerates having no provider.
+ *
+ * For leaf components whose content is additive. Remediation guidance is the
+ * case this exists for: a hint must never be able to take down the display of
+ * the diagnostic it annotates, and the diagnostic is the part that matters.
+ * Pages keep using `useAcademy`, which still throws, so genuine wiring mistakes
+ * are not hidden.
+ */
+export function useAcademyOptional(): AcademyContextValue | null {
+  return useContext(AcademyContext);
 }
 

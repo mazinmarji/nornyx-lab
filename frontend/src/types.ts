@@ -471,6 +471,24 @@ export interface Glossary {
   terms: GlossaryTerm[];
 }
 
+export interface RemediationGuidance {
+  code: string;
+  title: string;
+  means: string;
+  matters: string;
+  inspect: string;
+  correction: string;
+  verify: string;
+}
+
+export interface RemediationRegistry {
+  api_version: string;
+  version: string;
+  provenance_label: string;
+  unknown_code_notice: string;
+  entries: RemediationGuidance[];
+}
+
 export interface OrientationIdea {
   id: string;
   number: number;
