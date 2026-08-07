@@ -488,6 +488,40 @@ def test_the_demo_story_note_describes_the_screens_it_ships_with():
     assert "Screens 3, 4, 5 and 6 gate progress" in note
 
 
+def test_the_governed_run_qualifies_what_zero_and_zero_means():
+    """0/0 is not self-evidently a prevention.
+
+    The engine already distinguishes the two readings — `not_planned` and
+    `prevented_before_execution` are both 0/0 — but a learner walking the guided
+    demo was only ever shown the second. Someone finishing the demo could read
+    0/0 on a run where the agent simply never proposed the action and call it a
+    prevention, which is precisely the overclaim the curriculum exists to teach
+    against.
+
+    The governed run screen must therefore state the condition, not just the
+    number, and it must tie it to the 1/1 the learner has already watched.
+    """
+    story = json.loads(
+        (REPO_ROOT / "src" / "nornyx_lab" / "academy" / "content" / "demo_story.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    runs = {screen["variant"]: screen for screen in story["screens"] if screen["kind"] == "run"}
+
+    for variant, screen in runs.items():
+        explainer = screen["observe"].get("explain_before_counters", "")
+        assert explainer.strip(), f"the {variant} run shows counters with no explanation of them"
+
+    governed = runs["governed"]["observe"]["explain_before_counters"].lower()
+    assert "only because" in governed or "only when" in governed, (
+        "the governed screen states 0/0 without the condition that makes it mean prevention"
+    )
+    assert "planned" in governed or "proposed" in governed, (
+        "the condition must name the planned action, which is what separates a prevention "
+        "from an action nobody ever attempted"
+    )
+
+
 def test_the_demo_states_its_limits_after_the_proof():
     story = json.loads(
         (REPO_ROOT / "src" / "nornyx_lab" / "academy" / "content" / "demo_story.json").read_text(

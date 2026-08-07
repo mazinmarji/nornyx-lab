@@ -106,7 +106,8 @@
       "action_label": "Run with governance",
       "observe": {
         "focus": "publish_external",
-        "lead_with": "headline"
+        "lead_with": "headline",
+        "explain_before_counters": "0 and 0 means prevented here only because the publish was genuinely planned — you just watched that same plan record 1 and 1. For an action the agent never proposed, 0 and 0 would prove nothing."
       },
       "body": "The agent was still fooled. The action was stopped anyway.",
       "punchline": "The control acted before the publishing function executed.",
