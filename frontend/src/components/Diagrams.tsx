@@ -45,7 +45,19 @@ export function ScenarioFlowDiagram({ decision }: { decision?: DecisionTrace }) 
   const effect = decision?.effect ?? "not_evaluated";
   const gate = decision?.gate_refs?.[0] ?? "No gate reported";
   return (
-    <div className="diagram-frame scenario-flow">
+    // axe `scrollable-region-focusable`: the frame scrolls horizontally
+    // (the svg has min-width 620px), so a keyboard user must be able to
+    // focus it to scroll. tabIndex makes it reachable; role+label give it a
+    // name so it is announced rather than being an anonymous stop.
+    // `group`, not `region`: region is a landmark, and BOTH variants render
+    // this diagram, so two identically-named landmarks would trade this
+    // violation for `landmark-unique`.
+    <div
+      className="diagram-frame scenario-flow"
+      tabIndex={0}
+      role="group"
+      aria-label="Agent authorization and enforcement flow, horizontally scrollable"
+    >
       <svg viewBox="0 0 1040 240" role="img" aria-labelledby={`scenario-flow-title-${id} scenario-flow-desc-${id}`}>
         <title id={`scenario-flow-title-${id}`}>Agent authorization and enforcement flow</title>
         <desc id={`scenario-flow-desc-${id}`}>A planner proposes an action. Identity and policy enter a decision point, followed by an enforcement point before the inert tool ledger.</desc>

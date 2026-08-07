@@ -180,8 +180,30 @@ pre { overflow: auto; font-size: 0.82rem; line-height: 1.65; }
 .action-card h3 { margin-top: 2.3rem; font-size: 1.4rem; }
 .action-card p { color: var(--ink-600); }
 .action-card > strong { margin-top: auto; color: var(--cyan-dark); }
-/* Dark surfaces re-point the accent token so descendants stay AA-compliant. */
-.hero, .featured-card, .nornyx-position { --cyan-dark: var(--cyan-on-dark); }
+/* Dark surfaces re-point the accent token so descendants stay AA-compliant.
+   This list is EVERY container painted with a dark ink, not only the ones axe
+   has flagged so far. axe only reports what the crawled route rendered, so
+   fixing them one report at a time just defers the same failure to whichever
+   page runs next. Re-pointing a custom property on a container that never uses
+   it is inert, so covering the full set costs nothing and ends the cycle. */
+.hero,
+.featured-card,
+.nornyx-position,
+.sidebar,
+.sidebar-progress,
+.service-strip,
+.dashboard-overview,
+.counter-key,
+.run-console,
+.run-boundary,
+.result-banner,
+.assurance-summary,
+.lesson-header aside,
+.lesson-interaction,
+.contract-list,
+.approval-principles,
+.evidence-runbar,
+.diagnostic-summary { --cyan-dark: var(--cyan-on-dark); }
 .featured-card { background: var(--ink-850); color: white; }
 .featured-card h3 { color: white; }
 .featured-card p { color: #aac0c6; }
@@ -353,6 +375,8 @@ tbody th { color: var(--ink-900); }
 .mode-governed { background: var(--teal-soft); color: #136452; }
 .mode-ungoverned { background: var(--red-soft); color: #8a2e28; }
 .scenario-flow { overflow-x: auto; margin-bottom: 1rem; }
+/* Visible focus ring for the keyboard-scrollable diagram region. */
+.scenario-flow:focus-visible { outline: 3px solid var(--cyan-on-dark); outline-offset: 2px; }
 .scenario-flow svg { min-width: 620px; }
 .decision-allow rect { fill: var(--teal-soft); stroke: var(--teal); }
 .decision-deny rect { fill: var(--red-soft); stroke: var(--red); }
