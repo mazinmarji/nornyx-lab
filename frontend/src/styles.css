@@ -1046,3 +1046,9 @@ tbody th { color: var(--ink-900); }
 .sidebar-mode .mode-switch { border-color: #23404f; background: #0b202c; }
 .sidebar-mode .mode-switch button { color: #a8bdc5; }
 .sidebar-mode .mode-switch button.is-active { background: #17b8c6; color: var(--ink-950); }
+
+/* The shared .diagram-title capitalises each word, which is right for the
+   governance diagrams but wrong for the orientation: it renders the tool
+   example as "Send_email()" and turns plain sentences into headline case, at
+   exactly the point the learner is being told these are ordinary things. */
+.orientation-diagram .diagram-title { text-transform: none; }
