@@ -1,0 +1,265 @@
+{
+  "version": "1.0.0",
+  "note": "The learner's mental structure. Module ids (F0-F5, 00-24) remain the engineering identity and are shown as secondary detail; this file is what the curriculum page is organised by.",
+  "entry": {
+    "module_ids": ["F0"],
+    "why": "F0 is the reference demonstration, not a stage. It is deliberately outside the seven stages: a learner meets it before Stage 1 to acquire the problem, and every later stage refers back to it. Coverage checks treat it as entry rather than as an unmapped module."
+  },
+  "stages": [
+    {
+      "id": "stage-1",
+      "number": 1,
+      "name": "Understand AI",
+      "question": "What is this thing actually doing?",
+      "plain": "Before governance makes any sense, you need an accurate picture of what a model is and how it fails.",
+      "steps": [
+        {
+          "number": 1,
+          "name": "What an AI model does",
+          "plain": "It predicts text. It does not look things up and it does not know things.",
+          "module_ids": ["F1"]
+        },
+        {
+          "number": 2,
+          "name": "Prompts and context",
+          "plain": "Everything the model can see arrives in one place — including text you did not write.",
+          "module_ids": ["F2"]
+        },
+        {
+          "number": 3,
+          "name": "Why output can be wrong",
+          "plain": "The same question can produce different answers, and confident ones can be false.",
+          "module_ids": ["F1"]
+        },
+        {
+          "number": 4,
+          "name": "Structured output and validation",
+          "plain": "Making the model's output checkable before anything uses it.",
+          "module_ids": ["F2", "F5"]
+        }
+      ]
+    },
+    {
+      "id": "stage-2",
+      "number": 2,
+      "name": "From AI to agents",
+      "question": "When does an answer become an action?",
+      "plain": "The transition that creates the whole problem: software that can choose to do things.",
+      "steps": [
+        {
+          "number": 5,
+          "name": "What a tool is",
+          "plain": "Your own function, handed to the model to call.",
+          "module_ids": ["F3"]
+        },
+        {
+          "number": 6,
+          "name": "What makes an agent",
+          "plain": "Choosing which tool to use, without a person in between.",
+          "module_ids": ["F3", "00"]
+        },
+        {
+          "number": 7,
+          "name": "Side effects",
+          "plain": "The point where something real and possibly irreversible happens.",
+          "module_ids": ["F3", "00"]
+        },
+        {
+          "number": 8,
+          "name": "Plans, loops and retries",
+          "plain": "Agents run in loops, and a retry can do the same thing twice.",
+          "module_ids": ["F4"]
+        },
+        {
+          "number": 9,
+          "name": "Multiple agents and handoffs",
+          "plain": "Work passed between agents can quietly gain authority on the way.",
+          "module_ids": ["F4"]
+        }
+      ]
+    },
+    {
+      "id": "stage-3",
+      "number": 3,
+      "name": "Discover the governance problem",
+      "question": "Who decides, and where is it decided?",
+      "plain": "Each idea here answers a problem you have already watched happen.",
+      "steps": [
+        {
+          "number": 10,
+          "name": "Wrong action versus wrong answer",
+          "plain": "Checking text is a different job from controlling behaviour.",
+          "module_ids": ["01"]
+        },
+        {
+          "number": 11,
+          "name": "Identity",
+          "plain": "You cannot ask whether something is allowed without asking allowed for whom.",
+          "module_ids": ["04"]
+        },
+        {
+          "number": 12,
+          "name": "Capability and authority",
+          "plain": "Declaring an action exists is not the same as granting it.",
+          "module_ids": ["04", "07"]
+        },
+        {
+          "number": 13,
+          "name": "Trust boundaries",
+          "plain": "Most harm is something crossing from inside to outside.",
+          "module_ids": ["05"]
+        },
+        {
+          "number": 14,
+          "name": "Decisions",
+          "plain": "Getting an answer to \"is this allowed?\" — which by itself changes nothing.",
+          "module_ids": ["06", "03"]
+        },
+        {
+          "number": 15,
+          "name": "Enforcement",
+          "plain": "The place in your code that actually obeys the answer.",
+          "module_ids": ["09", "03"]
+        },
+        {
+          "number": 16,
+          "name": "Human approval",
+          "plain": "What it takes for \"a human approved it\" to mean anything.",
+          "module_ids": ["08"]
+        }
+      ]
+    },
+    {
+      "id": "stage-4",
+      "number": 4,
+      "name": "Prove what happened",
+      "question": "How would you know?",
+      "plain": "Turning a belief about your system into something you can show somebody.",
+      "steps": [
+        {
+          "number": 17,
+          "name": "Attempts and completions",
+          "plain": "Two numbers that separate stopped, broken and done.",
+          "module_ids": ["10"]
+        },
+        {
+          "number": 18,
+          "name": "Evidence",
+          "plain": "The record you point at instead of asserting.",
+          "module_ids": ["10"]
+        },
+        {
+          "number": 19,
+          "name": "Integrity",
+          "plain": "Untampered is not the same as true.",
+          "module_ids": ["11"]
+        },
+        {
+          "number": 20,
+          "name": "Locks and drift",
+          "plain": "Which version of the rules was actually in force.",
+          "module_ids": ["11", "17"]
+        },
+        {
+          "number": 21,
+          "name": "Assurance and its limits",
+          "plain": "How much weight your claim can carry, stated honestly.",
+          "module_ids": ["12", "02"]
+        },
+        {
+          "number": 22,
+          "name": "Bypass and coverage",
+          "plain": "The paths that are not guarded, and why they matter more than the ones that are.",
+          "module_ids": ["13"]
+        }
+      ]
+    },
+    {
+      "id": "stage-5",
+      "number": 5,
+      "name": "Learn Nornyx",
+      "question": "How do I express all of this in something checkable?",
+      "plain": "Only now does the tool itself make sense, because you know what it is for.",
+      "steps": [
+        {
+          "number": 23,
+          "name": "What a .nyx contract is",
+          "plain": "The rules written down in a form a machine can check.",
+          "module_ids": ["14"]
+        },
+        {
+          "number": 24,
+          "name": "Generate controls",
+          "plain": "Turning the contract into artifacts your system can use.",
+          "module_ids": ["15"]
+        },
+        {
+          "number": 25,
+          "name": "Visual authoring",
+          "plain": "Building and checking a contract without writing it by hand.",
+          "module_ids": ["21"]
+        },
+        {
+          "number": 26,
+          "name": "Authorization",
+          "plain": "Asking Nornyx for a decision from your own code.",
+          "module_ids": ["16"]
+        },
+        {
+          "number": 27,
+          "name": "Runtime evidence",
+          "plain": "Recording what happened so the claim survives review.",
+          "module_ids": ["17"]
+        },
+        {
+          "number": 28,
+          "name": "CI and conformance",
+          "plain": "Catching drift and broken enforcement before release.",
+          "module_ids": ["21", "20"]
+        }
+      ]
+    },
+    {
+      "id": "stage-6",
+      "number": 6,
+      "name": "Framework integration",
+      "question": "How does this fit the tools I already use?",
+      "plain": "Real agent frameworks, with the coverage boundary stated each time.",
+      "steps": [
+        {
+          "number": 29,
+          "name": "CrewAI",
+          "plain": "Placing the gate inside a crew's tool execution.",
+          "module_ids": ["18"]
+        },
+        {
+          "number": 30,
+          "name": "LangGraph",
+          "plain": "Keeping occurrence identity straight across retries and loops.",
+          "module_ids": ["19"]
+        },
+        {
+          "number": 31,
+          "name": "Multi-agent governance",
+          "plain": "Hierarchies, delegation and operations across several agents.",
+          "module_ids": ["22", "23"]
+        }
+      ]
+    },
+    {
+      "id": "stage-7",
+      "number": 7,
+      "name": "Build it yourself",
+      "question": "Can you do it end to end?",
+      "plain": "Design, build, verify and audit a governed system without being walked through it.",
+      "steps": [
+        {
+          "number": 32,
+          "name": "Capstone",
+          "plain": "The whole loop, on your own.",
+          "module_ids": ["24"]
+        }
+      ]
+    }
+  ]
+}

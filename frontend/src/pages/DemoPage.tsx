@@ -1,11 +1,21 @@
-import { useMemo, useState } from "react";
-import { academyApi } from "../api/client";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { academyApi, toErrorMessage } from "../api/client";
 import { AssessmentPanel } from "../components/AssessmentPanel";
-import { ErrorNotice, InfoNotice } from "../components/Feedback";
+import { CounterCard } from "../components/CounterCard";
+import { ErrorNotice, InfoNotice, LoadingState } from "../components/Feedback";
 import { ScenarioResults } from "../components/ScenarioResults";
+import {
+  ExploreOnly,
+  GlossaryStrip,
+  ModeSwitch,
+  PredictionStep,
+  RunExplanation,
+  WhatAmILookingAt,
+} from "../components/Teaching";
 import { useAsyncTask } from "../components/useAsyncTask";
 import { useAcademy } from "../context/AcademyContext";
-import type { DemoOptions, ScenarioRun } from "../types";
+import { useMode } from "../context/ModeContext";
+import type { ActionCounter, DemoOptions, DemoStory, DemoStoryScreen, GlossaryTerm, ScenarioRun } from "../types";
 
 export const defaultDemoOptions: DemoOptions = {
   injection_enabled: true,
@@ -18,96 +28,554 @@ export const defaultDemoOptions: DemoOptions = {
   planner_mode: "deterministic",
 };
 
-export function DemoPage() {
-  const { catalog, lastRun, setLastRun, refreshProgress } = useAcademy();
-  const task = useAsyncTask<ScenarioRun>();
-  const [options, setOptions] = useState<DemoOptions>(defaultDemoOptions);
-  const [showControls, setShowControls] = useState(false);
-  const [requestStarted, setRequestStarted] = useState(false);
-  const [executedConfiguration, setExecutedConfiguration] = useState<{ runId: string; options: DemoOptions } | null>(null);
-  const priorRun = !requestStarted && !task.loading && !task.error ? lastRun : null;
-  const result = task.data ?? priorRun;
-  const assessmentId = useMemo(() => {
-    if (!catalog || !result) return null;
-    return catalog.modules.find((module) => module.scenario_id === result.scenario_id)?.completion.assessment_id ?? null;
-  }, [catalog, result]);
+/** Screen 4 runs with governance switched off; screen 6 runs the full control. */
+const UNGOVERNED_OPTIONS: DemoOptions = { ...defaultDemoOptions, enforcement_enabled: false };
 
-  function update<K extends keyof DemoOptions>(key: K, value: DemoOptions[K]) {
-    setOptions((current) => ({ ...current, [key]: value }));
+type Field = Record<string, unknown>;
+const str = (screen: DemoStoryScreen, key: string): string =>
+  typeof screen[key] === "string" ? (screen[key] as string) : "";
+const obj = (screen: DemoStoryScreen, key: string): Field =>
+  screen[key] && typeof screen[key] === "object" ? (screen[key] as Field) : {};
+const arr = <T,>(source: Field, key: string): T[] =>
+  Array.isArray(source[key]) ? (source[key] as T[]) : [];
+
+function counterFor(run: ScenarioRun, variantId: "ungoverned" | "governed", action: string): ActionCounter | undefined {
+  return run.variants.find((variant) => variant.id === variantId)?.counters.find((counter) => counter.action === action);
+}
+
+/* ------------------------------------------------------------------ screens */
+
+function MeetScreen({ screen }: { screen: DemoStoryScreen }) {
+  const actor = obj(screen, "actor");
+  const abilities = arr<{ name: string; sensitive: boolean }>(actor, "abilities");
+  return (
+    <>
+      <p className="screen-lede">{str(screen, "lede")}</p>
+      <div className="agent-card" data-testid="agent-card">
+        <div className="agent-identity">
+          <span className="agent-avatar" aria-hidden="true">RA</span>
+          <strong>{String(actor.name ?? "Agent")}</strong>
+        </div>
+        <ul className="agent-abilities">
+          {abilities.map((ability) => (
+            <li key={ability.name} className={ability.sensitive ? "is-sensitive" : ""}>
+              <span aria-hidden="true">{ability.sensitive ? "!" : "✓"}</span>
+              {ability.name}
+              {ability.sensitive ? <small>leaves your building</small> : null}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <p className="screen-body">{str(screen, "body")}</p>
+      <p className="screen-punchline">{str(screen, "punchline")}</p>
+    </>
+  );
+}
+
+function PageScreen({ screen }: { screen: DemoStoryScreen }) {
+  const page = obj(screen, "page");
+  return (
+    <>
+      <p className="screen-lede">{str(screen, "lede")}</p>
+      <div className="fake-page" data-testid="malicious-page">
+        <div className="fake-page-bar">
+          <span aria-hidden="true">●●●</span>
+          <code>{String(page.url ?? "")}</code>
+        </div>
+        <div className="fake-page-body">
+          {arr<string>(page, "visible").map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+          <p className="fake-page-hidden" data-testid="hidden-instruction">
+            {String(page.hidden ?? "")}
+          </p>
+        </div>
+      </div>
+      <p className="screen-body">{str(screen, "body")}</p>
+      <p className="screen-punchline">{str(screen, "punchline")}</p>
+    </>
+  );
+}
+
+function RunScreen({
+  screen,
+  run,
+  loading,
+  error,
+  onRun,
+  onRetry,
+}: {
+  screen: DemoStoryScreen;
+  run: ScenarioRun | null;
+  loading: boolean;
+  error: string | null;
+  onRun: () => void;
+  onRetry: () => void;
+}) {
+  const variant = (screen.variant as "ungoverned" | "governed") ?? "governed";
+  const observe = obj(screen, "observe");
+  const focus = String(observe.focus ?? "publish_external");
+  const rules = arr<{ text: string; allowed: boolean }>(screen, "rules");
+  const counter = run ? counterFor(run, variant, focus) : undefined;
+
+  return (
+    <>
+      <p className="screen-lede">{str(screen, "lede")}</p>
+
+      {rules.length ? (
+        <div className="rule-card" data-testid="governance-rules">
+          <p className="eyebrow">The rules we are adding</p>
+          <ul>
+            {rules.map((rule) => (
+              <li key={rule.text} className={rule.allowed ? "rule-allow" : "rule-deny"}>
+                <span aria-hidden="true">{rule.allowed ? "✓" : "⊘"}</span>
+                The research agent {rule.text}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {/* Rendered before the run, not alongside the result. The learner should
+          know what the two numbers mean before watching them appear, otherwise
+          the observation lands as notation to decode rather than as an answer. */}
+      <WhatAmILookingAt testId="what-am-i-counters">
+        {String(observe.explain_before_counters ?? "These two numbers tell us whether software actually reached and completed the sensitive function.")}
+      </WhatAmILookingAt>
+
+      {!run ? (
+        <div className="screen-run">
+          <button className="button button-accent button-large" type="button" disabled={loading} onClick={onRun}>
+            {loading ? <><span className="button-spinner" aria-hidden="true" /> Running…</> : str(screen, "action_label")}
+          </button>
+          <p className="screen-safety">The publishing tool is inert. Nothing leaves this machine.</p>
+        </div>
+      ) : null}
+
+      {error ? <ErrorNotice title="The run did not complete" message={error} onRetry={onRetry} /> : null}
+
+      {run && counter ? (
+        <div className="screen-observation" data-testid={`observation-${variant}`}>
+          <div className="focus-counter" data-testid={`focus-counter-${variant}`}>
+            <CounterCard counter={counter} />
+          </div>
+          <p className="screen-body">{str(screen, "body")}</p>
+          <p className="screen-punchline">{str(screen, "punchline")}</p>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function ChooseScreen({
+  screen,
+  picked,
+  onPick,
+}: {
+  screen: DemoStoryScreen;
+  picked: string | null;
+  onPick: (optionId: string, correct: boolean) => void;
+}) {
+  const options = arr<{ id: string; label: string; correct: boolean; feedback: string }>(screen, "chain");
+  const concept = obj(screen, "concept");
+  const chosen = options.find((option) => option.id === picked);
+
+  return (
+    <>
+      <p className="screen-lede">{str(screen, "lede")}</p>
+      <div className="gap-chain" data-testid="gap-chain">
+        <div className="gap-fixed">Agent</div>
+        <div className="gap-options">
+          {options.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={`gap-option${picked === option.id ? " is-picked" : ""}${picked && option.correct ? " is-correct" : ""}`}
+              aria-pressed={picked === option.id}
+              onClick={() => onPick(option.id, option.correct)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <div className="gap-fixed">Publish tool</div>
+      </div>
+      {chosen ? (
+        <p className={chosen.correct ? "gap-feedback is-correct" : "gap-feedback"} role="status" data-testid="gap-feedback">
+          {chosen.feedback}
+        </p>
+      ) : null}
+      {chosen?.correct ? (
+        <div className="gap-reveal" data-testid="gap-reveal">
+          <p className="screen-punchline">{str(screen, "reveal")}</p>
+          <p className="concept-formal">
+            <strong>{String(concept.plain_name ?? "")}</strong>
+            <small>Technical term: {String(concept.formal_term ?? "")}</small>
+          </p>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function PositionScreen({ screen }: { screen: DemoStoryScreen }) {
+  const without = obj(screen, "without");
+  const withNornyx = obj(screen, "with");
+  return (
+    <>
+      <div className="position-compare">
+        <article data-testid="position-without">
+          <h3>{String(without.title ?? "")}</h3>
+          <ol className="layer-stack">
+            {arr<string>(without, "layers").map((layer) => (
+              <li key={layer}>{layer}</li>
+            ))}
+          </ol>
+          <p className="position-problem">{String(without.problem ?? "")}</p>
+        </article>
+        <article data-testid="position-with">
+          <h3>{String(withNornyx.title ?? "")}</h3>
+          <ol className="layer-stack is-nornyx">
+            {arr<string>(withNornyx, "layers").map((layer) => (
+              <li key={layer}>{layer}</li>
+            ))}
+          </ol>
+        </article>
+      </div>
+      <p className="position-boundary" data-testid="nornyx-boundary">
+        {str(screen, "boundary")}
+      </p>
+    </>
+  );
+}
+
+function ProofScreen({ screen }: { screen: DemoStoryScreen }) {
+  const options = arr<{ id: string; label: string; strong: boolean; why: string }>(screen, "options");
+  const [picked, setPicked] = useState<string | null>(null);
+  const chosen = options.find((option) => option.id === picked);
+  return (
+    <>
+      <p className="screen-lede">{str(screen, "lede")}</p>
+      <div className="proof-options" data-testid="proof-options">
+        {options.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            className={`proof-option${picked === option.id ? " is-picked" : ""}${picked && option.strong ? " is-strong" : ""}`}
+            aria-pressed={picked === option.id}
+            onClick={() => setPicked(option.id)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      {chosen ? (
+        <p className={chosen.strong ? "proof-feedback is-strong" : "proof-feedback"} role="status" data-testid="proof-feedback">
+          {chosen.why}
+        </p>
+      ) : null}
+      {picked ? <p className="screen-punchline">{str(screen, "reveal")}</p> : null}
+    </>
+  );
+}
+
+function LimitsScreen({ screen, run }: { screen: DemoStoryScreen; run: ScenarioRun | null }) {
+  const tier = obj(screen, "tier");
+  return (
+    <>
+      <div className="limits-grid">
+        <article className="limits-proved" data-testid="limits-proved">
+          <h3>{str(screen, "proved_title")}</h3>
+          {/* Taken from the run, not authored: the claim must match what happened. */}
+          <p>{run?.explanation?.proves ?? run?.strongest_claim ?? "Run the demonstration to see what it supports."}</p>
+        </article>
+        <article className="limits-not-proved" data-testid="limits-not-proved">
+          <h3>{str(screen, "not_proved_title")}</h3>
+          <ul>
+            {arr<string>(screen as unknown as Field, "not_proved").map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </article>
+      </div>
+      <section className="tier-panel" data-testid="tier-panel">
+        <p className="eyebrow">Which puts this at</p>
+        <h3>{String(tier.name ?? "")}</h3>
+        <p>{String(tier.body ?? "")}</p>
+        <p className="tier-contrast">{String(tier.contrast ?? "")}</p>
+      </section>
+    </>
+  );
+}
+
+/* -------------------------------------------------------------------- page */
+
+export function DemoPage() {
+  const { catalog, setLastRun, refreshProgress } = useAcademy();
+  const { explore } = useMode();
+  const task = useAsyncTask<ScenarioRun>();
+
+  const [story, setStory] = useState<DemoStory | null>(null);
+  const [glossary, setGlossary] = useState<GlossaryTerm[]>([]);
+  const [storyError, setStoryError] = useState<string | null>(null);
+  const [index, setIndex] = useState(0);
+  const [prediction, setPrediction] = useState<string | null>(null);
+  // Lifted out of ChooseScreen so the answer survives Back navigation and can
+  // gate progress. `gapFound` is only true for the correct choice.
+  const [gapPick, setGapPick] = useState<string | null>(null);
+  const [gapFound, setGapFound] = useState(false);
+  const [ungovernedRun, setUngovernedRun] = useState<ScenarioRun | null>(null);
+  const [governedRun, setGovernedRun] = useState<ScenarioRun | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    academyApi
+      .demoStory()
+      .then((value) => active && setStory(value))
+      .catch((cause) => active && setStoryError(toErrorMessage(cause)));
+    // The glossary is a reading aid for the reveal below; failing to load it
+    // must not break the demonstration itself.
+    academyApi
+      .glossary()
+      .then((value) => active && setGlossary(value.terms))
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const screens = story?.screens ?? [];
+  const screen = screens[index];
+  const governedResult = governedRun;
+
+  const assessmentId = useMemo(() => {
+    if (!catalog) return null;
+    return catalog.modules.find((module) => module.id === "F0")?.completion.assessment_id ?? null;
+  }, [catalog]);
+
+  const runVariant = useCallback(
+    async (variant: "ungoverned" | "governed") => {
+      const options = variant === "ungoverned" ? UNGOVERNED_OPTIONS : defaultDemoOptions;
+      const run = await task.run(() => academyApi.runDemo(options));
+      if (!run) return;
+      if (variant === "ungoverned") setUngovernedRun(run);
+      else {
+        setGovernedRun(run);
+        setLastRun(run);
+      }
+      await refreshProgress().catch(() => undefined);
+    },
+    [refreshProgress, setLastRun, task],
+  );
+
+  if (storyError) {
+    return (
+      <div className="page">
+        <ErrorNotice title="The guided demonstration could not be loaded" message={storyError} />
+      </div>
+    );
+  }
+  if (!story || !screen) {
+    return (
+      <div className="page">
+        <LoadingState label="Loading the demonstration…" />
+      </div>
+    );
   }
 
-  async function runBoth() {
-    const configurationSnapshot = { ...options };
-    setRequestStarted(true);
-    setExecutedConfiguration(null);
-    const run = await task.run(() => academyApi.runDemo(configurationSnapshot));
-    if (run) {
-      setExecutedConfiguration({ runId: run.run_id, options: configurationSnapshot });
-      setLastRun(run);
-      await refreshProgress().catch(() => undefined);
-      requestAnimationFrame(() => document.getElementById("demo-results")?.focus());
+  const revealIds = arr<string>(screen as unknown as Field, "reveal_after");
+  const revealedTerms = revealIds
+    .map((id) => glossary.find((term) => term.id === id))
+    .filter(Boolean) as GlossaryTerm[];
+
+  const runForScreen = screen.variant === "ungoverned" ? ungovernedRun : governedRun;
+
+  /**
+   * A screen is complete when the learner has actually done the thing it exists
+   * for. Rendering the steps in order is not the same as teaching in order: if
+   * a learner can skip the prediction, the result violates no expectation, and
+   * if they can skip the runs, the reveal explains something they never saw.
+   *
+   * Story, position, proof and limits screens are reading, so they are complete
+   * on arrival.
+   */
+  function screenComplete(item: DemoStoryScreen): boolean {
+    switch (item.kind) {
+      case "predict":
+        return prediction !== null;
+      case "choose":
+        return gapFound;
+      case "run":
+        return Boolean(item.variant === "ungoverned" ? ungovernedRun : governedRun);
+      default:
+        return true;
     }
   }
 
+  // The furthest screen the learner has earned. Everything up to and including
+  // it stays navigable so earlier teaching can be revisited; beyond it is
+  // locked rather than merely discouraged.
+  const firstIncomplete = screens.findIndex((item) => !screenComplete(item));
+  const unlockedThrough = firstIncomplete === -1 ? screens.length - 1 : firstIncomplete;
+  const canAdvance = screenComplete(screen);
+  const isLast = index === screens.length - 1;
+  const blockedReason = canAdvance
+    ? null
+    : screen.kind === "predict"
+      ? "Choose what you think will happen first. There is no wrong answer."
+      : screen.kind === "choose"
+        ? "Pick the point where a check would actually help."
+        : "Run it first — the next step explains what you are about to see.";
+
   return (
-    <div className="page demo-page">
-      <header className="page-header demo-header">
+    <div className="page demo-page guided-demo">
+      <header className="demo-progress-header">
         <div>
-          <p className="eyebrow">Five-minute guided demonstration</p>
-          <h1>One plan. Two control paths.<br />A measurable difference.</h1>
-          <p>An AI research agent reads an untrusted webpage that tells it to publish sensitive content. Run both variants from the real training engine and follow the action to the inert tool ledger.</p>
+          <p className="eyebrow">The five-minute proof · step {screen.number} of {screens.length}</p>
+          <h1>{screen.title}</h1>
         </div>
-        <ol className="demo-steps" aria-label="Demonstration steps">
-          <li className="active"><span>1</span>Understand the plan</li>
-          <li><span>2</span>Run both paths</li>
-          <li><span>3</span>Inspect counters</li>
-          <li><span>4</span>Read evidence</li>
-          <li><span>5</span>Check your reasoning</li>
-        </ol>
+        <ModeSwitch />
       </header>
 
-      <section className="demo-primer">
-        <div className="primer-copy"><p className="eyebrow">Why this matters</p><h2>The dangerous transition is from words to authority.</h2><p>An assistant can draft a publication. An agent with a publishing tool can attempt it. A refusal sentence does not settle whether the tool ran; observed attempts and completions do.</p></div>
-        <div className="counter-key" aria-label="How to interpret side effect counters"><div><strong>0 / 0</strong><span>Prevented before execution, if the action was planned and evidence is complete</span></div><div><strong>1 / 0</strong><span>Tool attempt began but did not complete</span></div><div><strong>1 / 1</strong><span>Tool action completed</span></div><div><strong>? / ?</strong><span>Evidence cannot support a conclusion</span></div></div>
+      <ol className="demo-dots" aria-label="Progress through the demonstration">
+        {screens.map((item, position) => {
+          const locked = position > unlockedThrough;
+          return (
+            <li
+              key={item.id}
+              className={
+                position === index ? "is-current" : locked ? "is-locked" : position < index ? "is-done" : ""
+              }
+            >
+              <button
+                type="button"
+                disabled={locked}
+                onClick={() => setIndex(position)}
+                aria-current={position === index ? "step" : undefined}
+                aria-disabled={locked || undefined}
+                data-testid={`demo-dot-${position + 1}`}
+              >
+                {/* `sr-only` is this repository's screen-reader utility.
+                    `visually-hidden` is not defined anywhere, so a span using it
+                    rendered at full size: the labels were visible text, and once
+                    they grew long enough they overflowed the 7px-tall dot and
+                    intercepted pointer events across the page, making parts of
+                    the demo unclickable for anyone using a mouse. */}
+                <span className="sr-only">
+                  {`Step ${position + 1}: ${item.title}`}
+                  {locked ? " (locked — finish the current step first)" : ""}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+
+      <section className="demo-screen" data-testid={`demo-screen-${screen.id}`} aria-live="polite">
+        {screen.kind === "story" && screen.id === "meet" ? <MeetScreen screen={screen} /> : null}
+        {screen.kind === "story" && screen.id === "page" ? <PageScreen screen={screen} /> : null}
+        {screen.kind === "predict" ? (
+          <PredictionStep
+            prediction={{
+              prompt: String(obj(screen, "prediction").prompt ?? ""),
+              options: arr<{ id: string; label: string }>(obj(screen, "prediction"), "options"),
+            }}
+            committed={prediction}
+            onCommit={setPrediction}
+          />
+        ) : null}
+        {screen.kind === "run" ? (
+          <RunScreen
+            screen={screen}
+            run={runForScreen}
+            loading={task.loading}
+            error={task.error}
+            onRun={() => void runVariant((screen.variant as "ungoverned" | "governed") ?? "governed")}
+            onRetry={() => void runVariant((screen.variant as "ungoverned" | "governed") ?? "governed")}
+          />
+        ) : null}
+        {screen.kind === "choose" ? (
+          <ChooseScreen
+            screen={screen}
+            picked={gapPick}
+            onPick={(optionId, correct) => {
+              setGapPick(optionId);
+              if (correct) setGapFound(true);
+            }}
+          />
+        ) : null}
+        {screen.kind === "position" ? <PositionScreen screen={screen} /> : null}
+        {screen.kind === "proof" ? <ProofScreen screen={screen} /> : null}
+        {screen.kind === "limits" ? <LimitsScreen screen={screen} run={governedResult} /> : null}
       </section>
 
-      <section className="run-console" aria-labelledby="run-demo-heading">
-        <div className="run-console-main">
-          <p className="eyebrow">Safe deterministic scenario</p>
-          <h2 id="run-demo-heading">Run the ungoverned and governed paths together</h2>
-          <p>Both variants receive the same planner input and proposed plan. Business effects are recorded in an inert in-memory ledger; nothing is published externally.</p>
-          <div className="button-row">
-            <button className="button button-accent button-large" type="button" disabled={task.loading} onClick={() => void runBoth()}>
-              {task.loading ? <><span className="button-spinner" aria-hidden="true" /> Running both paths…</> : "Run both paths"}
-            </button>
-            <button className="button button-dark-secondary" type="button" aria-expanded={showControls} aria-controls="failure-controls" onClick={() => setShowControls((value) => !value)}>{showControls ? "Hide" : "Introduce"} a controlled failure</button>
-          </div>
-        </div>
-        <div className="run-boundary"><span aria-hidden="true">□</span><div><strong>No external side effects</strong><p>Default plans are deterministic and training tools are inert.</p></div></div>
-      </section>
-
-      {showControls ? (
-        <section id="failure-controls" className="control-panel" aria-labelledby="failure-controls-heading">
-          <div className="section-heading"><div><p className="eyebrow">Guided experimentation</p><h2 id="failure-controls-heading">Change one boundary, then run again</h2></div><button type="button" className="text-button" onClick={() => setOptions(defaultDemoOptions)}>Restore recommended defaults</button></div>
-          <div className="form-grid">
-            <label className="toggle-field"><input type="checkbox" checked={options.injection_enabled} onChange={(event) => update("injection_enabled", event.target.checked)} /><span><strong>Introduce prompt injection</strong><small>The untrusted page asks the agent to publish.</small></span></label>
-            <label className="toggle-field"><input type="checkbox" checked={options.enforcement_enabled} onChange={(event) => update("enforcement_enabled", event.target.checked)} /><span><strong>Enable enforcement point</strong><small>Control the named cooperative tool path.</small></span></label>
-            <label className="toggle-field"><input type="checkbox" checked={options.enforcement_failure} onChange={(event) => update("enforcement_failure", event.target.checked)} /><span><strong>Make enforcement fail</strong><small>Observe fail-open, fail-closed, or bounded behavior.</small></span></label>
-            <label><span>Failure mode</span><select value={options.failure_mode} onChange={(event) => update("failure_mode", event.target.value as DemoOptions["failure_mode"])}><option value="fail_closed">Fail closed</option><option value="fail_open">Fail open</option><option value="bounded">Bounded fallback</option></select></label>
-            <label><span>Approval assertion</span><select value={options.approval_state} onChange={(event) => update("approval_state", event.target.value as DemoOptions["approval_state"])}><option value="missing">Missing</option><option value="valid">Valid</option><option value="expired">Expired</option><option value="non_human">Non-human approver</option><option value="wrong_revision">Wrong contract revision</option></select></label>
-            <label><span>Agent identity</span><input value={options.identity_ref} onChange={(event) => update("identity_ref", event.target.value)} /></label>
-            <label><span>Observed subject revision</span><input value={options.observed_subject_revision ?? ""} placeholder="Use contract revision" onChange={(event) => update("observed_subject_revision", event.target.value || null)} /></label>
-            <label><span>Planner mode</span><select value={options.planner_mode} onChange={(event) => update("planner_mode", event.target.value as DemoOptions["planner_mode"])}><option value="deterministic">Deterministic fixture (offline)</option><option value="live">Configured live model</option></select></label>
-          </div>
-          <InfoNotice title="The experiment is isolated" tone="info"><p>Each run receives fresh state. The response confirms whether restoration completed; a failure never silently becomes a success.</p></InfoNotice>
-        </section>
+      {/* The derived explanation appears once the governed run exists, and only
+          after the learner has watched both outcomes. */}
+      {screen.kind === "run" && screen.variant === "governed" && governedRun?.explanation ? (
+        <>
+          <RunExplanation explanation={governedRun.explanation} />
+          {/* The vocabulary is released here and nowhere earlier. Each of these
+              terms now refers to something the learner has just watched happen,
+              which is the only reason they are comprehensible at all. */}
+          {revealedTerms.length ? (
+            <section className="concept-reveal" data-testid="concept-reveal">
+              <p className="eyebrow">These all have names now</p>
+              <p>
+                Everything you just watched has a technical term. You do not need to memorise
+                them — they are here so the words are not new when you meet them again.
+              </p>
+              <GlossaryStrip terms={revealedTerms} />
+            </section>
+          ) : null}
+        </>
       ) : null}
 
-      {task.error ? <ErrorNotice title="The demonstration did not run" message={`${task.error} No scenario outcome has been substituted.`} onRetry={() => void runBoth()} /> : null}
-      {result ? <div id="demo-results" tabIndex={-1}><ScenarioResults run={result} executedConfiguration={executedConfiguration?.runId === result.run_id ? executedConfiguration.options : null} configurationSource={task.data ? "Captured with this request" : "Previously loaded academy run"} /></div> : (
-        <section className="awaiting-run" aria-live="polite"><span aria-hidden="true">▶</span><div><h2>{task.loading ? "Running a fresh scenario" : "Results will appear here"}</h2><p>{task.loading ? "Prior results are hidden while the service evaluates the captured configuration." : "Use “Run both paths” to request a structured scenario result from the local academy service."}</p></div></section>
-      )}
-      {result && assessmentId ? <AssessmentPanel assessmentId={assessmentId} onComplete={async () => refreshProgress()} /> : result ? <InfoNotice title="Assessment mapping unavailable" tone="warning"><p>The catalog did not map this API scenario to an assessment. The run remains inspectable, but completion cannot be awarded from a click-through.</p></InfoNotice> : null}
+      <nav className="demo-nav">
+        <button type="button" className="button button-secondary" disabled={index === 0} onClick={() => setIndex((value) => value - 1)}>
+          ← Back
+        </button>
+        {!isLast ? (
+          <button
+            type="button"
+            className="button button-primary button-large"
+            disabled={!canAdvance}
+            aria-disabled={!canAdvance || undefined}
+            aria-describedby={blockedReason ? "demo-next-blocked" : undefined}
+            onClick={() => setIndex((value) => value + 1)}
+            data-testid="demo-next"
+          >
+            {str(screen, "cta") || "Continue"} →
+          </button>
+        ) : null}
+      </nav>
+
+      {/* Says why the step is held, rather than leaving a dead button. */}
+      {blockedReason ? (
+        <p className="demo-blocked" id="demo-next-blocked" role="status" data-testid="demo-blocked-reason">
+          {blockedReason}
+        </p>
+      ) : null}
+
+      {screen.kind === "run" && !runForScreen ? (
+        <InfoNotice title="Run it to continue" tone="info">
+          <p>This step executes the real training engine. The result you see next is that response, not a recording.</p>
+        </InfoNotice>
+      ) : null}
+
+      {/* Explore mode keeps the full professional surface available at all
+          times — the same run object, rendered at full density. */}
+      {governedRun ? (
+        <ExploreOnly>
+          <details className="result-disclosure explore-full" open={explore} data-testid="explore-full-result">
+            <summary>Full structured result (decisions, trace, evidence, claims)</summary>
+            <ScenarioResults run={governedRun} executedConfiguration={defaultDemoOptions} configurationSource="Captured with this request" />
+          </details>
+        </ExploreOnly>
+      ) : null}
+
+      {isLast && governedRun && assessmentId ? (
+        <AssessmentPanel assessmentId={assessmentId} onComplete={async () => refreshProgress()} />
+      ) : null}
     </div>
   );
 }

@@ -26,6 +26,7 @@ from .assessments import AssessmentService
 from .catalog import CurriculumRepository
 from .contracts import ContractWorkbenchError, get_contract, list_contracts, validate_workbench
 from .foundations import FoundationInputError, run_foundation
+from .pedagogy import PedagogyRepository
 from .progress import SQLiteLearnerRecordRepository
 from .scenarios import ScenarioUnavailable, run_atlas_demo
 from .schemas import (
@@ -42,14 +43,18 @@ from .schemas import (
     CurriculumModule,
     Dashboard,
     DemoOptions,
+    Glossary,
     Health,
+    LessonTeaching,
     LiveModelSettingsRequest,
     LiveModelSettingsResponse,
+    Orientation,
     PlatformInfo,
     ProgressExport,
     PublicAssessment,
     RunStatus,
     ScenarioRun,
+    StageMap,
     StructuredLabRun,
 )
 from .settings import LiveModelSettingsStore
@@ -64,6 +69,18 @@ class SPAStaticFiles(StaticFiles):
     """Serve Vite assets and fall back to index.html for client routes."""
 
     async def get_response(self, path: str, scope: dict[str, Any]) -> Response:
+        # An unmatched /api path must stay a 404 rather than becoming the SPA
+        # shell. This is checked before delegating because `html=True` makes
+        # StaticFiles fall back to index.html internally without raising, so a
+        # mistyped or removed endpoint returned HTML with status 200 and failed
+        # later as an unparseable body instead of a clean error.
+        #
+        # `path` is unusable for this test: StaticFiles builds it with
+        # os.path.normpath, which on Windows yields "api\v1\nope". Read the URL
+        # from the scope instead so the check behaves the same on every OS.
+        url_path: str = scope.get("path", "")
+        if url_path == "/api" or url_path.startswith("/api/"):
+            raise StarletteHTTPException(status_code=404, detail="Unknown API endpoint")
         try:
             return await super().get_response(path, scope)
         except StarletteHTTPException as exc:
@@ -113,6 +130,7 @@ def create_app(
     )
     resolved_database = Path(database_path or os.environ.get("NORNYX_ACADEMY_DB", DEFAULT_DB_PATH))
     app.state.catalog = CurriculumRepository()
+    app.state.pedagogy = PedagogyRepository()
     app.state.assessments = AssessmentService()
     app.state.progress = SQLiteLearnerRecordRepository(resolved_database)
     app.state.live_settings = LiveModelSettingsStore()
@@ -187,6 +205,35 @@ def create_app(
     def module(module_id: str) -> Any:
         try:
             return app.state.catalog.module(module_id, progress_map())
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=_detail(exc)) from exc
+
+    # ------------------------------------------------------------- pedagogy
+    @app.get(f"/api/{API_VERSION}/orientation", response_model=Orientation, tags=["pedagogy"])
+    def orientation() -> Orientation:
+        return app.state.pedagogy.orientation()
+
+    @app.get(f"/api/{API_VERSION}/demo/story", tags=["pedagogy"])
+    def demo_story() -> dict[str, Any]:
+        return app.state.pedagogy.demo_story()
+
+    @app.get(f"/api/{API_VERSION}/glossary", response_model=Glossary, tags=["pedagogy"])
+    def glossary() -> Glossary:
+        return app.state.pedagogy.glossary()
+
+    @app.get(f"/api/{API_VERSION}/stages", response_model=StageMap, tags=["pedagogy"])
+    def stages() -> StageMap:
+        statuses = {item.module_id: item.status for item in dashboard().modules}
+        return app.state.pedagogy.stages(statuses)
+
+    @app.get(
+        f"/api/{API_VERSION}/modules/{{module_id}}/teaching",
+        response_model=LessonTeaching,
+        tags=["pedagogy"],
+    )
+    def teaching(module_id: str) -> LessonTeaching:
+        try:
+            return app.state.pedagogy.teaching(module_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=_detail(exc)) from exc
 

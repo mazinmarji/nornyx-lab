@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAcademy } from "../context/AcademyContext";
+import { useMode } from "../context/ModeContext";
+import { ModeSwitch } from "./Teaching";
 
 const primary = [
   ["/", "Home"],
+  ["/orientation", "Start here"],
   ["/demo", "Five-minute demo"],
-  ["/paths", "Learning paths"],
   ["/curriculum", "Curriculum"],
   ["/dashboard", "My dashboard"],
+  ["/glossary", "What the words mean"],
+  ["/paths", "Learning paths"],
 ] as const;
 
 const explore = [
@@ -53,6 +57,7 @@ export function Shell() {
   const previousPath = useRef(location.pathname);
   const restoreMenuFocus = useRef(false);
   const { dashboard, booting, serviceError } = useAcademy();
+  const { explore: exploreMode } = useMode();
 
   useEffect(() => {
     if (previousPath.current === location.pathname) return;
@@ -156,12 +161,24 @@ export function Shell() {
             <p className="nav-label">Learn</p>
             {primary.map(([to, label]) => <NavigationLink key={to} to={to} label={label} />)}
           </div>
+          {/* These are the "go deeper" surfaces. They stay reachable in Guided
+              mode, but collapsed and labelled, so a beginner is not presented
+              with eight inspection tools before knowing what they inspect. */}
           <div className="nav-group">
-            <p className="nav-label">Explore & build</p>
-            {explore.map(([to, label]) => <NavigationLink key={to} to={to} label={label} />)}
+            <details className="nav-advanced" open={exploreMode}>
+              <summary>
+                <span className="nav-label">Inspection tools</span>
+                <small>{exploreMode ? "Full detail" : "You don't need these yet"}</small>
+              </summary>
+              {explore.map(([to, label]) => <NavigationLink key={to} to={to} label={label} />)}
+            </details>
           </div>
         </nav>
         <div className="sidebar-footer">
+          <div className="sidebar-mode">
+            <p className="nav-label">Level of detail</p>
+            <ModeSwitch testId="mode-switch-global" />
+          </div>
           {dashboard ? (
             <div className="sidebar-progress">
               <div><span>Your progress</span><strong>{Math.round(dashboard.completion_percent)}%</strong></div>

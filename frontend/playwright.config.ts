@@ -6,6 +6,17 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
+  /**
+   * Most assertions here follow a real engine execution, not a re-render. A
+   * lesson run spawns the Nornyx CLI in an isolated per-run workspace, which
+   * takes about 7s on a Windows laptop and slows further as a serial suite
+   * loads the service; Playwright's 5s assertion default is under that, so
+   * three tests failed locally while passing in 18.9s on Linux CI. These are
+   * ceilings, not waits — a passing run is no slower for raising them, and
+   * nothing about what is asserted changes.
+   */
+  timeout: 120_000,
+  expect: { timeout: 20_000 },
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:4173",
     trace: "retain-on-failure",

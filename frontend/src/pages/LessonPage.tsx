@@ -1,14 +1,24 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { academyApi } from "../api/client";
+import { academyApi, toErrorMessage } from "../api/client";
 import { AssessmentPanel } from "../components/AssessmentPanel";
 import { ContentBlocks, Findings } from "../components/ContentBlocks";
 import { ErrorNotice, InfoNotice, LoadingState } from "../components/Feedback";
 import { AdvancedLessonControls, hasLessonConfiguration, initialAdvancedConfiguration, LessonInteraction } from "../components/LessonInteraction";
 import { StatusBadge } from "../components/StatusBadge";
+import {
+  ConceptName,
+  ExploreOnly,
+  GlossaryStrip,
+  LearningSentence,
+  ModeSwitch,
+  PredictionStep,
+  WhatAmILookingAt,
+} from "../components/Teaching";
 import { useAsyncTask } from "../components/useAsyncTask";
 import { useAcademy } from "../context/AcademyContext";
-import type { StructuredLabRun } from "../types";
+import { useMode } from "../context/ModeContext";
+import type { LessonTeaching, StructuredLabRun } from "../types";
 
 const repairDefaults = {
   authorization: true,
@@ -39,7 +49,7 @@ function FoundationControls({ moduleId, value, onChange }: { moduleId: string; v
   const set = (key: string, next: unknown) => onChange({ ...value, [key]: next });
   return (
     <section className="control-panel" aria-labelledby="foundation-controls-heading">
-      <div className="section-heading"><div><p className="eyebrow">Guided interaction</p><h2 id="foundation-controls-heading">Change the inputs, then compare the result</h2></div><button type="button" className="text-button" onClick={() => onChange(initialLessonConfiguration(moduleId))}>Restore defaults</button></div>
+      <div className="section-heading"><div><p className="eyebrow">Change something</p><h2 id="foundation-controls-heading">Try it with different inputs</h2></div><button type="button" className="text-button" onClick={() => onChange(initialLessonConfiguration(moduleId))}>Restore defaults</button></div>
       {moduleId === "F1" ? <div className="form-grid">
         <label><span>Sampling seed</span><input type="number" min="0" max="1000000" value={Number(value.seed)} onChange={(event) => set("seed", Number(event.target.value))} /></label>
         <label><span>Repeated samples</span><input type="number" min="2" max="40" value={Number(value.sample_count)} onChange={(event) => set("sample_count", Number(event.target.value))} /></label>
@@ -67,11 +77,28 @@ function FoundationControls({ moduleId, value, onChange }: { moduleId: string; v
 export function LessonPage() {
   const { moduleId = "" } = useParams();
   const { catalog, booting, refreshProgress } = useAcademy();
+  const { explore } = useMode();
   const task = useAsyncTask<StructuredLabRun>();
   const module = catalog?.modules.find((item) => item.id === moduleId);
   const [configuration, setConfiguration] = useState<Record<string, unknown>>(() => initialLessonConfiguration(moduleId));
+  const [teaching, setTeaching] = useState<LessonTeaching | null>(null);
+  const [teachingError, setTeachingError] = useState<string | null>(null);
+  const [prediction, setPrediction] = useState<string | null>(null);
 
   useEffect(() => setConfiguration(initialLessonConfiguration(moduleId)), [moduleId]);
+  useEffect(() => {
+    let active = true;
+    setTeaching(null);
+    setPrediction(null);
+    setTeachingError(null);
+    academyApi
+      .teaching(moduleId)
+      .then((value) => active && setTeaching(value))
+      .catch((cause) => active && setTeachingError(toErrorMessage(cause)));
+    return () => {
+      active = false;
+    };
+  }, [moduleId]);
 
   if (booting && !catalog) return <div className="page"><LoadingState label="Loading lesson…" /></div>;
   if (!module) return <div className="page"><header className="page-header"><h1>Lesson not found</h1><p>The catalog does not contain <code>{moduleId}</code>.</p></header><Link className="button button-secondary" to="/curriculum">Return to curriculum</Link></div>;
@@ -83,28 +110,159 @@ export function LessonPage() {
     if (result) await refreshProgress().catch(() => undefined);
   }
 
+  const hasRun = Boolean(task.data);
+
   return (
     <div className="page lesson-page">
       <nav className="breadcrumbs" aria-label="Breadcrumb"><Link to="/curriculum">Curriculum</Link><span aria-hidden="true">/</span><span aria-current="page">{module.title}</span></nav>
+
       <header className="lesson-header">
-        <div><p className="eyebrow">{module.eyebrow} · {module.difficulty}</p><h1>{module.title}</h1><p>{module.summary}</p><div className="lesson-meta"><span>{module.minutes} minutes</span><span>Guided practice + structured run</span><StatusBadge status={module.status} /></div></div>
-        <aside><h2>By the end, you can</h2><ul>{module.outcomes.map((outcome) => <li key={outcome}>{outcome}</li>)}</ul></aside>
+        <div>
+          {/* Plain title leads in Guided mode. The repository's own title is
+              never lost — it is the Explore heading and the subtitle here — but
+              a beginner should not meet "PDP, PEP, and what a tier claims" as
+              the first words of a lesson meant to explain those terms. */}
+          <h1>{explore || !teaching ? module.title : teaching.plain_title}</h1>
+          {!explore && teaching ? <p className="lesson-formal-title">{module.title}</p> : null}
+          <div className="lesson-meta">
+            <span>{module.minutes} minutes</span>
+            <StatusBadge status={module.status} />
+            <ExploreOnly><code className="module-id">{module.id}</code></ExploreOnly>
+          </div>
+        </div>
+        <ModeSwitch />
       </header>
-      <section className="lesson-concept"><div><p className="eyebrow">Why it matters</p><h2>{module.why_it_matters}</h2></div><div className="concept-line">{module.concepts.map((concept) => <span key={concept}>{concept}</span>)}</div></section>
-      {module.prerequisites.length ? <InfoNotice title="Before you begin"><p>Recommended prerequisites: {module.prerequisites.join(", ")}.</p></InfoNotice> : null}
+
+      {/* A — the question, and the single learning sentence, above everything
+          operational. The concept is the centre of the page; the run is not. */}
+      {teaching ? (
+        <>
+          <LearningSentence>{teaching.learn}</LearningSentence>
+
+          <section className="lesson-question" data-testid="lesson-question">
+            <p className="eyebrow">The question</p>
+            <h2>{teaching.question}</h2>
+            <p className="lesson-why-care">
+              <strong>Why you care:</strong> {teaching.why_you_care}
+            </p>
+          </section>
+
+          <section className="lesson-story" data-testid="lesson-story">
+            <p className="eyebrow">The situation</p>
+            <p>{teaching.story}</p>
+          </section>
+
+          <PredictionStep prediction={teaching.prediction} committed={prediction} onCommit={setPrediction} />
+        </>
+      ) : teachingError ? (
+        <InfoNotice title="Teaching notes unavailable" tone="warning">
+          <p>{teachingError} The lesson can still be run, but the guided framing is missing.</p>
+        </InfoNotice>
+      ) : (
+        <LoadingState label="Loading the lesson…" />
+      )}
+
+      <ExploreOnly>
+        <section className="lesson-concept">
+          <div><p className="eyebrow">Concepts in this module</p></div>
+          <div className="concept-line">{module.concepts.map((concept) => <span key={concept}>{concept}</span>)}</div>
+        </section>
+        {module.prerequisites.length ? <InfoNotice title="Before you begin"><p>Recommended prerequisites: {module.prerequisites.join(", ")}.</p></InfoNotice> : null}
+      </ExploreOnly>
+
       <LessonInteraction module={module} />
       <FoundationControls moduleId={module.id} value={configuration} onChange={setConfiguration} />
-      <AdvancedLessonControls moduleId={module.id} value={configuration} onChange={setConfiguration} />
+      <ExploreOnly>
+        <AdvancedLessonControls moduleId={module.id} value={configuration} onChange={setConfiguration} />
+      </ExploreOnly>
+
+      {/* E — run. One primary action, phrased as the thing the learner wants to
+          find out rather than as an instruction to operate the system. */}
       <section className="execution-panel">
-        <div><p className="eyebrow">Executable lesson</p><h2>Run the structured scenario</h2><p>The service executes this module—including every AI foundation—in an isolated training workspace and returns typed content, diagnostics, checks, and a safety boundary.</p></div>
+        <div>
+          <p className="eyebrow">Now find out</p>
+          <h2>{prediction ? `You said "${prediction}". Let's see.` : "Run it and see what happens"}</h2>
+        </div>
         <div className="button-row">
-          <button className="button button-primary button-large" type="button" disabled={task.loading} onClick={() => void runLab()}>{task.loading ? "Running isolated scenario…" : "Run this lesson"}</button>
-          {["F0", "00", "05"].includes(module.id) ? <Link className="button button-secondary" to="/demo">Also open five-minute demo</Link> : null}
+          <button className="button button-accent button-large" type="button" disabled={task.loading} onClick={() => void runLab()}>
+            {task.loading ? "Running…" : hasRun ? "Run it again" : "Run this lesson"}
+          </button>
+          {["F0", "00", "05"].includes(module.id) ? <Link className="button button-secondary" to="/demo">Open the five-minute demo</Link> : null}
         </div>
       </section>
-      {task.error ? <ErrorNotice title="Lesson execution failed" message={`${task.error} No substitute result was created.`} onRetry={() => void runLab()} /> : null}
-      {task.data ? <section className="lab-result"><div className="result-banner"><div><p className="eyebrow">Structured lab result</p><h2>{task.data.title}</h2></div><StatusBadge status={task.data.status} /></div>{task.data.unavailable_reason ? <ErrorNotice title="Scenario unavailable" message={task.data.unavailable_reason} /> : null}<ContentBlocks blocks={task.data.blocks} />{task.data.diagnostics.length ? <section><div className="section-heading"><div><p className="eyebrow">Exact service diagnostics</p><h2>Findings</h2></div></div><Findings findings={task.data.diagnostics} /></section> : null}<div className="execution-checks"><div><h3>Executable checks</h3>{task.data.executable_checks.length ? <ul>{task.data.executable_checks.map((check) => <li key={check}>{check}</li>)}</ul> : <p>No executable checks were returned.</p>}</div><div><h3>Completion eligibility</h3><p>{task.data.completion_eligible ? "Execution requirement satisfied; complete the assessment rule below." : "This run did not satisfy the module execution requirement."}</p></div></div><p className="safety-boundary"><strong>Safety boundary:</strong> {task.data.safety_boundary}</p></section> : null}
-      <AssessmentPanel assessmentId={module.completion.assessment_id} onComplete={async () => refreshProgress()} />
+
+      {task.error ? <ErrorNotice title="The lesson did not run" message={`${task.error} No substitute result was created.`} onRetry={() => void runLab()} /> : null}
+
+      {task.data ? (
+        <section className="lab-result">
+          <div className="result-banner">
+            <div><p className="eyebrow">What happened</p><h2>{task.data.title}</h2></div>
+            <StatusBadge status={task.data.status} />
+          </div>
+          {task.data.unavailable_reason ? <ErrorNotice title="Scenario unavailable" message={task.data.unavailable_reason} /> : null}
+
+          <WhatAmILookingAt testId="what-am-i-blocks">
+            This is what the lesson actually produced when it ran — not a description of what it
+            usually does.
+          </WhatAmILookingAt>
+          <ContentBlocks blocks={task.data.blocks} />
+
+          {/* G/H — cause, then the formal name. Explicitly after the result, so
+              the terminology lands on an experience the learner already has. */}
+          {teaching ? (
+            <>
+              <ConceptName concept={teaching.concept} />
+              <section className="lesson-nornyx" data-testid="lesson-nornyx-role">
+                <p className="eyebrow">Where Nornyx fits</p>
+                <p>{teaching.nornyx_role}</p>
+              </section>
+            </>
+          ) : null}
+
+          <ExploreOnly>
+            {task.data.diagnostics.length ? (
+              <section>
+                <div className="section-heading"><div><p className="eyebrow">Exact service diagnostics</p><h2>Findings</h2></div></div>
+                <WhatAmILookingAt testId="what-am-i-diagnostics">
+                  These messages explain why the contract or action did not satisfy the governance
+                  rules.
+                </WhatAmILookingAt>
+                <Findings findings={task.data.diagnostics} />
+              </section>
+            ) : null}
+            <div className="execution-checks">
+              <div>
+                <h3>Executable checks</h3>
+                {task.data.executable_checks.length ? <ul>{task.data.executable_checks.map((check) => <li key={check}>{check}</li>)}</ul> : <p>No executable checks were returned.</p>}
+              </div>
+              <div>
+                <h3>Completion eligibility</h3>
+                <p>{task.data.completion_eligible ? "Execution requirement satisfied; complete the assessment below." : "This run did not satisfy the module execution requirement."}</p>
+              </div>
+            </div>
+          </ExploreOnly>
+
+          <p className="safety-boundary"><strong>Safety boundary:</strong> {task.data.safety_boundary}</p>
+        </section>
+      ) : null}
+
+      {/* K — the takeaway, and only then L, the assessment. */}
+      {teaching && hasRun ? (
+        <section className="lesson-takeaway" data-testid="lesson-takeaway">
+          <p className="eyebrow">Key takeaway</p>
+          <p>{teaching.takeaway}</p>
+        </section>
+      ) : null}
+
+      {teaching ? <GlossaryStrip terms={teaching.glossary} /> : null}
+
+      {hasRun ? (
+        <AssessmentPanel assessmentId={module.completion.assessment_id} onComplete={async () => refreshProgress()} />
+      ) : (
+        <InfoNotice title="The check comes after the lesson" tone="info">
+          <p>Run the lesson first. The questions are about what you just watched happen, so they only appear once there is something to have watched.{explore ? "" : ""}</p>
+        </InfoNotice>
+      )}
     </div>
   );
 }

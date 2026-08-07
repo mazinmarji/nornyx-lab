@@ -39,6 +39,7 @@ from nornyx_lab.contract import shared_contract
 from nornyx_lab.ledger import Ledger
 from nornyx_lab.model import DeterministicPlanner, Planner, ToolCall
 
+from .explain import explain_run
 from .schemas import (
     ActionCounter,
     ClaimInterpretation,
@@ -868,7 +869,7 @@ def run_atlas_demo(
         for left, right in zip(ungoverned.counters, governed.counters, strict=True)
     )
 
-    return ScenarioRun(
+    run = ScenarioRun(
         scenario_id=SCENARIO_ID,
         run_id=_stable_run_id(selected, calls),
         title="Atlas: untrusted research content attempts public publication",
@@ -902,6 +903,9 @@ def run_atlas_demo(
         ),
         restored=True,
     )
+    # Derived last, from the finished run, so the explanation can never describe
+    # anything the engine did not actually report.
+    return run.model_copy(update={"explanation": explain_run(run)})
 
 
 # Stable, descriptive aliases for API/router code and older prototypes.
