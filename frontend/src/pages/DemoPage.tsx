@@ -167,9 +167,16 @@ function RunScreen({
   );
 }
 
-function ChooseScreen({ screen, onResolved }: { screen: DemoStoryScreen; onResolved: () => void }) {
+function ChooseScreen({
+  screen,
+  picked,
+  onPick,
+}: {
+  screen: DemoStoryScreen;
+  picked: string | null;
+  onPick: (optionId: string, correct: boolean) => void;
+}) {
   const options = arr<{ id: string; label: string; correct: boolean; feedback: string }>(screen, "chain");
-  const [picked, setPicked] = useState<string | null>(null);
   const concept = obj(screen, "concept");
   const chosen = options.find((option) => option.id === picked);
 
@@ -185,10 +192,7 @@ function ChooseScreen({ screen, onResolved }: { screen: DemoStoryScreen; onResol
               type="button"
               className={`gap-option${picked === option.id ? " is-picked" : ""}${picked && option.correct ? " is-correct" : ""}`}
               aria-pressed={picked === option.id}
-              onClick={() => {
-                setPicked(option.id);
-                if (option.correct) onResolved();
-              }}
+              onClick={() => onPick(option.id, option.correct)}
             >
               {option.label}
             </button>
@@ -316,6 +320,10 @@ export function DemoPage() {
   const [storyError, setStoryError] = useState<string | null>(null);
   const [index, setIndex] = useState(0);
   const [prediction, setPrediction] = useState<string | null>(null);
+  // Lifted out of ChooseScreen so the answer survives Back navigation and can
+  // gate progress. `gapFound` is only true for the correct choice.
+  const [gapPick, setGapPick] = useState<string | null>(null);
+  const [gapFound, setGapFound] = useState(false);
   const [ungovernedRun, setUngovernedRun] = useState<ScenarioRun | null>(null);
   const [governedRun, setGovernedRun] = useState<ScenarioRun | null>(null);
 
@@ -381,9 +389,43 @@ export function DemoPage() {
     .filter(Boolean) as GlossaryTerm[];
 
   const runForScreen = screen.variant === "ungoverned" ? ungovernedRun : governedRun;
-  const canAdvance =
-    screen.kind !== "run" || Boolean(runForScreen) || screen.kind === undefined;
+
+  /**
+   * A screen is complete when the learner has actually done the thing it exists
+   * for. Rendering the steps in order is not the same as teaching in order: if
+   * a learner can skip the prediction, the result violates no expectation, and
+   * if they can skip the runs, the reveal explains something they never saw.
+   *
+   * Story, position, proof and limits screens are reading, so they are complete
+   * on arrival.
+   */
+  function screenComplete(item: DemoStoryScreen): boolean {
+    switch (item.kind) {
+      case "predict":
+        return prediction !== null;
+      case "choose":
+        return gapFound;
+      case "run":
+        return Boolean(item.variant === "ungoverned" ? ungovernedRun : governedRun);
+      default:
+        return true;
+    }
+  }
+
+  // The furthest screen the learner has earned. Everything up to and including
+  // it stays navigable so earlier teaching can be revisited; beyond it is
+  // locked rather than merely discouraged.
+  const firstIncomplete = screens.findIndex((item) => !screenComplete(item));
+  const unlockedThrough = firstIncomplete === -1 ? screens.length - 1 : firstIncomplete;
+  const canAdvance = screenComplete(screen);
   const isLast = index === screens.length - 1;
+  const blockedReason = canAdvance
+    ? null
+    : screen.kind === "predict"
+      ? "Choose what you think will happen first. There is no wrong answer."
+      : screen.kind === "choose"
+        ? "Pick the point where a check would actually help."
+        : "Run it first — the next step explains what you are about to see.";
 
   return (
     <div className="page demo-page guided-demo">
@@ -396,13 +438,37 @@ export function DemoPage() {
       </header>
 
       <ol className="demo-dots" aria-label="Progress through the demonstration">
-        {screens.map((item, position) => (
-          <li key={item.id} className={position === index ? "is-current" : position < index ? "is-done" : ""}>
-            <button type="button" onClick={() => setIndex(position)} aria-current={position === index ? "step" : undefined}>
-              <span className="visually-hidden">{item.title}</span>
-            </button>
-          </li>
-        ))}
+        {screens.map((item, position) => {
+          const locked = position > unlockedThrough;
+          return (
+            <li
+              key={item.id}
+              className={
+                position === index ? "is-current" : locked ? "is-locked" : position < index ? "is-done" : ""
+              }
+            >
+              <button
+                type="button"
+                disabled={locked}
+                onClick={() => setIndex(position)}
+                aria-current={position === index ? "step" : undefined}
+                aria-disabled={locked || undefined}
+                data-testid={`demo-dot-${position + 1}`}
+              >
+                {/* `sr-only` is this repository's screen-reader utility.
+                    `visually-hidden` is not defined anywhere, so a span using it
+                    rendered at full size: the labels were visible text, and once
+                    they grew long enough they overflowed the 7px-tall dot and
+                    intercepted pointer events across the page, making parts of
+                    the demo unclickable for anyone using a mouse. */}
+                <span className="sr-only">
+                  {`Step ${position + 1}: ${item.title}`}
+                  {locked ? " (locked — finish the current step first)" : ""}
+                </span>
+              </button>
+            </li>
+          );
+        })}
       </ol>
 
       <section className="demo-screen" data-testid={`demo-screen-${screen.id}`} aria-live="polite">
@@ -428,7 +494,16 @@ export function DemoPage() {
             onRetry={() => void runVariant((screen.variant as "ungoverned" | "governed") ?? "governed")}
           />
         ) : null}
-        {screen.kind === "choose" ? <ChooseScreen screen={screen} onResolved={() => undefined} /> : null}
+        {screen.kind === "choose" ? (
+          <ChooseScreen
+            screen={screen}
+            picked={gapPick}
+            onPick={(optionId, correct) => {
+              setGapPick(optionId);
+              if (correct) setGapFound(true);
+            }}
+          />
+        ) : null}
         {screen.kind === "position" ? <PositionScreen screen={screen} /> : null}
         {screen.kind === "proof" ? <ProofScreen screen={screen} /> : null}
         {screen.kind === "limits" ? <LimitsScreen screen={screen} run={governedResult} /> : null}
@@ -464,6 +539,8 @@ export function DemoPage() {
             type="button"
             className="button button-primary button-large"
             disabled={!canAdvance}
+            aria-disabled={!canAdvance || undefined}
+            aria-describedby={blockedReason ? "demo-next-blocked" : undefined}
             onClick={() => setIndex((value) => value + 1)}
             data-testid="demo-next"
           >
@@ -471,6 +548,13 @@ export function DemoPage() {
           </button>
         ) : null}
       </nav>
+
+      {/* Says why the step is held, rather than leaving a dead button. */}
+      {blockedReason ? (
+        <p className="demo-blocked" id="demo-next-blocked" role="status" data-testid="demo-blocked-reason">
+          {blockedReason}
+        </p>
+      ) : null}
 
       {screen.kind === "run" && !runForScreen ? (
         <InfoNotice title="Run it to continue" tone="info">

@@ -90,15 +90,43 @@ def _sensitive_action(run: ScenarioRun, governed: ScenarioVariant) -> str | None
     return governed.counters[-1].action if governed.counters else None
 
 
-def _blocking_decision(variant: ScenarioVariant) -> DecisionTrace | None:
-    return next(
-        (
-            decision
-            for decision in variant.decisions
-            if decision.effect in (DecisionEffect.DENY, DecisionEffect.APPROVAL_REQUIRED)
-        ),
-        None,
-    )
+def _blocking_decision(variant: ScenarioVariant, action: str) -> DecisionTrace | None:
+    """The blocking decision that actually settled `action`.
+
+    Selection is filtered by the action rather than taking whichever blocking
+    decision happens to come first. A variant can block on several capabilities
+    at once — the Atlas run denies `publish_external` and separately requires
+    approval for `cross_zone_publication` — and narrating an unrelated decision
+    under a headline about `action` would assert a causal link the run does not
+    support.
+
+    Preference order:
+
+    1. a blocking decision naming this capability;
+    2. a blocking decision on the same resource, which gates the same effect
+       path (a zone crossing for this publication is a legitimate reason the
+       action was stopped, and the narration names that decision's own
+       capability rather than the action's);
+    3. any blocking decision, so a run is still explained rather than silently
+       dropping to "no decision reported".
+    """
+    blocking = [
+        decision
+        for decision in variant.decisions
+        if decision.effect in (DecisionEffect.DENY, DecisionEffect.APPROVAL_REQUIRED)
+    ]
+    if not blocking:
+        return None
+    for decision in blocking:
+        if decision.capability == action:
+            return decision
+    resources = {
+        decision.resource for decision in variant.decisions if decision.capability == action
+    }
+    for decision in blocking:
+        if decision.resource in resources:
+            return decision
+    return blocking[0]
 
 
 def _unsupported_claims(variant: ScenarioVariant, limit: int) -> list[str]:
@@ -226,7 +254,7 @@ def explain_run(run: ScenarioRun) -> ScenarioExplanation:  # noqa: PLR0911, PLR0
 
     evidence = governed.evidence
     producer_note = _PRODUCER_CAVEAT.format(producer=evidence.producer_type)
-    decision = _blocking_decision(governed) or (
+    decision = _blocking_decision(governed, action) or (
         governed.decisions[0] if governed.decisions else None
     )
     attempted = before.meaning is not CounterMeaning.NOT_PLANNED

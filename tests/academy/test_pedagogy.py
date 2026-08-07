@@ -20,10 +20,15 @@ from pathlib import Path
 import pytest
 
 from nornyx_lab.academy.catalog import CurriculumRepository
-from nornyx_lab.academy.explain import explain_run
+from nornyx_lab.academy.explain import _blocking_decision, explain_run
 from nornyx_lab.academy.pedagogy import PedagogyRepository
 from nornyx_lab.academy.scenarios import run_atlas_demo
-from nornyx_lab.academy.schemas import CounterMeaning, DemoOptions, ModuleStatus
+from nornyx_lab.academy.schemas import (
+    CounterMeaning,
+    DecisionEffect,
+    DemoOptions,
+    ModuleStatus,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_SRC = REPO_ROOT / "frontend" / "src"
@@ -242,6 +247,86 @@ def test_an_unattempted_action_is_never_reported_as_a_prevention():
         f"a run where nothing was attempted was narrated as a prevention: {text!r}"
     )
     assert "never tried" in explanation.headline.lower()
+
+
+def test_the_narrated_decision_belongs_to_the_action_being_explained():
+    """The headline names an action; the reasoning must name that action's decision.
+
+    The governed Atlas variant blocks on two capabilities at once —
+    `publish_external` is denied and `cross_zone_publication` separately requires
+    approval. Taking whichever blocking decision came first would let the
+    explanation say "the publish_external tool never ran" and then justify it
+    with a decision about a different capability, asserting a causal link the run
+    does not support.
+    """
+    run = run_atlas_demo(DemoOptions())
+    governed = next(v for v in run.variants if v.id == "governed")
+    blocking = [
+        d
+        for d in governed.decisions
+        if d.effect in (DecisionEffect.DENY, DecisionEffect.APPROVAL_REQUIRED)
+    ]
+    assert len(blocking) > 1, (
+        "fixture no longer exercises the ambiguity this guards; if the run only ever "
+        "blocks once, the selection rule is untested"
+    )
+
+    action = next(item.action for item in run.comparison if item.changed)
+    selected = _blocking_decision(governed, action)
+    assert selected is not None
+    assert selected.capability == action, (
+        f"explanation narrates '{selected.capability}' under a headline about '{action}'"
+    )
+
+
+def test_decision_selection_does_not_depend_on_decision_order():
+    """Reordering the decisions must not change which one is narrated."""
+    run = run_atlas_demo(DemoOptions())
+    governed = next(v for v in run.variants if v.id == "governed")
+    action = next(item.action for item in run.comparison if item.changed)
+
+    forward = _blocking_decision(governed, action)
+    reversed_variant = governed.model_copy(
+        update={"decisions": tuple(reversed(governed.decisions))}
+    )
+    backward = _blocking_decision(reversed_variant, action)
+
+    assert forward is not None and backward is not None
+    assert forward.code == backward.code
+    assert backward.capability == action
+
+
+def test_an_unrelated_blocking_decision_is_not_attributed_to_the_action():
+    """With no decision naming the action, the narration must not invent one.
+
+    Constructed rather than sampled: the engine currently always emits a
+    capability decision for the sensitive action, so the only way to exercise
+    the fallback is to remove it.
+    """
+    run = run_atlas_demo(DemoOptions())
+    governed = next(v for v in run.variants if v.id == "governed")
+    action = next(item.action for item in run.comparison if item.changed)
+
+    without_capability = governed.model_copy(
+        update={"decisions": tuple(d for d in governed.decisions if d.capability != action)}
+    )
+    selected = _blocking_decision(without_capability, action)
+    assert selected is not None
+    # It falls back to a decision gating the same resource, and the reasoning
+    # names that decision's own capability rather than silently borrowing the
+    # action's.
+    assert selected.capability != action
+    explanation = explain_run(
+        run.model_copy(
+            update={
+                "variants": (
+                    next(v for v in run.variants if v.id == "ungoverned"),
+                    without_capability,
+                )
+            }
+        )
+    )
+    assert selected.capability in " ".join(explanation.why)
 
 
 def test_an_unenforced_rule_is_reported_as_having_changed_nothing():

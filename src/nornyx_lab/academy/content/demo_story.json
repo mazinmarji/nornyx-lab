@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "note": "The eight screens of the reference lesson. Screens 3 and 5 execute the real engine; nothing here describes an outcome, because outcomes are derived from the run in explain.py and rendered from the response.",
+  "note": "The nine screens of the reference lesson. Screens 4 and 6 execute the real engine; nothing here describes an outcome, because outcomes are derived from the run in explain.py and rendered from the response. Screens 3, 4, 5 and 6 gate progress: the learner cannot advance past the prediction, the ungoverned run, the control-point choice, or the governed run without completing it.",
   "screens": [
     {
       "id": "meet",

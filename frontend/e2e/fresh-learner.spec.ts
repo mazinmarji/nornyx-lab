@@ -8,6 +8,25 @@ async function advance(page: Page) {
   await page.getByTestId("demo-next").click();
 }
 
+/**
+ * Walks the demo to the governed run, completing each gate on the way. Nothing
+ * can jump straight there any more, which is the point of the gating — so a
+ * test that wants the later material has to earn it exactly as a learner does.
+ */
+async function reachGovernedRun(page: Page) {
+  await advance(page); // meet -> page
+  await advance(page); // page -> predict
+  await page.getByRole("button", { name: "Try to publish" }).click();
+  await advance(page); // predict -> run ungoverned
+  await page.getByRole("button", { name: /Run without governance/i }).click();
+  await expect(page.getByTestId("focus-counter-ungoverned")).toBeVisible();
+  await advance(page); // -> choose
+  await page.getByRole("button", { name: /Between the agent and the tool/i }).click();
+  await advance(page); // -> run governed
+  await page.getByRole("button", { name: /Run with governance/i }).click();
+  await expect(page.getByTestId("focus-counter-governed")).toBeVisible();
+}
+
 test.describe("fresh learner guided journey", () => {
   test.beforeEach(async ({ request }) => {
     const response = await request.post("/api/v1/progress/reset");
@@ -107,6 +126,99 @@ test.describe("fresh learner guided journey", () => {
     await expect(page.getByRole("heading", { name: "Assessment passed" })).toBeVisible();
   });
 
+  test("a fresh learner cannot skip prediction, execution or the control-point choice", async ({ page }) => {
+    // Rendering the steps in order is not the same as teaching in order. This
+    // walks the gate at every point it could be jumped: the Next button and the
+    // progress dots, on each of the four screens that require an action.
+    await page.goto("/demo");
+
+    const next = page.getByTestId("demo-next");
+    const dot = (step: number) => page.getByTestId(`demo-dot-${step}`);
+
+    // Screens 1-2 are reading, so they advance freely.
+    await expect(next).toBeEnabled();
+    await next.click();
+    await next.click();
+
+    // --- gate 1: prediction ------------------------------------------------
+    await expect(page.getByTestId("demo-screen-predict-1")).toBeVisible();
+    await expect(next).toBeDisabled();
+    await expect(page.getByTestId("demo-blocked-reason")).toContainText(/Choose what you think/i);
+    // Every later step is locked, so the dots are not a way around the button.
+    for (const step of [4, 5, 6, 7, 8, 9]) {
+      await expect(dot(step)).toBeDisabled();
+    }
+    await dot(6).click({ force: true });
+    await expect(page.getByTestId("demo-screen-predict-1")).toBeVisible();
+
+    await page.getByRole("button", { name: "Try to publish" }).click();
+    await expect(next).toBeEnabled();
+    await next.click();
+
+    // --- gate 2: the ungoverned run must actually execute -------------------
+    await expect(page.getByTestId("demo-screen-run-ungoverned")).toBeVisible();
+    await expect(next).toBeDisabled();
+    await expect(dot(5)).toBeDisabled();
+    await dot(5).click({ force: true });
+    await expect(page.getByTestId("demo-screen-run-ungoverned")).toBeVisible();
+
+    await page.getByRole("button", { name: /Run without governance/i }).click();
+    await expect(page.getByTestId("focus-counter-ungoverned")).toBeVisible();
+    await expect(next).toBeEnabled();
+    await next.click();
+
+    // --- gate 3: the gap must be identified, and identified correctly -------
+    await expect(page.getByTestId("gap-chain")).toBeVisible();
+    await expect(next).toBeDisabled();
+
+    // A wrong answer gives feedback but does not unlock the step.
+    await page.getByRole("button", { name: /^The model$/i }).click();
+    await expect(page.getByTestId("gap-feedback")).toBeVisible();
+    await expect(next).toBeDisabled();
+    await expect(dot(6)).toBeDisabled();
+
+    await page.getByRole("button", { name: /Between the agent and the tool/i }).click();
+    await expect(next).toBeEnabled();
+    await next.click();
+
+    // --- gate 4: the governed run must actually execute ---------------------
+    await expect(page.getByTestId("demo-screen-run-governed")).toBeVisible();
+    await expect(next).toBeDisabled();
+    for (const step of [7, 8, 9]) {
+      await expect(dot(step)).toBeDisabled();
+    }
+    // The proof and limits material must still be unreachable at this point.
+    await dot(9).click({ force: true });
+    await expect(page.getByTestId("demo-screen-run-governed")).toBeVisible();
+    await expect(page.getByTestId("limits-not-proved")).toHaveCount(0);
+    await expect(page.getByTestId("run-explanation")).toHaveCount(0);
+
+    await page.getByRole("button", { name: /Run with governance/i }).click();
+    await expect(page.getByTestId("run-explanation")).toBeVisible();
+    await expect(next).toBeEnabled();
+  });
+
+  test("earlier teaching stays reachable once a step is complete", async ({ page }) => {
+    await page.goto("/demo");
+    await page.getByTestId("demo-next").click();
+    await page.getByTestId("demo-next").click();
+    await page.getByRole("button", { name: "Try to publish" }).click();
+    await page.getByTestId("demo-next").click();
+
+    // Back must keep working: the gate exists to stop skipping forward, not to
+    // trap a learner who wants to re-read something.
+    await page.getByRole("button", { name: /Back/i }).click();
+    await expect(page.getByTestId("demo-screen-predict-1")).toBeVisible();
+    // The committed prediction survives the round trip.
+    await expect(page.getByTestId("prediction-committed")).toContainText(/Try to publish/i);
+
+    // A completed step is directly navigable again.
+    await page.getByTestId("demo-dot-1").click();
+    await expect(page.getByTestId("demo-screen-meet")).toBeVisible();
+    await page.getByTestId("demo-dot-4").click();
+    await expect(page.getByTestId("demo-screen-run-ungoverned")).toBeVisible();
+  });
+
   test("Explore mode reveals the same run at full depth", async ({ page }) => {
     await page.goto("/demo");
 
@@ -116,9 +228,8 @@ test.describe("fresh learner guided journey", () => {
       "true",
     );
 
-    // Jump to the governed run and execute it.
-    await page.getByRole("button", { name: /Run it again, with the rules in place/i }).click();
-    await page.getByRole("button", { name: /Run with governance/i }).click();
+    // The governed screen is gated, so this walks there rather than jumping.
+    await reachGovernedRun(page);
     await expect(page.getByTestId("run-explanation")).toBeVisible();
 
     // Guided hides the professional surface but never the limitation.

@@ -1054,3 +1054,6 @@ tbody th { color: var(--ink-900); }
 .orientation-diagram .diagram-title { text-transform: none; }
 .concept-reveal { margin: 1.6rem 0; padding: 1.4rem 1.6rem; background: var(--surface-cool); border-radius: 12px; }
 .concept-reveal > p { color: var(--ink-700); margin: 0.3rem 0 0; }
+.demo-dots li.is-locked button { background: var(--line); opacity: 0.45; cursor: not-allowed; }
+.demo-blocked { margin: -0.6rem 0 1.4rem; padding: 0.75rem 1rem; background: var(--amber-soft);
+  border-radius: 8px; color: var(--ink-800); font-size: 0.94rem; }
