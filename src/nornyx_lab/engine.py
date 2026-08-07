@@ -18,6 +18,8 @@ import importlib.util
 import json
 import sys
 from collections.abc import Callable
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -33,7 +35,7 @@ except ModuleNotFoundError:  # pragma: no cover - 3.10
     import tomli as tomllib  # type: ignore
 
 
-def repo_root() -> Path:
+def _discover_repo_root() -> Path:
     """The repository root, found by walking up for the `labs/` directory."""
     here = Path(__file__).resolve()
     for parent in here.parents:
@@ -42,7 +44,46 @@ def repo_root() -> Path:
     return Path.cwd()
 
 
-LABS_DIR = repo_root() / "labs"
+_DISCOVERED_REPO_ROOT = _discover_repo_root()
+_REPO_ROOT_OVERRIDE: ContextVar[Path | None] = ContextVar(
+    "nornyx_lab_repo_root_override", default=None
+)
+
+
+def repo_root() -> Path:
+    """Return the active repository root.
+
+    The ordinary CLI always receives the discovered source root.  Structured
+    academy execution may install a context-local override while a copied lab is
+    running, so legacy helpers such as ``shared_contract()`` resolve to the same
+    isolated workspace without changing process-wide state.
+    """
+
+    return _REPO_ROOT_OVERRIDE.get() or _DISCOVERED_REPO_ROOT
+
+
+def labs_dir() -> Path:
+    """Resolve ``labs/`` dynamically against the active repository root."""
+
+    return repo_root() / "labs"
+
+
+@contextmanager
+def using_repo_root(root: Path | str):
+    """Temporarily override repository-relative resources in this context."""
+
+    selected = Path(root).resolve()
+    token = _REPO_ROOT_OVERRIDE.set(selected)
+    try:
+        yield selected
+    finally:
+        _REPO_ROOT_OVERRIDE.reset(token)
+
+
+# Kept for compatibility with developer code that imported the old constant.
+# Runtime discovery uses ``labs_dir()`` so an academy isolation context does not
+# accidentally fall back to this process-wide source path.
+LABS_DIR = _DISCOVERED_REPO_ROOT / "labs"
 
 
 # --------------------------------------------------------------------- model
@@ -87,11 +128,12 @@ def _load_meta(path: Path) -> LabMeta | None:
 
 
 def all_labs() -> list[LabMeta]:
-    if not LABS_DIR.is_dir():
+    root = labs_dir()
+    if not root.is_dir():
         return []
     found = [
         meta
-        for child in sorted(LABS_DIR.iterdir())
+        for child in sorted(root.iterdir())
         if child.is_dir() and (meta := _load_meta(child)) is not None
     ]
     return sorted(found, key=lambda m: m.id)

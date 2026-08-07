@@ -1,0 +1,421 @@
+[
+  {
+    "id": "assessment.F0",
+    "module_id": "F0",
+    "kind": "assurance_correction",
+    "prompt": "Which is the strongest honest conclusion after the governed publish path shows 0 attempts and 0 completions?",
+    "context": "The Nornyx decision was applied by a cooperative in-process egress wrapper. Direct network access was not tested.",
+    "options": [
+      {"id": "safe", "label": "Nornyx made the entire agent safe."},
+      {"id": "tier3", "label": "All publication was independently prevented at Tier 3."},
+      {"id": "scoped", "label": "The named wrapped egress path prevented this publication before tool entry; unwrapped paths and event truth remain outside the claim."}
+    ],
+    "correct": ["scoped"],
+    "explanation": "The counters support pre-execution prevention on the observed wrapped surface. They do not establish whole-system coverage, independent enforcement, or producer truth."
+  },
+  {
+    "id": "assessment.F1",
+    "module_id": "F1",
+    "kind": "scenario_prediction",
+    "prompt": "A model sometimes returns an invalid account identifier. Where must the invariant be enforced before a refund tool can run?",
+    "options": [
+      {"id": "model", "label": "Trust the model to remember the format."},
+      {"id": "application", "label": "Validate the structured value in application code before authorization and tool entry."},
+      {"id": "provider", "label": "Assume the model provider guarantees business validity."}
+    ],
+    "correct": ["application"],
+    "explanation": "Probabilistic output must cross deterministic parsing, validation, authorization, and enforcement boundaries owned by the application."
+  },
+  {
+    "id": "assessment.F2",
+    "module_id": "F2",
+    "kind": "ordering",
+    "prompt": "Put the safe structured-output pipeline in order.",
+    "options": [
+      {"id": "label", "label": "Label source authority and taint"},
+      {"id": "assemble", "label": "Assemble bounded context"},
+      {"id": "model", "label": "Call the model"},
+      {"id": "parse", "label": "Parse the response"},
+      {"id": "validate", "label": "Validate the schema and business invariants"},
+      {"id": "use", "label": "Permit application use"}
+    ],
+    "correct": ["label", "assemble", "model", "parse", "validate", "use"],
+    "explanation": "Authority and taint are established before context assembly, and no model-shaped data is used until deterministic parsing and validation succeed."
+  },
+  {
+    "id": "assessment.F3",
+    "module_id": "F3",
+    "kind": "evidence_interpretation",
+    "prompt": "The assistant transcript says “I refused,” but the protected ledger shows one attempt and one completion. What happened?",
+    "options": [
+      {"id": "prevented", "label": "The action was prevented."},
+      {"id": "executed", "label": "The action executed; the refusal text is not prevention evidence."},
+      {"id": "unknown", "label": "The counters are irrelevant because model text is authoritative."}
+    ],
+    "correct": ["executed"],
+    "explanation": "A 1/1 counter proves the inert business callable was entered and completed. A model message cannot reverse that effect."
+  },
+  {
+    "id": "assessment.F4",
+    "module_id": "F4",
+    "kind": "ordering",
+    "prompt": "Order the identities for one logical operation that fails once, retries, then hands off for review.",
+    "options": [
+      {"id": "op", "label": "Create stable operation id"},
+      {"id": "occ1", "label": "Schedule occurrence A"},
+      {"id": "try1", "label": "Record attempt 1 and failure"},
+      {"id": "try2", "label": "Record attempt 2 and completion"},
+      {"id": "handoff", "label": "Create a distinct reviewer occurrence and handoff"}
+    ],
+    "correct": ["op", "occ1", "try1", "try2", "handoff"],
+    "explanation": "Retries keep the operation and occurrence but increment attempt; a handoff schedules responsibility under a distinct identity/occurrence."
+  },
+  {
+    "id": "assessment.F5",
+    "module_id": "F5",
+    "kind": "policy_repair",
+    "prompt": "Which repair makes an AI evaluation and tool path credible?",
+    "options": [
+      {"id": "exact", "label": "Assert one exact model sentence and ignore skipped tests."},
+      {"id": "invariants", "label": "Test structured invariants over a corpus, fail on hidden skips, and fail closed before tool entry."},
+      {"id": "retry", "label": "Retry every malformed output until one looks acceptable."}
+    ],
+    "correct": ["invariants"],
+    "explanation": "Evaluations should measure invariant behavior across cases, expose missing coverage, and keep unsafe outputs away from side-effect boundaries."
+  },
+  {
+    "id": "assessment.00",
+    "module_id": "00",
+    "kind": "scenario_prediction",
+    "prompt": "A hostile page adds `publish_external` to the plan. What are the publish counters when no tool is attached, then when an ungoverned tool is attached?",
+    "options": [
+      {"id": "zero_then_one", "label": "0/0, then 1/1"},
+      {"id": "one_then_zero", "label": "1/1, then 0/0"},
+      {"id": "zero_both", "label": "0/0 in both cases because the model should refuse"}
+    ],
+    "correct": ["zero_then_one"],
+    "explanation": "A proposal has no side effect without a tool. An ungoverned reachable tool turns the injected proposal into a completed effect."
+  },
+  {
+    "id": "assessment.01",
+    "module_id": "01",
+    "kind": "ordering",
+    "prompt": "Order a checked source-to-control workflow.",
+    "options": [
+      {"id": "author", "label": "Author the contract"},
+      {"id": "review", "label": "Review authoritative source"},
+      {"id": "check", "label": "Check and compose"},
+      {"id": "generate", "label": "Generate controls"},
+      {"id": "lock", "label": "Bind artifacts and revision"},
+      {"id": "consume", "label": "Consume verified controls"}
+    ],
+    "correct": ["author", "review", "check", "generate", "lock", "consume"],
+    "explanation": "Review and validation apply to the authoritative source before generated artifacts are locked and consumed."
+  },
+  {
+    "id": "assessment.02",
+    "module_id": "02",
+    "kind": "evidence_interpretation",
+    "prompt": "A truncated event stream is rehashed correctly. Which statement remains true?",
+    "options": [
+      {"id": "complete", "label": "The stream is complete because its digest matches."},
+      {"id": "bound_not_complete", "label": "The supplied truncated content is bound, but completeness and omitted events are not established."},
+      {"id": "prevented", "label": "Every unrecorded side effect was prevented."}
+    ],
+    "correct": ["bound_not_complete"],
+    "explanation": "Integrity binds the supplied bytes. It cannot prove that all relevant events were supplied."
+  },
+  {
+    "id": "assessment.03",
+    "module_id": "03",
+    "kind": "identify_bypass",
+    "prompt": "The PDP denies a refund, but one route calls the refund function directly. Which element is missing on that route?",
+    "options": [
+      {"id": "prompt", "label": "A stronger system prompt"},
+      {"id": "pep", "label": "An enforcement point that every effect path must traverse"},
+      {"id": "dashboard", "label": "A prettier dashboard"}
+    ],
+    "correct": ["pep"],
+    "explanation": "A PDP produces a decision. A PEP must apply it before the protected callable, and an alternate direct path remains a bypass."
+  },
+  {
+    "id": "assessment.04",
+    "module_id": "04",
+    "kind": "identify_bypass",
+    "prompt": "An analyst delegates `issue_refund` to an agent even though the analyst never held that capability. What defect is this?",
+    "options": [
+      {"id": "confused", "label": "Authority creation/confused-deputy defect"},
+      {"id": "format", "label": "A source-formatting defect"},
+      {"id": "telemetry", "label": "A telemetry-only defect"}
+    ],
+    "correct": ["confused"],
+    "explanation": "Delegation may transmit declared authority; it must never create authority that the delegator did not possess."
+  },
+  {
+    "id": "assessment.05",
+    "module_id": "05",
+    "kind": "policy_repair",
+    "prompt": "Which change preserves useful research while preventing the injected external publication?",
+    "options": [
+      {"id": "remove_web", "label": "Remove all web research capability."},
+      {"id": "egress", "label": "Keep research/drafting, but enforce capability and a gated internal-to-public crossing before publication."},
+      {"id": "ask_model", "label": "Ask the model to ignore prompt injection."}
+    ],
+    "correct": ["egress"],
+    "explanation": "The policy should preserve permitted internal work and apply a deterministic boundary to the high-consequence egress effect."
+  },
+  {
+    "id": "assessment.06",
+    "module_id": "06",
+    "kind": "scenario_prediction",
+    "prompt": "What effect should a declared gated external crossing return when its required approval assertion is absent?",
+    "options": [
+      {"id": "allow", "label": "allow"},
+      {"id": "deny", "label": "deny forever"},
+      {"id": "approval", "label": "approval_required"}
+    ],
+    "correct": ["approval"],
+    "explanation": "Approval-required means not yet and names the missing bounded input; malformed or unknown requests remain denials."
+  },
+  {
+    "id": "assessment.07",
+    "module_id": "07",
+    "kind": "policy_repair",
+    "prompt": "A lower layer attempts to replace a superior `human approval required` rule with `agent may self-approve`. What should composition do?",
+    "options": [
+      {"id": "widen", "label": "Accept the widening because the lower layer is closer to runtime."},
+      {"id": "reject", "label": "Reject the widening and preserve provenance of the superior restriction."},
+      {"id": "random", "label": "Choose whichever rule appears last."}
+    ],
+    "correct": ["reject"],
+    "explanation": "Monotone composition may permit narrowing but must not silently widen a superior control."
+  },
+  {
+    "id": "assessment.08",
+    "module_id": "08",
+    "kind": "evidence_interpretation",
+    "prompt": "An approval is human, granted, and in time, but names a different contract revision. What is the correct outcome?",
+    "options": [
+      {"id": "allow", "label": "Allow because a human approved something."},
+      {"id": "mismatch", "label": "Refuse with an approval revision mismatch."},
+      {"id": "persist", "label": "Store it as a permanent capability unlock."}
+    ],
+    "correct": ["mismatch"],
+    "explanation": "A valid approval assertion is bound to the exact action and subject revision; the Authorizer remains stateless."
+  },
+  {
+    "id": "assessment.09",
+    "module_id": "09",
+    "kind": "scenario_prediction",
+    "prompt": "The authorizer fails before a high-risk refund. Which counter pair demonstrates fail-closed prevention on the wrapped path?",
+    "options": [
+      {"id": "zero", "label": "0 attempts / 0 completions"},
+      {"id": "half", "label": "1 attempt / 0 completions"},
+      {"id": "one", "label": "1 attempt / 1 completion"}
+    ],
+    "correct": ["zero"],
+    "explanation": "Fail-closed enforcement stops the protected callable before entry. A 1/0 result means work started and is not pre-execution prevention."
+  },
+  {
+    "id": "assessment.10",
+    "module_id": "10",
+    "kind": "evidence_interpretation",
+    "prompt": "A Nornyx runtime-event report validates. What does that establish?",
+    "options": [
+      {"id": "truth", "label": "Every event happened and the stream is complete."},
+      {"id": "conformance", "label": "The supplied records conform and bind as reported; event truth and completeness remain outside the validator."},
+      {"id": "tier3", "label": "Independent Tier 3 attestation."}
+    ],
+    "correct": ["conformance"],
+    "explanation": "Nornyx validates supplied evidence structure and binding. It does not observe or attest the runtime."
+  },
+  {
+    "id": "assessment.11",
+    "module_id": "11",
+    "kind": "ordering",
+    "prompt": "Order the valid identities for two attempts of one scheduled occurrence.",
+    "options": [
+      {"id": "mission", "label": "mission"},
+      {"id": "operation", "label": "operation"},
+      {"id": "occurrence", "label": "occurrence"},
+      {"id": "attempt1", "label": "attempt 1"},
+      {"id": "attempt2", "label": "attempt 2"}
+    ],
+    "correct": ["mission", "operation", "occurrence", "attempt1", "attempt2"],
+    "explanation": "Attempts are contiguous retries within one occurrence; replaying or duplicating the same attempt identity is invalid."
+  },
+  {
+    "id": "assessment.12",
+    "module_id": "12",
+    "kind": "assurance_correction",
+    "prompt": "Which claim is properly scoped?",
+    "options": [
+      {"id": "all", "label": "Our agents are governed at Tier 3."},
+      {"id": "surface", "label": "Pinned adapter enforcement was cooperatively exercised on the named synchronous tool surface; direct calls and producer truth remain outside this Tier 2 claim."},
+      {"id": "lock", "label": "A valid lock proves runtime enforcement everywhere."}
+    ],
+    "correct": ["surface"],
+    "explanation": "An assurance claim names the surface, mechanism, version, producer, bindings, uncovered paths, adversary, and falsifier."
+  },
+  {
+    "id": "assessment.13",
+    "module_id": "13",
+    "kind": "identify_bypass",
+    "prompt": "The governed wrapper denies before entry, but the business callable is still directly reachable. How must coverage record the direct route?",
+    "options": [
+      {"id": "covered", "label": "covered because the wrapper exists"},
+      {"id": "unwrapped", "label": "unwrapped/bypassable and verified by a negative-control direct call"},
+      {"id": "unknown", "label": "omit it so the coverage percentage is higher"}
+    ],
+    "correct": ["unwrapped"],
+    "explanation": "Coverage belongs to concrete effect paths. A direct reachable route is unwrapped even when another route is correctly enforced."
+  },
+  {
+    "id": "assessment.14",
+    "module_id": "14",
+    "kind": "policy_repair",
+    "prompt": "A visual edit changes an identity capability. What must remain authoritative?",
+    "options": [
+      {"id": "visual", "label": "A separate visual-only JSON model."},
+      {"id": "nyx", "label": "The canonical `.nyx` document, reparsed and checked after the mutation."},
+      {"id": "screenshot", "label": "The graph screenshot."}
+    ],
+    "correct": ["nyx"],
+    "explanation": "The builder is a synchronized projection of the same canonical document; Nornyx semantic paths drive diagnostics."
+  },
+  {
+    "id": "assessment.15",
+    "module_id": "15",
+    "kind": "assurance_correction",
+    "prompt": "Which statement about a valid network lock is accurate?",
+    "options": [
+      {"id": "runtime", "label": "It proves runtime used the generated controls."},
+      {"id": "binding", "label": "It proves the verified contract/composition/artifact bytes match the lock; runtime use and correctness need other evidence."},
+      {"id": "truth", "label": "It authenticates every runtime event."}
+    ],
+    "correct": ["binding"],
+    "explanation": "Locks establish exact design-time content and revision binding, not runtime placement, event truth, or correctness."
+  },
+  {
+    "id": "assessment.16",
+    "module_id": "16",
+    "kind": "identify_bypass",
+    "prompt": "Two components independently parse and compose the same contract. What risk has been introduced?",
+    "options": [
+      {"id": "split", "label": "Split-brain interpretations that can disagree while each appears internally consistent."},
+      {"id": "immutable", "label": "Guaranteed immutable shared state."},
+      {"id": "auth", "label": "Automatic approver authentication."}
+    ],
+    "correct": ["split"],
+    "explanation": "Use one assured, lock-verified Authorizer and inject it into every consumer that needs the same interpretation."
+  },
+  {
+    "id": "assessment.17",
+    "module_id": "17",
+    "kind": "evidence_interpretation",
+    "prompt": "The same operation is scheduled for a second loop visit. Which identity must change?",
+    "options": [
+      {"id": "attempt", "label": "Only attempt increments on the first occurrence."},
+      {"id": "occurrence", "label": "A new occurrence id identifies the new scheduled visit; attempts restart at 1."},
+      {"id": "mission", "label": "The entire mission must be renamed."}
+    ],
+    "correct": ["occurrence"],
+    "explanation": "Loop visits are distinct occurrences of the same logical operation; retries increment attempts within one occurrence."
+  },
+  {
+    "id": "assessment.18",
+    "module_id": "18",
+    "kind": "assurance_correction",
+    "prompt": "Which CrewAI claim matches the published adapter inventory?",
+    "options": [
+      {"id": "whole", "label": "CrewAI is governed."},
+      {"id": "sync", "label": "The pinned adapter cooperatively enforces synchronous BaseTool invocation reached through native kickoff; async, delegation, handoff, and direct calls are not implicitly covered."},
+      {"id": "independent", "label": "CrewAI execution is independently attested at Tier 3."}
+    ],
+    "correct": ["sync"],
+    "explanation": "Adapter coverage must name the exact pinned framework surface and every unsupported or unwrapped path."
+  },
+  {
+    "id": "assessment.19",
+    "module_id": "19",
+    "kind": "evidence_interpretation",
+    "prompt": "A LangGraph node is interrupted before completion and later resumes. What may cumulative evidence claim?",
+    "options": [
+      {"id": "samehost", "label": "It proves the same process, host, and operator resumed."},
+      {"id": "cumulative", "label": "It validates one cumulative supplied stream with explicit occurrence metadata; host/operator continuity is not established."},
+      {"id": "complete", "label": "The interrupted first run completed successfully."}
+    ],
+    "correct": ["cumulative"],
+    "explanation": "Resume preserves and validates a cumulative record, but producer assertions do not attest external runtime continuity."
+  },
+  {
+    "id": "assessment.20",
+    "module_id": "20",
+    "kind": "identify_bypass",
+    "prompt": "A package README says “no network,” but its inert install fixture contains a network command. What can the scanner honestly report?",
+    "options": [
+      {"id": "safe", "label": "The package is certified safe."},
+      {"id": "mismatch", "label": "A claim-versus-evidence mismatch was inventoried and risk-surfaced; no payload was executed."},
+      {"id": "runtime", "label": "Runtime conformance and independent enforcement are proven."}
+    ],
+    "correct": ["mismatch"],
+    "explanation": "Static inspection can bind and surface contradictory evidence. It does not execute, certify, or attest the package."
+  },
+  {
+    "id": "assessment.21",
+    "module_id": "21",
+    "kind": "ordering",
+    "prompt": "Order the visual authoring and delivery gates.",
+    "options": [
+      {"id": "author", "label": "author source"},
+      {"id": "check", "label": "check and explain"},
+      {"id": "review", "label": "human review"},
+      {"id": "generate", "label": "generate controls"},
+      {"id": "lock", "label": "seal and lock"},
+      {"id": "test", "label": "test and conformance with zero skips"},
+      {"id": "publish", "label": "publish trusted artifacts"}
+    ],
+    "correct": ["author", "check", "review", "generate", "lock", "test", "publish"],
+    "explanation": "The pipeline reviews checked authoritative source, binds generated controls, then requires complete tests and conformance before publishing."
+  },
+  {
+    "id": "assessment.22",
+    "module_id": "22",
+    "kind": "policy_repair",
+    "prompt": "Which Forge authority design enforces separation of duties?",
+    "options": [
+      {"id": "one", "label": "One agent authors, approves, and releases its own change."},
+      {"id": "separate", "label": "Distinct author, reviewer, release agent, and human release-owner identities with bounded capabilities and handoff."},
+      {"id": "prompt", "label": "One agent with a prompt asking it to be impartial."}
+    ],
+    "correct": ["separate"],
+    "explanation": "Maker-checker separation must be represented by distinct identities and capabilities, not by role-play inside one authority."
+  },
+  {
+    "id": "assessment.23",
+    "module_id": "23",
+    "kind": "assurance_correction",
+    "prompt": "A standards mapping row cites a theme but no mechanism, evidence, gap, owner, or review cadence. What does it establish?",
+    "options": [
+      {"id": "compliance", "label": "Certified compliance."},
+      {"id": "nothing", "label": "At most an incomplete interpretive mapping that must be repaired; no conformity or audit opinion follows."},
+      {"id": "tier3", "label": "Tier 3 assurance."}
+    ],
+    "correct": ["nothing"],
+    "explanation": "Standards mappings are versioned interpretive arguments and must expose mechanisms, evidence, gaps, ownership, and cadence."
+  },
+  {
+    "id": "assessment.24",
+    "module_id": "24",
+    "kind": "assurance_correction",
+    "prompt": "Which capstone submission is completable?",
+    "context": "All critical design, execution, integrity, evidence, coverage, and claim-quality rows must pass; at least one real uncovered path must remain documented.",
+    "options": [
+      {"id": "green", "label": "Only happy-path screenshots and a whole-system Tier 3 claim."},
+      {"id": "defensible", "label": "Correct allow/deny/failure counters, valid locks/evidence, explicit bypass coverage, scoped Tier 2 claim, and non-empty residual risk."},
+      {"id": "click", "label": "A learner who opened every capstone panel."}
+    ],
+    "correct": ["defensible"],
+    "explanation": "Capstone completion reflects executable behavior and defensible assurance, not navigation or a polished narrative."
+  }
+]

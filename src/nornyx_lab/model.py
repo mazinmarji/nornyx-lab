@@ -132,22 +132,24 @@ class LivePlanner:
     enforcement path never asks the model's permission.
     """
 
-    MODEL = "claude-sonnet-5"
+    MODEL = "claude-sonnet-4-20250514"
 
-    def __init__(self, model: str | None = None) -> None:
+    def __init__(self, model: str | None = None, *, api_key: str | None = None) -> None:
         try:
             import anthropic
         except ImportError as exc:  # pragma: no cover - optional path
             raise RuntimeError(
-                "Live mode needs the anthropic SDK. Install it with:\n"
-                "    uv pip install -e '.[live]'"
+                "Live-model support is not installed in this academy deployment. "
+                "The operator must deploy the optional live-model component; "
+                "offline deterministic mode remains available."
             ) from exc
-        if not os.environ.get("ANTHROPIC_API_KEY"):
+        resolved_api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+        if not resolved_api_key:
             raise RuntimeError(
-                "Live mode needs ANTHROPIC_API_KEY in your environment.\n"
-                "Every lab also runs offline with no key — just drop --live."
+                "Live mode needs an API key configured for this process. "
+                "Every academy interaction also runs offline without one."
             )
-        self._client = anthropic.Anthropic()
+        self._client = anthropic.Anthropic(api_key=resolved_api_key)
         self.model = model or self.MODEL
 
     def plan(self, task: str, context: str = "") -> Plan:  # pragma: no cover - network

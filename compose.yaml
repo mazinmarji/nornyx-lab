@@ -1,0 +1,21 @@
+services:
+  academy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nornyx-academy:2.0.0
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - academy-progress:/app/.nornyx-lab
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=512m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+volumes:
+  academy-progress:
