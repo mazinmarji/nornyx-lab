@@ -252,12 +252,21 @@ jobs:
     timeout-minutes: 25
     needs: [backend-fast, frontend-quality]
     env:
-      NORNYX_ACADEMY_DB: ${{ runner.temp }}/academy-e2e.db
+      # NOTE: `${{ runner.temp }}` must NOT be used here. The `runner` context
+      # exists only inside steps; in a job-level `env:` block GitHub rejects the
+      # ENTIRE workflow file before scheduling anything ("Unrecognized
+      # named-value: 'runner'"). That is what produced a 0-second failure with
+      # zero jobs and no logs. `$RUNNER_TEMP` is an ordinary environment
+      # variable available everywhere, so a step exports the path instead.
+      #
       # Playwright starts the backend from frontend/. Freeze that indirect uv
       # invocation as well as the explicit setup command below.
       UV_FROZEN: "true"
     steps:
       - uses: actions/checkout@v4
+      - name: Point the academy database at the runner temp directory
+        shell: bash
+        run: echo "NORNYX_ACADEMY_DB=$RUNNER_TEMP/academy-e2e.db" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12.11"
