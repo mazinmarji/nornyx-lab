@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nornyx-lab"
-version = "1.0.0"
-description = "A hands-on lab for AI governance with Nornyx: 25 runnable labs from first principles to a governed capstone."
+version = "2.0.0"
+description = "A browser-based interactive academy for AI engineering, agentic systems, governance, and Nornyx."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -30,8 +30,16 @@ classifiers = [
 dependencies = [
   "nornyx==1.11.0",
   "nornyx-agentic-adapters==0.3.0",
-  "rich>=13.7",
-  "typer>=0.12",
+  "fastapi==0.141.1",
+  # Latest stable release within CrewAI 1.15.4's supported >=2.11.9,<2.13 range.
+  "pydantic==2.12.5",
+  "PyYAML==6.0.3",
+  "rich==14.3.4",
+  "typer==0.27.1",
+  "uvicorn[standard]==0.52.1",
+  # CrewAI 1.15.4 (the adapter-supported version) requires tomli <2.1 on
+  # Python 3.10. Newer Python versions use stdlib tomllib and need no backport.
+  "tomli==2.0.2; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]
@@ -39,9 +47,16 @@ dependencies = [
 # the framework is absent, so the core path stays installable everywhere.
 crewai = ["nornyx-agentic-adapters[crewai]==0.3.0"]
 langgraph = ["nornyx-agentic-adapters[langgraph]==0.3.0"]
-notebooks = ["jupyterlab>=4.2", "notebook>=7.2"]
-live = ["anthropic>=0.40"]
-dev = ["pytest>=8.0", "ruff>=0.16,<0.17"]
+# Legacy author/developer surface only. Not part of the learner journey.
+notebooks = ["jupyterlab==4.6.2", "notebook==7.6.1"]
+live = ["anthropic==0.117.0"]
+dev = [
+  # Starlette 1.4's TestClient prefers the maintained HTTPX2 continuation.
+  "httpx2==2.7.0",
+  "pytest==9.1.1",
+  "pytest-cov==7.1.0",
+  "ruff==0.16.1",
+]
 
 [project.urls]
 Homepage = "https://github.com/mazinmarji/nornyx-lab"
@@ -49,9 +64,13 @@ Nornyx = "https://github.com/mazinmarji/nornyx"
 
 [project.scripts]
 nornyx-lab = "nornyx_lab.cli:app"
+nornyx-academy = "nornyx_lab.academy.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"nornyx_lab.academy.content" = ["*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "labs"]
@@ -59,6 +78,9 @@ python_files = ["checks.py", "test_*.py"]
 # importlib mode is required: every lab ships a file called checks.py, and the
 # default prepend mode collides on the shared basename.
 addopts = "-q --import-mode=importlib"
+markers = [
+  "all_labs: slow serial migration gate that executes every legacy lab through the structured academy boundary",
+]
 
 [tool.ruff]
 line-length = 100

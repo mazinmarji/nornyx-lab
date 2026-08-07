@@ -1,252 +1,184 @@
 <div align="center">
 
-# nornyx-lab
+# Nornyx Academy
 
-### AI governance you can run, break, and prove.
+### Build AI agents that can act—and learn how to govern what happens next.
 
-**25 hands-on labs** that take you from *"my agent did something I didn't authorize"*
-to a governed, evidence-backed, honestly-claimed system — using the real
-[Nornyx](https://github.com/mazinmarji/nornyx) toolchain, not a simulation of it.
+A local-first, browser-based interactive academy for AI engineering, agentic systems,
+governance, and the real [Nornyx](https://github.com/mazinmarji/nornyx) toolchain.
 
-Companion to **_Governed Agentic Systems: Engineering Policy, Enforcement, Evidence,
-and Assurance_** (First Edition). Every chapter has a lab.
-
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/mazinmarji/nornyx-lab?quickstart=1)
+**No learner terminal · no notebooks · no YAML required · no API key · inert side effects**
 
 </div>
 
 ---
 
-## Start in 60 seconds
+## A training product, not a terminal wrapper
 
-**In your browser — nothing to install:**
+Nornyx Academy lets a learner understand, configure, run, break, compare, validate, assess,
+and complete the curriculum entirely in a graphical interface. The browser calls versioned,
+schema-validated APIs; the service invokes domain-level Python and Nornyx APIs. It never spawns
+the old CLI and scrapes its output.
 
-Click **Open in GitHub Codespaces** above. When the terminal appears, type:
+The academy includes:
 
-```bash
-nornyx-lab
-```
+- an orientation experience for complete beginners;
+- seven audience-aware learning paths and 31 modules;
+- a one-click governed-versus-ungoverned demonstration;
+- safe controls for injection, approval, revision, identity, enforcement, and failure modes;
+- visual contract, identity, capability, trust-zone, approval, and evidence views;
+- a guided `.nyx` workbench backed by real Nornyx parsing and diagnostics;
+- meaningful assessments and persistent local progress;
+- CrewAI and LangGraph adapter lessons with explicit availability and coverage boundaries;
+- a configurable multi-agent governance capstone;
+- responsive, keyboard-accessible browser UI with deterministic offline defaults.
 
-**On your machine:**
+All 25 original labs remain represented. Each is migrated, adapted, or superseded through a
+documented GUI interaction; the original tests remain engineering regression gates rather than
+being misrepresented as learner assessments.
 
-```bash
-git clone https://github.com/mazinmarji/nornyx-lab.git
-cd nornyx-lab
-make setup
-nornyx-lab
-```
+## The five-minute proof
 
-That's it. `nornyx-lab` shows your progress and tells you what to do next.
+An AI research agent reads an untrusted page that tells it to publish sensitive material. One
+captured plan is sent through two paths:
 
-```
-  Your progress  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  0/25 labs
+| Path | Publish attempts | Publish completions | Honest interpretation |
+|---|---:|---:|---|
+| Without governance | 1 | 1 | The inert publication effect executed. |
+| With the named Nornyx-derived control path | 0 | 0 | That wrapped effect path was prevented before tool entry. |
 
-  Next up: 00 · From assistant to agent
+The browser shows the planner input, action, identity, capability, resource, trust-zone
+crossing, approval, decision code, enforcement point, ordered trace, Nornyx evidence, findings,
+and bounded assurance claim. Learners can then expire or validate the approval, change the
+revision, disable enforcement, choose fail-open or fail-closed application behavior, remove the
+injection, and restore the baseline automatically.
 
-  1  nornyx-lab next       run the next lab you haven't finished
-  2  nornyx-lab list       see all 25 labs and where you are
-  3  nornyx-lab run 00     run a specific lab
-  4  nornyx-lab check 00   prove you got it — marks the lab done
-```
+This is real execution against the academy’s inert Northstar action ledger and released Nornyx
+runtime—not an animation or explanatory claim. The simulated business action never publishes
+anything externally.
 
-> No API key. No cloud account. No cost. Every lab runs offline against a
-> deterministic planner — so your results match the book's, exactly, every time.
-> Add `--live` to any lab to swap in a real Claude model and watch the governance
-> outcomes stay identical. That is the lesson.
+## Learning paths
 
----
-
-## What makes this different
-
-Most governance material tells you a system refused something. This repository
-**proves it**, using the one instrument that can tell the difference:
-
-```
-                          attempts  completions
-  prevented ..............    0          0        ← the work never started
-  failed .................    1          0        ← it started, then broke
-  ran ....................    1          1        ← it happened
-```
-
-A system that prints `"Denied."` and a system that actually stopped look
-identical in a transcript. They are never identical in the ledger. **Every claim
-in every lab is settled by counters, not by messages.**
-
-Here is Lab 05, unedited:
-
-```
-What each run actually caused
-                      ungoverned      governed
-business action     attempt / done  attempt / done
-search_web              1 / 1           1 / 1
-draft_briefing          1 / 1           1 / 1
-publish_external        1 / 1           0 / 0     ← governance changed this
-
-  The planner was fooled in both runs — identical plans.
-  Only one of them reached the outside world.
-```
-
----
-
-## The curriculum
-
-Eight parts, 25 labs, all 41 chapters of the book.
-
-| | Part | Labs | Chapters |
-|---|---|---|---|
-| **I** | Why governed agentic systems are needed | `00`–`03` | 1–4 |
-| **II** | Foundations of executable governance | `04`–`09` | 5–10 |
-| **III** | Evidence and assurance | `10`–`13` | 11–15 |
-| **IV** | Nornyx architecture and language | `14`–`17` | 16–21 |
-| **V** | Framework and runtime integration | `18`–`20` | 22–27 |
-| **VI** | Engineering governed systems | `21`–`22` | 28–33 |
-| **VII** | Risk, standards, and adoption | `23` | 34–38 |
-| **VIII** | Capstone | `24` | 39–41 |
-
-<details>
-<summary><b>All 25 labs</b></summary>
-
-| Lab | Title | What you'll actually do |
-|---|---|---|
-| `00` | From assistant to agent | Watch a web page talk your agent into publishing a briefing |
-| `01` | The governance gap | Find four control files that contradict each other, then generate them from one |
-| `02` | What governance can and cannot guarantee | Take one claim apart into five layers; break completeness while integrity holds |
-| `03` | The vocabulary: PDP, PEP, tiers | Run one correct decision through three wirings and get three outcomes |
-| `04` | Identity, capability, and authority | Resolve framework names to identities; watch an unmapped one fail closed |
-| `05` | Trust zones and prompt injection | Run the Lab 00 attack against a declared boundary |
-| `06` | Policy semantics and determinism | Get all three decision values; evaluate 200× and get one answer |
-| `07` | Composition and silent weakening | Try to let an AI approve things. Watch composition refuse |
-| `08` | Approvals: eight ways to not be approved | Mutate one approval field at a time and collect eight distinct refusals |
-| `09` | Enforcement models and fail-closed | Break the policy engine on purpose and see who publishes anyway |
-| `10` | Evidence is not logging | Build a bound event stream; read what the validator refuses to claim |
-| `11` | Digests, locks, ordering, replay | Tamper with one generated byte and watch the lock catch it |
-| `12` | Assurance tiers | Apply the eight questions; rewrite an inflated claim so it is true |
-| `13` | Bypass, coverage, negative controls | Get around everything you just built, in five lines |
-| `14` | Your first contract | Walk into 9 diagnostics and fix them in three moves |
-| `15` | Profiles, modules, and locks | Break the binding three ways; learn what a lock cannot prove |
-| `16` | The authorization interface | Mutate the authorizer's state and watch nothing happen |
-| `17` | Occurrence identity and drift gates | Tell a retry from a loop visit from a replay |
-| `18` | The adapter boundary + CrewAI | Build a governed tool; 1 of 6 surfaces is covered, and it says so |
-| `19` | LangGraph under retries and loops | Halt a real graph at an unauthorized node |
-| `20` | Conformance and the supply chain | Scan a package whose README contradicts its install script |
-| `21` | Authoring workflow and CI gates | Run the gate set against this repository |
-| `22` | Multi-agent and enterprise | Prove no single identity can complete a refund alone |
-| `23` | Threats, standards, audit | Attempt nine threat branches; find the one nothing stops |
-| `24` | Capstone | Inject eight failures, build a claim register, count the cost |
-
-</details>
-
-Prefer notebooks? Every lab has one — `jupyter lab notebooks/`. Each runs the
-*same* `lab.py` the CLI runs, so the two surfaces cannot drift. `make setup`
-installs Jupyter; if you used `make setup-min`, add it with
-`uv pip install -e ".[notebooks]"`.
-
----
-
-## What you'll be able to do afterwards
-
-- Read a governance claim and name **the surface it covers and the one it doesn't**
-- Write a policy that a machine evaluates the same way twice, forever
-- Tell **prevention** from **a caught exception**, in someone else's codebase
-- Build an evidence package an auditor can reconstruct a decision from
-- Recognise the four kinds of drift, and which gate catches each
-- Say "this is Tier 2 on this surface" instead of "our agents are governed" —
-  and explain, precisely, why the second sentence is dangerous
-
----
-
-## Honest boundaries
-
-This repository practises what it teaches, so:
-
-- **The labs are Tier 2 — cooperative, in-process, self-reported.** Lab 13 shows
-  you how to bypass everything the earlier labs built, because a lab that hid
-  that would be teaching the exact overclaim the book is about.
-- **The business functions are inert.** No money moves, no email sends. The
-  *ledger entries* are the same shape a real audit would look for.
-- **`nornyx-lab` itself is not governed by Nornyx.** Shipping a control and
-  self-applying it are different commitments (Lab 21).
-- **Time is pinned** to `2026-06-01T12:00:00Z`. Approvals in the `agentic_network`
-  profile expire after 7 days, so a lab reading the wall clock would break one
-  week after you cloned it. Lab 06 makes you move the constant and watch.
-
----
-
-## Requirements
-
-Python 3.10+ and nothing else. `make setup` installs:
-
-| | |
+| Path | Designed for |
 |---|---|
-| `nornyx==1.11.0` | the contract compiler, checker, and authorization SPI |
-| `nornyx-agentic-adapters==0.3.0` | the CrewAI and LangGraph adapters |
-| `crewai==1.15.4`, `langgraph==1.2.2` | optional; labs 18–20 skip **loudly** without them |
+| Beginner: assistant to governed agent | Learners new to LLMs, tools, side effects, and governance |
+| Developer: governed AI software | Engineers building model-backed applications and delivery gates |
+| Agent engineer | Tool loops, workflows, retries, handoffs, multi-agent systems, CrewAI, and LangGraph |
+| Architect | Identities, capabilities, zones, delegation, composition, runtime and assurance boundaries |
+| Governance and risk | Policy, approvals, evidence, threats, standards, audit, and adoption |
+| Nornyx practitioner | Contracts, profiles, generation, locks, adapters, evidence, CI, and upgrades |
+| Complete curriculum | The full beginner-to-professional sequence |
 
-Versions are pinned exactly. Every transcript in this repository was produced
-against these, and a floating range would let a future release change a
-diagnostic code and quietly invalidate a lesson.
+Every path declares prerequisites, effort, concepts, modules, outcomes, progress, and completion
+criteria. Completion requires both a successful executable interaction and the module’s scored
+assessment; clicking through is never enough.
 
-Use `make setup-min` to skip the framework extras.
+## Start the academy
 
----
-
-## Repository layout
-
-```
-labs/               25 labs — lab.toml, README.md, lab.py, checks.py
-contracts/          real, checked, locked .nyx contracts the labs evaluate against
-  atlas/            Northstar's research assistant  — 1 identity, 2 zones
-  ledger/           Northstar's remediation network — 4 identities, delegation, handoff
-src/nornyx_lab/     the lab engine, side-effect ledger, and deterministic planner
-notebooks/          generated notebook companions
-docs/               concept glossary and the chapter → lab coverage matrix
-scripts/            contract build + drift verification
-```
-
----
-
-## Troubleshooting
-
-<details>
-<summary><b>A lab says CrewAI or LangGraph is not installed</b></summary>
+The default deployment is a single local service. An operator starts it once; learners only use
+the browser at [http://localhost:8000](http://localhost:8000).
 
 ```bash
-uv pip install -e ".[crewai,langgraph]"
+docker compose up --build
 ```
-That is a real skip, not a silent one — see Lab 13 for why the distinction matters.
-</details>
 
-<details>
-<summary><b>A contract stopped validating after I edited it</b></summary>
+Progress is stored in the `academy-progress` Docker volume. The container runs as a non-root
+user, drops Linux capabilities, uses a read-only root filesystem, and grants writable space only
+to the progress volume and an isolated temporary workspace.
 
-You changed a file an evidence record binds by digest:
-```bash
-nornyx-lab seal contracts/atlas/network.nyx
-python scripts/build_contracts.py
-```
-</details>
-
-<details>
-<summary><b>I want to start over</b></summary>
+For a source checkout used by developers:
 
 ```bash
-nornyx-lab reset      # clears progress
-make clean            # removes anything the labs wrote
+uv sync --frozen --extra dev --extra crewai --extra langgraph
+npm --prefix frontend ci --ignore-scripts
+npm --prefix frontend run build
+uv run --frozen nornyx-academy --host 127.0.0.1 --port 8000
 ```
-</details>
 
----
+The production server serves the compiled React application and `/api/v1` from one origin.
+During frontend development, Vite proxies `/api` to FastAPI.
 
-## Contributing
+## Architecture at a glance
 
-Issues and pull requests welcome — especially corrections. If a lab claims
-something the tool does not actually do, that is the highest-priority bug in this
-repository. One such correction is already in the history: an early draft said an
-unrecognised contract block was an *error*; it is a *warning*, and Labs 06, 14,
-and 23 were rewritten to say so.
+```mermaid
+flowchart LR
+    Browser["React learner UI"] -->|"typed JSON /api/v1"| API["FastAPI + Pydantic"]
+    API --> Curriculum["curriculum + assessment services"]
+    API --> Scenarios["isolated scenario engine"]
+    API --> Progress["learner-record port"]
+    Scenarios --> Assets["planner + inert ledger + Northstar actions"]
+    Scenarios --> Nornyx["Nornyx 1.11.0 + adapters 0.3.0"]
+    Progress --> SQLite["local SQLite"]
+```
+
+The legacy Rich/Typer and generated notebook surfaces remain developer/compatibility utilities;
+they are not part of the learner journey. Legacy lab execution uses a per-run temporary copy so
+browser runs cannot modify committed contracts, locks, artifacts, or another run.
+
+## What Nornyx does—and does not do here
+
+Nornyx is the source of truth for checked `.nyx` semantics, composition, generated controls,
+locks, authorization requests, approval assertions, evidence validation, and adapter behavior.
+It is not the model, planner, agent framework, workflow engine, tool runtime, identity provider,
+transport, or an independent attestor of event truth.
+
+The academy therefore keeps these distinctions visible:
+
+- declaration is not enforcement;
+- a policy decision is not a tool-side enforcement point;
+- generated controls do not prove runtime use;
+- refusal text does not prove prevention;
+- an attempt is not a completion;
+- evidence integrity is not evidence completeness or truth;
+- cooperative adapter coverage is not an unavoidable external control;
+- governing one named path is not governing the entire application.
+
+The default runtime is deliberately pinned to released `nornyx==1.11.0` and
+`nornyx-agentic-adapters==0.3.0`. The latest authoritative `main` audited for this release is
+recorded separately; unreleased behavior is never silently advertised as installed behavior.
+
+## Optional live model
+
+Offline deterministic planning is the default because it makes governance deltas reproducible.
+It is clearly labeled as a susceptible teaching fixture, not as an LLM.
+
+The Settings page can enable an optional Anthropic planner. Its key is held only in server
+memory, is never returned or stored with progress, and is cleared on disable or restart. Live
+planning is visibly non-deterministic. The browser displays the captured plan before comparing
+the two control paths; a different live proposal is never described as an invariant outcome.
+
+## Quality gates
+
+```bash
+uv lock --check
+uv run --frozen python scripts/build_contracts.py --verify
+uv run --frozen pytest tests/academy -q
+uv run --frozen pytest labs tests -q -rs
+uv run --frozen ruff check .
+uv run --frozen ruff format --check .
+npm --prefix frontend test
+npm --prefix frontend run build
+npm --prefix frontend run test:e2e
+docker build --tag nornyx-academy:2.0.0 .
+```
+
+CI runs contract drift, fast API/domain tests, all 25 lab regressions, no-silent-skip adapter
+conformance, frontend component/build checks, the fresh-learner Playwright and accessibility
+journey, Docker build, and Linux/Windows Python coverage.
+
+## Documentation
+
+- [User guide](docs/USER_GUIDE.md)
+- [Architecture](docs/ARCHITECTURE.md) and [ADR 0001](docs/adr/0001-gui-first-academy-architecture.md)
+- [Baseline audit](docs/BASELINE_AUDIT.md)
+- [Original-lab migration map](docs/MIGRATION_MAP.md)
+- [Curriculum coverage matrix](docs/CURRICULUM_COVERAGE.md)
+- [Nornyx compatibility and upgrade policy](docs/NORNYX_COMPATIBILITY.md)
+- [Security and sandbox boundary](docs/SECURITY.md)
+- [Honest assurance statement](docs/ASSURANCE.md)
+- [Development, deployment, and testing](docs/DEVELOPMENT.md)
+- [Contributing](CONTRIBUTING.md)
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
-
-Nornyx is a separate MIT-licensed project: [mazinmarji/nornyx](https://github.com/mazinmarji/nornyx).
+[MIT](LICENSE)

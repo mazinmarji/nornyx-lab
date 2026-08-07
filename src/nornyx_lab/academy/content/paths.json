@@ -1,0 +1,72 @@
+[
+  {
+    "id": "beginner",
+    "title": "Beginner: AI assistant to governed agent",
+    "audience": "Complete beginners and non-technical stakeholders",
+    "summary": "Learn how AI applications work, then build and assess a first governed agent without writing code or YAML.",
+    "prerequisites": [],
+    "module_ids": ["F0", "F1", "F2", "F3", "F4", "F5", "00", "01", "02", "03", "04", "05", "06", "08", "09", "10", "12", "14"],
+    "outcomes": ["Explain model and application responsibilities", "Measure side effects", "Configure identity, capability, zone, approval, and enforcement", "Build a valid first contract"],
+    "completion_criteria": "Complete all 18 modules, pass every assessment, and finish a valid visual-to-.nyx round trip."
+  },
+  {
+    "id": "developer",
+    "title": "Developer: building governed AI software",
+    "audience": "Software engineers and technical leads",
+    "summary": "Build, test, observe, integrate, and deliver cooperatively governed AI applications.",
+    "prerequisites": ["Software-development familiarity"],
+    "module_ids": ["F0", "F1", "F2", "F3", "F4", "F5", "00", "01", "03", "04", "05", "06", "08", "09", "10", "12", "13", "14", "16", "17", "18", "20", "21", "22"],
+    "outcomes": ["Integrate a typed authorization boundary", "Test allow, deny, failure, and bypass", "Validate evidence and drift", "Ship with no-silent-skip gates"],
+    "completion_criteria": "Complete all modules, run real adapter allow and deny paths, and pass the Forge delivery challenge."
+  },
+  {
+    "id": "agent-engineer",
+    "title": "Agent engineer: tools, workflows, and multi-agent systems",
+    "audience": "Engineers building agents with CrewAI, LangGraph, or custom runtimes",
+    "summary": "Govern tools, loops, retries, memory, handoffs, framework surfaces, and multi-agent authority.",
+    "prerequisites": ["API or programming familiarity, or complete the foundation modules"],
+    "module_ids": ["F0", "F1", "F2", "F3", "F4", "F5", "00", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "22"],
+    "outcomes": ["Model occurrence identity", "Integrate pinned framework adapters", "Preserve authority across delegation and handoff", "State exact coverage"],
+    "completion_criteria": "Complete all modules plus CrewAI, LangGraph, and multi-agent separation-of-duties scenario suites."
+  },
+  {
+    "id": "architect",
+    "title": "Architect: trust zones, authority, and runtime boundaries",
+    "audience": "Solution, security, enterprise, and platform architects",
+    "summary": "Design identities, capabilities, trust zones, delegation, composition, PEP placement, and assurance boundaries.",
+    "prerequisites": ["Systems-architecture literacy"],
+    "module_ids": ["F0", "F1", "F2", "F3", "F5", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "22", "23"],
+    "outcomes": ["Classify every effect path", "Choose enforcement by consequence and adversary", "Trace control provenance", "Design an honest Tier 2-to-3 roadmap"],
+    "completion_criteria": "Complete all modules and classify every effect path as wrapped, unsupported, unwrapped, or independently enforced."
+  },
+  {
+    "id": "governance-risk",
+    "title": "Governance and risk: policy, evidence, assurance, and audit",
+    "audience": "Governance, risk, compliance, audit, and security teams",
+    "summary": "Evaluate policy, approvals, accountability, evidence, threats, standards mappings, and residual risk with progressive technical detail.",
+    "prerequisites": [],
+    "module_ids": ["F0", "F1", "F2", "F3", "F4", "F5", "00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "17", "20", "21", "22", "23"],
+    "outcomes": ["Correct inflated assurance claims", "Interpret evidence limitations", "Design maker-checker controls", "Build a defensible audit package"],
+    "completion_criteria": "Complete all modules and produce a valid claim register and audit package with no critical tier or compliance errors."
+  },
+  {
+    "id": "nornyx-practitioner",
+    "title": "Nornyx practitioner: contracts to runtime evidence",
+    "audience": "Nornyx adopters, maintainers, and advanced engineers",
+    "summary": "Author and check `.nyx`, generate and lock controls, load an Authorizer, integrate adapters, validate evidence, and gate delivery.",
+    "prerequisites": ["Agentic and governance literacy, or pass the foundation readiness check"],
+    "module_ids": ["F0", "F3", "F5", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24"],
+    "outcomes": ["Operate the checked design-time chain", "Use the supported agentic SPI", "Integrate and test adapters", "Plan version upgrades and adoption"],
+    "completion_criteria": "Complete all route modules, pass Labs 14–24 executable gates, and pass the capstone review."
+  },
+  {
+    "id": "complete",
+    "title": "Complete curriculum: beginner to professional",
+    "audience": "Learners seeking the full academy sequence",
+    "summary": "Complete all AI engineering, agentic systems, governance, Nornyx, integration, risk, and audit modules.",
+    "prerequisites": [],
+    "module_ids": ["F0", "F1", "F2", "F3", "F4", "F5", "00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24"],
+    "outcomes": ["Build and assess governed AI systems", "Inspect real Nornyx controls and evidence", "Integrate framework runtime surfaces", "Defend precise assurance and residual-risk claims"],
+    "completion_criteria": "Complete all 31 modules with no waivers and achieve at least 85% on the capstone review."
+  }
+]

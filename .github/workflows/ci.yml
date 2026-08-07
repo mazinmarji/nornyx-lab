@@ -1,148 +1,291 @@
 name: CI
 
-# This pipeline is itself a teaching artifact — Lab 21 reads it.
-#
-# Every job below is one of the governance gates from Chapter 29, and each one
-# fails closed. The ordering is deliberate: cheap structural gates first, so a
-# broken contract does not wait behind a framework install.
-
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  # Pinned for the same reason the labs pin it: approvals expire after P7D, and
-  # a pipeline that reads the wall clock would go red one week after merge.
+  # Approval evaluation is intentionally independent of the runner wall clock.
   LAB_AS_OF: "2026-06-01T12:00:00Z"
-
-  # CrewAI's one-time first-run tracing consent spawns a process, writes a
-  # preference file, and prints a banner. The adapter conformance suite runs
-  # guarded — a conforming suite must not spawn a process — so on a FRESH
-  # runner that first run reports `nonconformant`, while passing on any machine
-  # where CrewAI has been run once before. Setting these at the workflow level
-  # covers the jobs that invoke the conformance kit directly; `nornyx_lab.optional`
-  # sets the same values for anything running inside the package.
+  LAB_SUBJECT_REVISION: "git:5eed1e55c0ffee1abadcafe0ddba11ed15ea5e11"
+  PYTHONIOENCODING: "utf-8"
+  # These must exist before the first CrewAI import. Otherwise its first-run
+  # tracing setup can spawn a process and invalidate guarded conformance.
   CREWAI_DISABLE_TELEMETRY: "true"
   CREWAI_TRACING_ENABLED: "false"
   CREWAI_TESTING: "true"
   OTEL_SDK_DISABLED: "true"
-
-  # Belt-and-braces for the Windows runners. `nornyx_lab.ui` reconfigures
-  # stdout to UTF-8, but that only helps once our package is imported — pytest
-  # itself prints test names and docstrings (which contain ✔ and ⊘) through a
-  # stream Python opened with the console code page before any of our code ran.
-  PYTHONIOENCODING: "utf-8"
+  UV_NO_PROGRESS: "true"
 
 jobs:
-  # ---------------------------------------------------------------- gate 1
-  contracts:
-    name: Contract gates (check · generate · lock · drift)
+  locks-and-contracts:
+    name: Frozen locks and contract drift
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.11"
       - uses: astral-sh/setup-uv@v5
         with:
+          version: "0.9.3"
           enable-cache: true
-      - run: uv venv
-      - run: uv pip install -e ".[dev]"
+          cache-dependency-glob: uv.lock
+      - name: Verify that pyproject and uv.lock agree
+        run: uv lock --check
+      - name: Sync the complete tested dependency surface
+        run: uv sync --frozen --extra dev --extra crewai --extra langgraph --extra live
+      - name: Prove lock verification did not rewrite the lock
+        run: git diff --exit-code -- uv.lock
+      - name: Verify checked source, generated artifacts, profiles, and locks
+        run: uv run --frozen python scripts/build_contracts.py --verify
 
-      # Rebuilds every contract into a scratch tree and byte-compares against
-      # what is committed. This is the drift gate: it catches a hand-edited
-      # generated artifact, a stale lock, and a contract whose evidence digests
-      # no longer bind.
-      - name: Verify committed contract artifacts (drift gate)
-        run: uv run python scripts/build_contracts.py --verify
+  python-quality:
+    name: Python lint and format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.11"
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.9.3"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --frozen --extra dev
+      - run: uv run --frozen ruff check .
+      - run: uv run --frozen ruff format --check .
 
-  # ---------------------------------------------------------------- gate 2
-  labs:
-    name: Labs (${{ matrix.os }} · py${{ matrix.python }})
+  backend-fast:
+    name: Academy and API (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.11"
       - uses: astral-sh/setup-uv@v5
         with:
+          version: "0.9.3"
           enable-cache: true
-      - run: uv venv --python ${{ matrix.python }}
-
-      # The framework extras are installed ON PURPOSE. Without them the adapter
-      # labs skip, the suite reports green, and the gate asserts nothing —
-      # exactly the failure Chapter 15 calls a governance failure rather than a
-      # hygiene problem.
-      - run: uv pip install -e ".[dev,crewai,langgraph]"
-
-      - name: Environment check
-        run: uv run nornyx-lab doctor
-
-      # One run, two gates. `-rs` prints every skip with its reason, so a skip
-      # is visible in the log rather than hidden behind a dot; the second gate
-      # then fails the build on any skip at all, because a silently skipped
-      # test is a governance failure rather than a hygiene problem (Ch. 15).
-      #
-      # The suite is slow — each lab shells out to the real `nornyx` CLI many
-      # times — so it deliberately runs ONCE and both gates read that output.
-      - name: Run every lab's concept check, and fail on any skip
-        shell: bash
-        run: |
-          set -o pipefail
-          uv run pytest labs tests -q -rs 2>&1 | tee pytest.log
-          status=$?
-          if grep -qE "[0-9]+ skipped" pytest.log; then
-            echo "::error::Tests were skipped. A silent skip is a governance failure (Ch. 15)."
-            grep -E "^SKIPPED" pytest.log || true
-            exit 1
-          fi
-          exit $status
-
+          cache-dependency-glob: uv.lock
+      - run: uv sync --frozen --extra dev --extra crewai --extra langgraph --extra live
+      - name: Unit, API, persistence, builder, evidence, and scenario tests
+        run: >-
+          uv run --frozen pytest tests/academy -m "not all_labs"
+          -q -rs --junitxml=pytest-academy.xml
+      - name: Fail if any fast gate was skipped
+        if: always()
+        run: >-
+          uv run --frozen python -c "import pathlib, xml.etree.ElementTree as ET;
+          p=pathlib.Path('pytest-academy.xml');
+          root=ET.parse(p).getroot();
+          skipped=sum(int(s.attrib.get('skipped', 0)) for s in root.iter('testsuite'));
+          print(f'pytest skipped: {skipped}');
+          raise SystemExit(skipped > 0)"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: pytest-log-${{ matrix.os }}-py${{ matrix.python }}
-          path: pytest.log
+          name: academy-junit-${{ matrix.os }}
+          path: pytest-academy.xml
+          if-no-files-found: error
 
-  # ---------------------------------------------------------------- gate 3
-  conformance:
-    name: Adapter runtime conformance
+  legacy-regression:
+    name: Full legacy regression (serial, Linux)
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.11"
       - uses: astral-sh/setup-uv@v5
         with:
+          version: "0.9.3"
           enable-cache: true
-      - run: uv venv
-      - run: uv pip install -e ".[dev,crewai,langgraph]"
+          cache-dependency-glob: uv.lock
+      - run: uv sync --frozen --extra dev --extra crewai --extra langgraph --extra live
+      - name: Verify the preserved developer environment
+        run: uv run --frozen nornyx-lab doctor
+      - name: Run every original lab check and repository invariant serially
+        run: >-
+          uv run --frozen pytest labs tests/test_repository.py
+          -q -rs --junitxml=pytest-legacy.xml
+      - name: Fail if any legacy check was skipped
+        if: always()
+        run: >-
+          uv run --frozen python -c "import pathlib, xml.etree.ElementTree as ET;
+          p=pathlib.Path('pytest-legacy.xml');
+          root=ET.parse(p).getroot();
+          skipped=sum(int(s.attrib.get('skipped', 0)) for s in root.iter('testsuite'));
+          print(f'pytest skipped: {skipped}');
+          raise SystemExit(skipped > 0)"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: legacy-junit-linux
+          path: pytest-legacy.xml
+          if-no-files-found: error
 
-      # --require turns a missing framework into a FAILURE rather than a skip.
-      - name: Runtime conformance (no silent skips)
-        run: >
-          uv run python -m nornyx_agentic_adapters.conformance
+  structured-migration:
+    name: All 25 browser migrations (${{ matrix.os }}, serial)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.11"
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.9.3"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --frozen --extra dev --extra crewai --extra langgraph
+      - name: Execute every legacy lab through the structured isolation boundary
+        run: >-
+          uv run --frozen pytest tests/academy/test_structured.py
+          -m all_labs -q -rs --junitxml=pytest-structured.xml
+      - name: Fail if a migrated lab was skipped
+        if: always()
+        run: >-
+          uv run --frozen python -c "import pathlib, xml.etree.ElementTree as ET;
+          p=pathlib.Path('pytest-structured.xml');
+          root=ET.parse(p).getroot();
+          skipped=sum(int(s.attrib.get('skipped', 0)) for s in root.iter('testsuite'));
+          print(f'pytest skipped: {skipped}');
+          raise SystemExit(skipped > 0)"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: structured-junit-${{ matrix.os }}
+          path: pytest-structured.xml
+          if-no-files-found: error
+
+  adapter-conformance:
+    name: Adapter runtime conformance (required frameworks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.11"
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.9.3"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --frozen --extra dev --extra crewai --extra langgraph
+      - name: Require CrewAI and LangGraph instead of accepting absence
+        run: >-
+          uv run --frozen python -m nornyx_agentic_adapters.conformance
           --require crewai --require langgraph
           --json conformance-report.json --summary
-
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: conformance-report
+          name: adapter-conformance-report
           path: conformance-report.json
+          if-no-files-found: error
 
-  # ---------------------------------------------------------------- gate 4
-  lint:
-    name: Lint
+  frontend-quality:
+    name: Frontend component tests and production build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.18.0"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+
+  learner-journey:
+    name: Fresh learner browser and accessibility journey
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [backend-fast, frontend-quality]
+    env:
+      NORNYX_ACADEMY_DB: ${{ runner.temp }}/academy-e2e.db
+      # Playwright starts the backend from frontend/. Freeze that indirect uv
+      # invocation as well as the explicit setup command below.
+      UV_FROZEN: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.11"
       - uses: astral-sh/setup-uv@v5
-      - run: uv venv
-      - run: uv pip install -e ".[dev]"
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
+        with:
+          version: "0.9.3"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.18.0"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: uv sync --frozen --extra dev
+      - run: npm ci --ignore-scripts
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - name: Run the real API, browser UI, screenshot, and axe checks
+        run: npm run test:e2e
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: learner-journey-evidence
+          path: |
+            frontend/test-results
+            frontend/playwright-report
+          if-no-files-found: warn
+          retention-days: 14
+
+  container-build:
+    name: Production container build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [locks-and-contracts, frontend-quality]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          tags: nornyx-academy:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

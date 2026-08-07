@@ -1,0 +1,31 @@
+{
+  "schema": "nornyx.academy.compatibility.v1",
+  "runtime_baseline": {
+    "nornyx_version": "1.11.0",
+    "nornyx_tag": "v1.11.0",
+    "nornyx_commit": "dca0ac676ff7a30a5b97ac6d0b4cf58c6fc07c2f",
+    "adapter_version": "0.3.0",
+    "adapter_tag_commit": "a02f7682a8f67e64ef5a4f3b77a01e733e3e8e04",
+    "agentic_spi": "1.2",
+    "language_schema": "1.0",
+    "agentic_network_module": "0.2.0",
+    "network_lock_format": "1.0",
+    "generation_format": "1.0",
+    "runtime_events_schema": "1.1",
+    "crewai_version": "1.15.4",
+    "langgraph_version": "1.2.2"
+  },
+  "audited_main": {
+    "commit": "8d00029e6d3486a6aa348e1e113f7c6f7e6ebe1a",
+    "commit_date": "2026-08-06",
+    "commits_after_runtime_tag": 52,
+    "package_metadata_version": "1.11.0",
+    "delta": [
+      "UNKNOWN_POLICY_RULE checker warning",
+      "evaluated harness deny-rule vocabulary",
+      "nornyx check --strict"
+    ],
+    "enabled_in_runtime": false
+  },
+  "policy": "The academy runs the published release baseline and records authoritative main separately. Unreleased behavior is adopted only through the documented compatibility upgrade gate."
+}
