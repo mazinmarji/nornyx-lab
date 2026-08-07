@@ -18,6 +18,15 @@
   --line-dark: #28404e;
   --cyan: #17b8c6;
   --cyan-dark: #067783;
+  /* WCAG 2 AA needs 4.5:1 for normal text. --cyan-dark clears that on the light
+     surfaces it was designed for (5.28:1 on white) but NOT on the dark bands:
+     3.40:1 on --ink-900 and 3.07:1 on --ink-850. axe flagged .hero,
+     .featured-card, and .nornyx-position as `color-contrast`, impact serious.
+     One token cannot serve both — #12A8BA reaches 6.27:1 / 5.67:1 on the dark
+     surfaces but drops to 2.86:1 on white. So dark containers re-point the
+     token below, and every descendant using var(--cyan-dark) inherits the
+     accessible value without touching each rule. */
+  --cyan-on-dark: #12A8BA;
   --teal: #138f7c;
   --teal-soft: #d9f0e9;
   --amber: #d88914;
@@ -171,6 +180,8 @@ pre { overflow: auto; font-size: 0.82rem; line-height: 1.65; }
 .action-card h3 { margin-top: 2.3rem; font-size: 1.4rem; }
 .action-card p { color: var(--ink-600); }
 .action-card > strong { margin-top: auto; color: var(--cyan-dark); }
+/* Dark surfaces re-point the accent token so descendants stay AA-compliant. */
+.hero, .featured-card, .nornyx-position { --cyan-dark: var(--cyan-on-dark); }
 .featured-card { background: var(--ink-850); color: white; }
 .featured-card h3 { color: white; }
 .featured-card p { color: #aac0c6; }
