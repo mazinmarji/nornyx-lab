@@ -66,11 +66,31 @@ def test_every_referenced_glossary_term_exists(pedagogy):
 @pytest.mark.parametrize(
     "term_id",
     [
-        "llm", "assistant", "agent", "tool", "side-effect", "prompt", "context",
-        "prompt-injection", "identity", "capability", "authority", "policy",
-        "decision", "enforcement", "trust-zone", "approval", "evidence",
-        "assurance", "lock", "drift", "occurrence", "retry", "handoff",
-        "adapter", "conformance",
+        "llm",
+        "assistant",
+        "agent",
+        "tool",
+        "side-effect",
+        "prompt",
+        "context",
+        "prompt-injection",
+        "identity",
+        "capability",
+        "authority",
+        "policy",
+        "decision",
+        "enforcement",
+        "trust-zone",
+        "approval",
+        "evidence",
+        "assurance",
+        "lock",
+        "drift",
+        "occurrence",
+        "retry",
+        "handoff",
+        "adapter",
+        "conformance",
     ],
 )
 def test_the_required_vocabulary_is_defined(pedagogy, term_id):
@@ -92,9 +112,16 @@ def test_the_orientation_introduces_no_specialist_vocabulary(pedagogy):
     orientation = pedagogy.orientation()
     text = json.dumps(orientation.model_dump(mode="json")).lower()
     forbidden = [
-        "pdp", "pep", "policy decision point", "policy enforcement point",
-        "evidence binding", "assurance tier", "contract revision",
-        "subject revision", "trust zone", "occurrence identity",
+        "pdp",
+        "pep",
+        "policy decision point",
+        "policy enforcement point",
+        "evidence binding",
+        "assurance tier",
+        "contract revision",
+        "subject revision",
+        "trust zone",
+        "occurrence identity",
     ]
     found = [term for term in forbidden if term in text]
     assert not found, f"the orientation uses specialist terms before teaching them: {found}"
@@ -130,6 +157,22 @@ def test_every_lesson_names_a_concept_in_plain_language_first(pedagogy, module_i
         assert concept.plain_name != concept.formal_term, (
             f"{module_id} plain name and formal term are identical, so nothing is being "
             f"translated for the learner"
+        )
+
+
+def test_no_guided_lesson_title_leads_with_an_acronym(pedagogy, module_ids):
+    """The lesson title is the most prominent text on the page.
+
+    The repository's own titles are engineering-accurate and stay as the Explore
+    heading, but "The vocabulary: PDP, PEP, and what a tier claims" cannot be the
+    first thing a beginner reads in the lesson that exists to explain PDP and PEP.
+    """
+    acronyms = re.compile(r"\b(PDP|PEP|SPI|CI|\.nyx)\b")
+    for module_id in module_ids:
+        plain_title = pedagogy.teaching(module_id).plain_title
+        assert plain_title.strip(), f"{module_id} has no plain title"
+        assert not acronyms.search(plain_title), (
+            f"{module_id} guided title leads with an acronym: {plain_title!r}"
         )
 
 
@@ -272,7 +315,7 @@ def _read(*parts: str) -> str:
 def test_guided_is_the_default_mode():
     """Nobody is dropped into professional density without choosing it."""
     source = _read("context", "ModeContext.tsx")
-    assert 'useState<LearnerMode>(readStoredMode)' in source
+    assert "useState<LearnerMode>(readStoredMode)" in source
     assert '=== "explore" ? "explore" : "guided"' in source
 
 
@@ -288,14 +331,14 @@ def test_the_lesson_page_teaches_before_it_runs():
     # alphabetically and would otherwise decide the result.
     source = full[full.index("export function LessonPage") :]
     order = [
-        "LearningSentence",       # what you will learn
-        "lesson-question",        # the question
-        "lesson-story",           # the situation
-        "PredictionStep",         # predict
-        "execution-panel",        # run
-        "ConceptName",            # name the concept, after the result
-        "lesson-takeaway",        # takeaway
-        "AssessmentPanel",        # check understanding, last
+        "LearningSentence",  # what you will learn
+        "lesson-question",  # the question
+        "lesson-story",  # the situation
+        "PredictionStep",  # predict
+        "execution-panel",  # run
+        "ConceptName",  # name the concept, after the result
+        "lesson-takeaway",  # takeaway
+        "AssessmentPanel",  # check understanding, last
     ]
     positions = [source.index(marker) for marker in order]
     assert positions == sorted(positions), (
@@ -311,9 +354,9 @@ def test_the_assessment_never_precedes_the_run():
 
 def test_the_demo_asks_for_a_prediction_before_the_first_run():
     story = json.loads(
-        (
-            REPO_ROOT / "src" / "nornyx_lab" / "academy" / "content" / "demo_story.json"
-        ).read_text(encoding="utf-8")
+        (REPO_ROOT / "src" / "nornyx_lab" / "academy" / "content" / "demo_story.json").read_text(
+            encoding="utf-8"
+        )
     )
     kinds = [screen["kind"] for screen in story["screens"]]
     assert "predict" in kinds, "the demo never asks the learner to commit"
@@ -324,9 +367,9 @@ def test_the_demo_asks_for_a_prediction_before_the_first_run():
 
 def test_the_demo_states_its_limits_after_the_proof():
     story = json.loads(
-        (
-            REPO_ROOT / "src" / "nornyx_lab" / "academy" / "content" / "demo_story.json"
-        ).read_text(encoding="utf-8")
+        (REPO_ROOT / "src" / "nornyx_lab" / "academy" / "content" / "demo_story.json").read_text(
+            encoding="utf-8"
+        )
     )
     kinds = [screen["kind"] for screen in story["screens"]]
     assert kinds.index("proof") < kinds.index("limits")

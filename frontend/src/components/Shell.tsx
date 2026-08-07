@@ -177,7 +177,7 @@ export function Shell() {
         <div className="sidebar-footer">
           <div className="sidebar-mode">
             <p className="nav-label">Level of detail</p>
-            <ModeSwitch />
+            <ModeSwitch testId="mode-switch-global" />
           </div>
           {dashboard ? (
             <div className="sidebar-progress">

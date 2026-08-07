@@ -118,7 +118,12 @@ export function LessonPage() {
 
       <header className="lesson-header">
         <div>
-          <h1>{module.title}</h1>
+          {/* Plain title leads in Guided mode. The repository's own title is
+              never lost — it is the Explore heading and the subtitle here — but
+              a beginner should not meet "PDP, PEP, and what a tier claims" as
+              the first words of a lesson meant to explain those terms. */}
+          <h1>{explore || !teaching ? module.title : teaching.plain_title}</h1>
+          {!explore && teaching ? <p className="lesson-formal-title">{module.title}</p> : null}
           <div className="lesson-meta">
             <span>{module.minutes} minutes</span>
             <StatusBadge status={module.status} />

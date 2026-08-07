@@ -544,6 +544,7 @@ export interface NamedConcept {
 export interface LessonTeaching {
   api_version: string;
   module_id: string;
+  plain_title: string;
   learn: string;
   question: string;
   why_you_care: string;

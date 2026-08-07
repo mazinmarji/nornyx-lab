@@ -4,10 +4,10 @@ import type { CausalStep, GlossaryTerm, NamedConcept, Prediction, ScenarioExplan
 
 /* ---------------------------------------------------------------- mode switch */
 
-export function ModeSwitch() {
+export function ModeSwitch({ testId = "mode-switch" }: { testId?: string } = {}) {
   const { mode, setMode } = useMode();
   return (
-    <div className="mode-switch" role="group" aria-label="Level of detail" data-testid="mode-switch">
+    <div className="mode-switch" role="group" aria-label="Level of detail" data-testid={testId}>
       <button
         type="button"
         className={mode === "guided" ? "is-active" : ""}

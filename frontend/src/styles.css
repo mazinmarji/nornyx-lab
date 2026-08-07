@@ -737,6 +737,11 @@ tbody th { color: var(--ink-900); }
    idea over the machinery: learning sentences, questions and takeaways are
    larger than run controls and structured output. */
 
+/* Small text on tinted panels uses --ink-600, not --ink-500: --ink-500
+   measures 4.30:1 on --red-soft, 4.46:1 on --paper-deep and 4.49:1 on
+   --teal-soft, all at or under the 4.5:1 AA threshold. --ink-600 clears
+   every tint in use here. */
+
 /* ---------------------------------------------------------- mode switch */
 .mode-switch { display: inline-flex; gap: 0; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--surface); }
 .mode-switch button { padding: 0.45rem 1.1rem; border: 0; background: transparent; color: var(--ink-600); cursor: pointer; font-size: 0.85rem; font-weight: 600; }
@@ -747,7 +752,10 @@ tbody th { color: var(--ink-900); }
 .sidebar-mode .mode-switch button { flex: 1; }
 .nav-advanced > summary { cursor: pointer; list-style: none; display: flex; flex-direction: column; gap: 0.15rem; padding: 0.3rem 0; }
 .nav-advanced > summary::-webkit-details-marker { display: none; }
-.nav-advanced > summary small { color: var(--ink-500); font-size: 0.72rem; }
+/* The sidebar is a dark container, so this cannot use the light-surface
+   --ink-500 token: it measured ~3:1 and axe flagged it as serious. #a8bdc5
+   is the sidebar's existing secondary text colour and clears 4.5:1. */
+.nav-advanced > summary small { color: #a8bdc5; font-size: 0.72rem; }
 .nav-advanced > summary:focus-visible { outline: 3px solid var(--cyan-on-dark); outline-offset: 2px; }
 
 /* ------------------------------------------------------- plain-first term */
@@ -755,7 +763,7 @@ tbody th { color: var(--ink-900); }
 .plain-term .formal-term { color: var(--ink-500); font-size: 0.74rem; font-weight: 500; }
 .concept-formal { color: var(--ink-600); font-size: 0.9rem; }
 .concept-formal code { background: var(--surface-cool); padding: 0.1rem 0.4rem; border-radius: 4px; }
-.concept-formal small { display: block; color: var(--ink-500); font-size: 0.75rem; }
+.concept-formal small { display: block; color: var(--ink-600); font-size: 0.75rem; }
 
 /* --------------------------------------------------- what am I looking at */
 .what-am-i { display: flex; gap: 0.6rem; align-items: flex-start; margin: 1.2rem 0 0.6rem; padding: 0.7rem 0.9rem;
@@ -795,7 +803,7 @@ tbody th { color: var(--ink-900); }
 .causal-step:not(:last-child)::after { content: "\2192"; position: absolute; right: -0.55rem; top: 50%; transform: translateY(-50%);
   color: var(--ink-500); font-weight: 700; }
 .causal-step strong { display: block; font-size: 0.94rem; }
-.causal-step small { display: block; color: var(--ink-500); font-size: 0.76rem; margin-top: 0.2rem; }
+.causal-step small { display: block; color: var(--ink-600); font-size: 0.76rem; margin-top: 0.2rem; }
 .causal-input { background: var(--paper-deep); }
 .causal-decision { border-color: var(--cyan); }
 .causal-deny, .causal-effect { border-color: var(--red); background: var(--red-soft); }
@@ -806,7 +814,10 @@ tbody th { color: var(--ink-900); }
 .concept-name { margin: 1.8rem 0 1rem; padding: 1.3rem 1.5rem; background: var(--surface-cool); border-radius: 12px; }
 .concept-name h2 { margin: 0.2rem 0 0.5rem; font-size: 1.5rem; }
 .lesson-nornyx { margin: 1rem 0 1.5rem; padding: 1.1rem 1.3rem; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
-.lesson-takeaway { margin: 1.6rem 0; padding: 1.3rem 1.6rem; background: var(--teal-soft); border-radius: 12px; }
+/* The .eyebrow inside this panel inherits --cyan-dark, which measures
+   4.43:1 on --teal-soft — marginally under AA. Re-point the token for this
+   container (6.35:1) rather than weakening it everywhere else. */
+.lesson-takeaway { margin: 1.6rem 0; padding: 1.3rem 1.6rem; background: var(--teal-soft); border-radius: 12px; --cyan-dark: #0a5d66; }
 .lesson-takeaway p:last-child { margin: 0.2rem 0 0; font-size: 1.15rem; font-weight: 600; color: var(--ink-900); }
 .module-id { background: var(--surface-cool); padding: 0.1rem 0.45rem; border-radius: 4px; font-size: 0.78rem; }
 
@@ -869,7 +880,9 @@ tbody th { color: var(--ink-900); }
 .idea-body { font-size: 1.02rem; line-height: 1.6; color: var(--ink-800); }
 .idea-example { display: grid; gap: 0.9rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin: 1.1rem 0;
   padding: 1rem 1.1rem; background: var(--paper-deep); border-radius: 10px; }
-.idea-example span { display: block; color: var(--ink-500); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.3rem; }
+/* --ink-500 on --paper-deep measures 4.46:1 — just under the 4.5:1 AA
+   threshold at this size. --ink-600 reaches 5.54:1. */
+.idea-example span { display: block; color: var(--ink-600); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.3rem; }
 .idea-example code { font-size: 0.9rem; color: var(--ink-900); }
 .idea-example p { margin: 0; font-size: 0.94rem; }
 .idea-questions { margin: 1rem 0; padding: 0; list-style: none; display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
@@ -967,7 +980,10 @@ tbody th { color: var(--ink-900); }
 .explore-full { margin-top: 2rem; }
 
 /* ------------------------------------------------------------- home page */
-.hero-reassure { margin-top: 1.1rem; color: var(--ink-600); font-size: 0.92rem; }
+/* The hero is a dark band (--ink-900). --ink-600 is a light-surface token
+   and measured 2.69:1 here. #b9cbd0 is the hero's own secondary text
+   colour, already used by .hero-lede, and clears 4.5:1. */
+.hero-reassure { margin-top: 1.1rem; color: #b9cbd0; font-size: 0.92rem; }
 .hero-story { --cyan-dark: var(--cyan-on-dark); }
 .hero-story-steps { list-style: none; margin: 0.8rem 0 0; padding: 0; display: grid; gap: 0.75rem; }
 .hero-story-steps li { display: flex; gap: 0.8rem; align-items: flex-start; }
@@ -1002,7 +1018,7 @@ tbody th { color: var(--ink-900); }
 .stage-plain { color: var(--ink-600); margin: 0; }
 .stage-count { text-align: center; padding: 0.6rem 1rem; background: var(--surface-cool); border-radius: 9px; }
 .stage-count strong { display: block; font-size: 1.6rem; line-height: 1; }
-.stage-count span { font-size: 0.76rem; color: var(--ink-500); }
+.stage-count span { font-size: 0.76rem; color: var(--ink-600); }
 .stage-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
 .stage-step { display: flex; gap: 0.9rem; align-items: flex-start; padding: 0.85rem 1rem; background: var(--paper); border-radius: 9px; }
 .stage-step.is-complete { background: var(--teal-soft); }
@@ -1012,7 +1028,7 @@ tbody th { color: var(--ink-900); }
 .step-body { flex: 1; }
 .step-name { font-weight: 600; color: var(--ink-900); font-size: 1rem; }
 .step-plain { margin: 0.2rem 0 0; color: var(--ink-600); font-size: 0.9rem; line-height: 1.45; }
-.step-modules { margin: 0.35rem 0 0; display: flex; flex-wrap: wrap; gap: 0.6rem; font-size: 0.78rem; color: var(--ink-500); }
+.step-modules { margin: 0.35rem 0 0; display: flex; flex-wrap: wrap; gap: 0.6rem; font-size: 0.78rem; color: var(--ink-600); }
 .step-modules code { background: var(--surface-cool); padding: 0.05rem 0.35rem; border-radius: 3px; }
 .catalog-meta { margin-top: 2.5rem; padding: 1.3rem 1.5rem; background: var(--paper-deep); border-radius: 11px; }
 
@@ -1022,3 +1038,11 @@ tbody th { color: var(--ink-900); }
   .run-explanation { padding: 1.3rem 1.2rem; }
   .gap-chain { flex-direction: column; align-items: stretch; }
 }
+
+.lesson-formal-title { margin: 0.2rem 0 0; color: var(--ink-500); font-size: 0.88rem; }
+
+/* The mode switch appears on light page headers and inside the dark sidebar.
+   Re-point its colours for the sidebar rather than weakening the light case. */
+.sidebar-mode .mode-switch { border-color: #23404f; background: #0b202c; }
+.sidebar-mode .mode-switch button { color: #a8bdc5; }
+.sidebar-mode .mode-switch button.is-active { background: #17b8c6; color: var(--ink-950); }

@@ -119,6 +119,7 @@ class PedagogyRepository:
         prediction = item["prediction"]
         return LessonTeaching(
             module_id=module_id,
+            plain_title=item["plain_title"],
             learn=item["learn"],
             question=item["question"],
             why_you_care=item["why_you_care"],

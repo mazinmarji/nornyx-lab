@@ -694,6 +694,9 @@ class LessonTeaching(AcademyModel):
 
     api_version: str = API_VERSION
     module_id: str
+    # Plain-language heading shown in Guided mode. The repository's own module
+    # title is unchanged and remains the Explore heading and the deep link.
+    plain_title: str
     learn: str
     question: str
     why_you_care: str

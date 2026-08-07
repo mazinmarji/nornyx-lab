@@ -135,6 +135,13 @@ function RunScreen({
         </div>
       ) : null}
 
+      {/* Rendered before the run, not alongside the result. The learner should
+          know what the two numbers mean before watching them appear, otherwise
+          the observation lands as notation to decode rather than as an answer. */}
+      <WhatAmILookingAt testId="what-am-i-counters">
+        {String(observe.explain_before_counters ?? "These two numbers tell us whether software actually reached and completed the sensitive function.")}
+      </WhatAmILookingAt>
+
       {!run ? (
         <div className="screen-run">
           <button className="button button-accent button-large" type="button" disabled={loading} onClick={onRun}>
@@ -148,9 +155,6 @@ function RunScreen({
 
       {run && counter ? (
         <div className="screen-observation" data-testid={`observation-${variant}`}>
-          <WhatAmILookingAt testId="what-am-i-counters">
-            {String(observe.explain_before_counters ?? "These two numbers tell us whether software actually reached and completed the sensitive function.")}
-          </WhatAmILookingAt>
           <div className="focus-counter" data-testid={`focus-counter-${variant}`}>
             <CounterCard counter={counter} />
           </div>
