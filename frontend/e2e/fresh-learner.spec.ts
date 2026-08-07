@@ -20,8 +20,18 @@ test.describe("fresh learner five-minute path", () => {
 
     const ungoverned = page.getByTestId("variant-ungoverned");
     const governed = page.getByTestId("variant-governed");
-    await expect(ungoverned.getByLabel(/1 attempts and 1 completions/i)).toBeVisible();
-    await expect(governed.getByLabel(/0 attempts and 0 completions/i)).toBeVisible();
+    // Target the PUBLICATION counter specifically. The ungoverned variant runs
+    // three actions (search_web, draft_briefing, publish_external) and all three
+    // read "1 attempts and 1 completions", so a variant-scoped label lookup
+    // matches three elements and trips Playwright strict mode. Using `.first()`
+    // would silence that while asserting an arbitrary counter — and the whole
+    // claim of this test is about publication specifically.
+    await expect(
+      page.getByTestId("publish-external-counter-ungoverned").getByLabel(/1 attempts and 1 completions/i),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("publish-external-counter-governed").getByLabel(/0 attempts and 0 completions/i),
+    ).toBeVisible();
     await expect(governed.getByText(/approval|required|denied/i).first()).toBeVisible();
     await page.screenshot({ path: "test-results/visual-evidence/fresh-learner-demo.png", fullPage: true });
 
