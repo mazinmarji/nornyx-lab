@@ -41,7 +41,7 @@ export function ApprovalPage() {
       {governed ? <section className="approval-result" id="approval-result" tabIndex={-1}>
         <section className="approval-provenance" aria-labelledby="approval-provenance-heading">
           <div><p className="eyebrow">Execution provenance</p><h2 id="approval-provenance-heading">Evaluated assertion snapshot</h2></div>
-          <dl><div><dt>Occurrence</dt><dd>{task.data?.run_id}</dd></div><div><dt>Assertion state</dt><dd>{executedConfiguration?.runId === task.data?.run_id ? executedConfiguration.approvalState.replaceAll("_", " ") : "Unavailable"}</dd></div><div><dt>Observed revision</dt><dd>{executedConfiguration?.runId === task.data?.run_id ? executedConfiguration.revision ?? "Contract revision" : "Unavailable"}</dd></div></dl>
+          <dl><div><dt>Occurrence</dt><dd>{task.data?.run_id}</dd></div><div><dt>Assertion state</dt><dd>{executedConfiguration && executedConfiguration.runId === task.data?.run_id ? executedConfiguration.approvalState.replaceAll("_", " ") : "Unavailable"}</dd></div><div><dt>Observed revision</dt><dd>{executedConfiguration && executedConfiguration.runId === task.data?.run_id ? executedConfiguration.revision ?? "Contract revision" : "Unavailable"}</dd></div></dl>
         </section>
         <ScenarioFlowDiagram decision={crossingDecision ?? capabilityDecision} />
         <section className="decision-outcomes" aria-labelledby="approval-decision-outcomes">

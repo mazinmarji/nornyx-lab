@@ -21,7 +21,10 @@ export function DashboardPage() {
     if (!dialog) return;
     const focusableSelector = "button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
     const focusFirst = requestAnimationFrame(() => dialog.querySelector<HTMLElement>(focusableSelector)?.focus());
-    function handleKeyDown(event: KeyboardEvent) {
+    // Arrow const, not a hoisted `function`: a function declaration is
+    // hoisted above the `if (!dialog) return;` guard, so TypeScript cannot
+    // keep `dialog` narrowed to non-null inside it (TS18047).
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
         setResetOpen(false);
@@ -43,7 +46,7 @@ export function DashboardPage() {
         event.preventDefault();
         first.focus();
       }
-    }
+    };
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       cancelAnimationFrame(focusFirst);

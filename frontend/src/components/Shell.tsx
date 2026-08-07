@@ -83,7 +83,10 @@ export function Shell() {
     if (!sidebar) return;
     const focusableSelector = "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
     const focusFirst = requestAnimationFrame(() => sidebar.querySelector<HTMLElement>(focusableSelector)?.focus());
-    function handleKeyDown(event: KeyboardEvent) {
+    // Arrow const, not a hoisted `function`: a function declaration is
+    // hoisted above the `if (!sidebar) return;` guard, so TypeScript cannot
+    // keep `sidebar` narrowed to non-null inside it (TS18047).
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
         restoreMenuFocus.current = true;
@@ -106,7 +109,7 @@ export function Shell() {
         event.preventDefault();
         first.focus();
       }
-    }
+    };
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       cancelAnimationFrame(focusFirst);
