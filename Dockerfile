@@ -2,14 +2,11 @@
 
 FROM node:22.18.0-alpine3.22 AS browser-build
 WORKDIR /build/frontend
-# The trailing glob makes the lockfile OPTIONAL: package.json always matches, so
-# COPY succeeds whether or not package-lock.json is committed. Without it the
-# image build fails outright with
-#   "/frontend/package-lock.json": not found
-# which is what broke the container job. `npm ci` is still used the moment a
-# lockfile exists; otherwise the build falls back loudly.
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN if [ -f package-lock.json ]; then         npm ci --ignore-scripts;     else         echo "WARNING: no package-lock.json; transitive versions are not frozen" >&2;         npm install --ignore-scripts --no-audit --no-fund;     fi
+# The lockfile is committed, so the image build is reproducible: `npm ci`
+# installs exactly the resolved tree and fails if it disagrees with package.json.
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --ignore-scripts
+
 COPY frontend/ ./
 RUN npm run build
 
