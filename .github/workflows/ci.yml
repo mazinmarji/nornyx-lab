@@ -294,18 +294,76 @@ jobs:
           retention-days: 14
 
   container-build:
-    name: Production container build
+    name: Production container build and learner smoke test
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     needs: [locks-and-contracts, frontend-quality]
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - name: Build the production image
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile
           push: false
-          tags: nornyx-academy:ci
+          # `load: true` puts the image in the local daemon. Without it the
+          # image only exists in the build cache and CANNOT be started, which
+          # is why this job used to prove nothing beyond "the Dockerfile parses".
+          load: true
+          tags: nornyx-academy:2.0.0
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # A built image is not a serving application. The README tells a learner to
+      # run `docker compose up`, so that documented path — including read_only,
+      # cap_drop ALL, no-new-privileges, and the named progress volume — is what
+      # gets exercised here.
+      - name: Start the learner stack the way the README documents
+        run: docker compose up -d --no-build
+
+      - name: Prove the container serves a usable learner application
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/api/v1/health >/dev/null 2>&1; then ready=1; break; fi
+            sleep 2
+          done
+          if [ "${ready:-0}" != 1 ]; then echo "::error::container never became healthy"; exit 1; fi
+
+          # The browser application must be served from the same origin.
+          curl -fsS http://127.0.0.1:8000/ -o index.html
+          grep -qi '<div id="root"' index.html || { echo "::error::the SPA shell was not served"; exit 1; }
+
+          # The real governance engine must work INSIDE the container, not just
+          # in the test harness: ungoverned publishes 1/1, governed 0/0.
+          curl -fsS -X POST http://127.0.0.1:8000/api/v1/demo/run -H 'content-type: application/json' -d '{}' -o demo.json
+          python - <<'PY'
+          import json, sys
+          run = json.load(open("demo.json"))
+          got = {}
+          for variant in run["variants"]:
+              counter = next(c for c in variant["counters"] if c["action"] == "publish_external")
+              got[variant["id"]] = (counter["attempts"], counter["completions"])
+          print("publish counters in container:", got)
+          expected = {"ungoverned": (1, 1), "governed": (0, 0)}
+          if got != expected:
+              sys.exit(f"expected {expected}, got {got}")
+          governed = next(v for v in run["variants"] if v["id"] == "governed")
+          if governed["evidence"]["validation_status"] != "pass":
+              sys.exit("governed evidence did not validate inside the container")
+          print("container smoke: A/B semantics and bound evidence confirmed")
+          PY
+
+          # Progress must persist to the mounted volume, not a container-local path.
+          curl -fsS http://127.0.0.1:8000/api/v1/progress -o progress.json
+          python -c "import json;d=json.load(open('progress.json'));assert d.get('modules'),'no progress record';print('progress store reachable')"
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=200
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
