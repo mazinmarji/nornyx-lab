@@ -3,6 +3,17 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
+  /**
+   * One worker, not merely one test at a time per file.
+   *
+   * `fullyParallel: false` serialises within a file but still runs separate
+   * spec files concurrently. Every test here drives the same academy service
+   * and the same learner record, and each begins by POSTing
+   * /api/v1/progress/reset — so a second worker resets the database underneath
+   * a journey already in progress. That surfaced the moment a second spec file
+   * existed, as an unrelated-looking failure in the first file.
+   */
+  workers: 1,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",

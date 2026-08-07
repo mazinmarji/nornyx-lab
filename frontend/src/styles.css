@@ -796,7 +796,13 @@ tbody th { color: var(--ink-900); }
 .prediction-locked { margin: 1rem 0 0; color: var(--ink-800); }
 
 /* ------------------------------------------------------ visual causality */
-.causal-chain { display: flex; flex-wrap: nowrap; gap: 0.5rem; overflow-x: auto; padding: 0.4rem 0 0.9rem; }
+/* The causal chain is the lesson's "because", so no step may be silently
+   hidden. One non-wrapping row needs ~963px of chain width, which only a wide
+   desktop has: at 768px the scroller showed 3 of 5 steps and cut off `Deny` and
+   `Tool never entered` — the conclusion of the argument — and at 375px it showed
+   1 of 5, looking like a single box rather than a chain. Wrapping keeps every
+   step on screen at any width, and still reads in order. */
+.causal-chain { display: flex; flex-wrap: wrap; gap: 0.5rem; row-gap: 1.5rem; overflow-x: auto; padding: 0.4rem 0 0.9rem; }
 .causal-chain:focus-visible { outline: 3px solid var(--cyan-on-dark); outline-offset: 2px; }
 .causal-step { flex: 0 0 auto; min-width: 8.5rem; max-width: 13rem; padding: 0.7rem 0.9rem; border-radius: 9px;
   background: var(--surface); border: 1px solid var(--line); position: relative; }
@@ -903,9 +909,16 @@ tbody th { color: var(--ink-900); }
 .demo-progress-header h1 { font-size: clamp(1.6rem, 3.4vw, 2.3rem); margin: 0.2rem 0 0; line-height: 1.2; }
 .demo-dots { display: flex; gap: 0.45rem; list-style: none; padding: 0; margin: 0 0 1.8rem; }
 .demo-dots li { flex: 1; }
-.demo-dots button { display: block; width: 100%; height: 0.45rem; border: 0; border-radius: 999px; background: var(--line); cursor: pointer; padding: 0; }
-.demo-dots li.is-done button { background: var(--teal); }
-.demo-dots li.is-current button { background: var(--ink-900); }
+/* The painted bar is 7px tall, but a 7px hit area fails WCAG 2.2 target size
+   (24x24) at every width, not only on a phone — and these dots are how a
+   learner navigates back to earlier teaching. `background-clip: content-box`
+   keeps the paint inside the content box, so the bar looks exactly as before
+   while the button itself is a comfortable target. */
+.demo-dots button { display: block; width: 100%; height: 2.9rem; padding: 1.22rem 0;
+  border: 0; border-radius: 999px; background: var(--line); background-clip: content-box;
+  cursor: pointer; }
+.demo-dots li.is-done button { background-color: var(--teal); }
+.demo-dots li.is-current button { background-color: var(--ink-900); }
 .demo-dots button:focus-visible { outline: 3px solid var(--cyan-dark); outline-offset: 3px; }
 .demo-screen { min-height: 18rem; padding: 1.9rem 2.1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
 .screen-lede { font-size: 1.15rem; line-height: 1.6; color: var(--ink-800); }
@@ -1039,6 +1052,26 @@ tbody th { color: var(--ink-900); }
   .gap-chain { flex-direction: column; align-items: stretch; }
 }
 
+/* ------------------------------------------ narrow-screen pedagogy (B2)
+   Phone and tablet widths. The rules here exist to keep the teaching legible,
+   not merely to stop things overlapping. */
+@media (max-width: 860px) {
+  /* One step per row, with the connector turned to point down: the chain reads
+     as a sequence rather than as five unrelated cards. */
+  .causal-chain { flex-direction: column; align-items: stretch; row-gap: 1.4rem; }
+  .causal-step { min-width: 0; max-width: none; }
+  .causal-step:not(:last-child)::after {
+    content: "\2193"; right: auto; left: 50%; top: auto; bottom: -1.05rem;
+    transform: translateX(-50%);
+  }
+
+  /* The progress dots were a 7px-tall hit area: a real miss target on a phone,
+     not merely a small one. Grow the hit box to the 44px guideline while the
+     painted bar stays thin — `background-clip` keeps the paint in the content
+     box, so this reads identically and is four times easier to hit. */
+  .demo-dots { margin-bottom: 1rem; }
+}
+
 .lesson-formal-title { margin: 0.2rem 0 0; color: var(--ink-500); font-size: 0.88rem; }
 
 /* The mode switch appears on light page headers and inside the dark sidebar.
@@ -1054,6 +1087,6 @@ tbody th { color: var(--ink-900); }
 .orientation-diagram .diagram-title { text-transform: none; }
 .concept-reveal { margin: 1.6rem 0; padding: 1.4rem 1.6rem; background: var(--surface-cool); border-radius: 12px; }
 .concept-reveal > p { color: var(--ink-700); margin: 0.3rem 0 0; }
-.demo-dots li.is-locked button { background: var(--line); opacity: 0.45; cursor: not-allowed; }
+.demo-dots li.is-locked button { background-color: var(--line); opacity: 0.45; cursor: not-allowed; }
 .demo-blocked { margin: -0.6rem 0 1.4rem; padding: 0.75rem 1rem; background: var(--amber-soft);
   border-radius: 8px; color: var(--ink-800); font-size: 0.94rem; }
