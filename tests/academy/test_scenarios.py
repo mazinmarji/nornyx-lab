@@ -93,7 +93,9 @@ def test_real_approval_assertion_variants(
     assert (publication.attempts, publication.completions) == expected_counter
     assert _decision(run, "governed", capability="publish_external").code == "CAPABILITY_DENIED"
     assert governed.evidence.validation_status == EvidenceStatus.PASS
-    assert all(event["subject_revision"] == LAB_SUBJECT_REVISION for event in governed.evidence.events)
+    assert all(
+        event["subject_revision"] == LAB_SUBJECT_REVISION for event in governed.evidence.events
+    )
 
 
 def test_valid_crossing_approval_does_not_mutate_generic_capability_authority() -> None:
@@ -123,9 +125,7 @@ def test_valid_crossing_approval_does_not_mutate_generic_capability_authority() 
 
 
 def test_revision_and_identity_options_are_real_fail_closed_decisions() -> None:
-    revision = scenarios.run_atlas_demo(
-        DemoOptions(observed_subject_revision="git:" + "f" * 40)
-    )
+    revision = scenarios.run_atlas_demo(DemoOptions(observed_subject_revision="git:" + "f" * 40))
     governed = _variant(revision, "governed")
     assert {item.code for item in governed.decisions} == {"REVISION_MISMATCH"}
     assert governed.evidence.validation_status == EvidenceStatus.MISSING
@@ -133,10 +133,11 @@ def test_revision_and_identity_options_are_real_fail_closed_decisions() -> None:
     assert _counter(revision, "governed").meaning == CounterMeaning.PREVENTED
 
     identity = scenarios.run_atlas_demo(DemoOptions(identity_ref="identity.not_declared"))
-    assert {item.code for item in _variant(identity, "governed").decisions} == {
-        "REQUEST_MALFORMED"
-    }
-    assert (_counter(identity, "governed").attempts, _counter(identity, "governed").completions) == (
+    assert {item.code for item in _variant(identity, "governed").decisions} == {"REQUEST_MALFORMED"}
+    assert (
+        _counter(identity, "governed").attempts,
+        _counter(identity, "governed").completions,
+    ) == (
         0,
         0,
     )
@@ -155,9 +156,7 @@ def test_enforcement_failure_modes_are_labeled_as_application_behavior(
     expected_code: str,
     expected_counter: tuple[int, int],
 ) -> None:
-    run = scenarios.run_atlas_demo(
-        DemoOptions(enforcement_failure=True, failure_mode=failure_mode)
-    )
+    run = scenarios.run_atlas_demo(DemoOptions(enforcement_failure=True, failure_mode=failure_mode))
     governed = _variant(run, "governed")
     counter = _counter(run, "governed")
     assert governed.decisions[0].code == expected_code
@@ -170,7 +169,10 @@ def test_enforcement_failure_modes_are_labeled_as_application_behavior(
 def test_disabled_enforcement_and_clean_context_are_not_mislabeled_as_prevention() -> None:
     disabled = scenarios.run_atlas_demo(DemoOptions(enforcement_enabled=False))
     assert _variant(disabled, "governed").decisions[0].code == "ENFORCEMENT_DISABLED"
-    assert (_counter(disabled, "governed").attempts, _counter(disabled, "governed").completions) == (
+    assert (
+        _counter(disabled, "governed").attempts,
+        _counter(disabled, "governed").completions,
+    ) == (
         1,
         1,
     )

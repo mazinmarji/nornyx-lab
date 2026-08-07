@@ -339,9 +339,7 @@ def _text(
 def _choice(value: Any, label: str, default: str, choices: set[str]) -> str:
     selected = default if value is None else value
     if not isinstance(selected, str) or selected not in choices:
-        raise CapstoneInputError(
-            f"{label} must be one of: {', '.join(sorted(choices))}"
-        )
+        raise CapstoneInputError(f"{label} must be one of: {', '.join(sorted(choices))}")
     return selected
 
 
@@ -376,9 +374,7 @@ def _parse_roles(value: Any) -> tuple[RoleDesign, ...]:
             RoleDesign(
                 id=_text(raw.get("id"), label=f"roles[{index}].id"),
                 role=_text(raw.get("role"), label=f"roles[{index}].role"),
-                identity_ref=_text(
-                    raw.get("identity_ref"), label=f"roles[{index}].identity_ref"
-                ),
+                identity_ref=_text(raw.get("identity_ref"), label=f"roles[{index}].identity_ref"),
                 capability_ref=_text(
                     raw.get("capability_ref"), label=f"roles[{index}].capability_ref"
                 ),
@@ -484,9 +480,7 @@ def _parse_assurance(value: Any) -> AssuranceDesign:
     )
     defaults = AssuranceDesign()
     return AssuranceDesign(
-        claim=_text(
-            raw.get("claim"), label="assurance.claim", default=defaults.claim, minimum=20
-        ),
+        claim=_text(raw.get("claim"), label="assurance.claim", default=defaults.claim, minimum=20),
         residual_risk=_text(
             raw.get("residual_risk"),
             label="assurance.residual_risk",
@@ -607,7 +601,9 @@ def _timeline_event(
     )
 
 
-def _design_review(config: CapstoneConfig, authorizer: Any, context: EvaluationContext) -> dict[str, Any]:
+def _design_review(
+    config: CapstoneConfig, authorizer: Any, context: EvaluationContext
+) -> dict[str, Any]:
     ids = [role.id for role in config.roles]
     actions = [role.action for role in config.roles]
     notification_roles = [role for role in config.roles if role.action == "notify_customer"]
@@ -684,8 +680,7 @@ def _design_review(config: CapstoneConfig, authorizer: Any, context: EvaluationC
         ),
         "external_approval_not_disabled": config.policy.require_external_approval,
         "handoff_approval_not_disabled": (
-            not config.coordination.require_handoff
-            or config.policy.require_handoff_approval
+            not config.coordination.require_handoff or config.policy.require_handoff_approval
         ),
         "integrity_preflight_not_disabled": config.policy.require_integrity_preflight,
     }
@@ -716,12 +711,14 @@ def _evidence_bundle(
         diagnostics.extend(
             item for item in report.get("diagnostics", []) if isinstance(item, Mapping)
         )
-    status = "pass" if reports and all(item["report"].get("status") == "pass" for item in reports) else "fail"
+    status = (
+        "pass"
+        if reports and all(item["report"].get("status") == "pass" for item in reports)
+        else "fail"
+    )
     aggregate = {
         "status": status,
-        "event_count": sum(
-            int(item["report"].get("event_count", 0)) for item in reports
-        ),
+        "event_count": sum(int(item["report"].get("event_count", 0)) for item in reports),
         "counts_by_type": dict(sorted(counts.items())),
         "diagnostics": diagnostics,
         "reports": reports,
@@ -1079,9 +1076,7 @@ def _variant(
     delegation_allowed = not coordination.require_delegation
     delegation_decision: Any | None = None
     if delegation_id is not None:
-        delegation_decision = authorizer.evaluate(
-            DelegationRequest(delegation_id), context=context
-        )
+        delegation_decision = authorizer.evaluate(DelegationRequest(delegation_id), context=context)
         policy_recorder.record_decision(delegation_decision, mission_id=mission)
         delegation_allowed = delegation_decision.allowed
         decisions.append(
@@ -1096,7 +1091,9 @@ def _variant(
     handoff_allowed = not coordination.require_handoff
     handoff_decision: Any | None = None
     handoff_approval_decision: Any | None = None
-    approval_mode: ApprovalMode = "valid" if variant_id == "reference" else config.policy.approval_mode
+    approval_mode: ApprovalMode = (
+        "valid" if variant_id == "reference" else config.policy.approval_mode
+    )
     if variant_id == "controlled" and config.failure_injection == "expired-approval":
         approval_mode = "expired"
     if coordination.handoff_id is not None:
@@ -1119,9 +1116,7 @@ def _variant(
                 handoff_approval_decision = authorizer.evaluate(
                     ApprovalRequest("identity.intake_agent", assertion), context=context
                 )
-                policy_recorder.record_decision(
-                    handoff_approval_decision, mission_id=mission
-                )
+                policy_recorder.record_decision(handoff_approval_decision, mission_id=mission)
                 decisions.append(
                     _decision_row(
                         "handoff approval",
@@ -1385,7 +1380,8 @@ def _injection_details(
             {
                 "decision_codes": codes,
                 "execution_changed": controlled["notification_completions"] == 0,
-                "handled": "APPROVAL_STALE" in codes and controlled["notification_completions"] == 0,
+                "handled": "APPROVAL_STALE" in codes
+                and controlled["notification_completions"] == 0,
                 "interpretation": (
                     "The stale caller-supplied assertion changed the real approval/zone decisions "
                     "and prevented customer notification."
@@ -1665,9 +1661,7 @@ def run_capstone(
         for decision in variant["decisions"]
     ]
     timeline_rows = [
-        {"variant": variant["id"], **event}
-        for variant in variants
-        for event in variant["timeline"]
+        {"variant": variant["id"], **event} for variant in variants for event in variant["timeline"]
     ]
     evidence_rows = [
         {
@@ -1685,8 +1679,7 @@ def run_capstone(
         "caller-supplied identity, capability, approval, delegation, handoff, and zone fields and "
         "binds evidence to the pinned contract/lock/revision. It does not authenticate actors or "
         "approvers, attest event truth/completeness, prevent direct calls, control credentials/network "
-        "egress, or independently enforce another process. "
-        + _framework_boundary(config.framework)
+        "egress, or independently enforce another process. " + _framework_boundary(config.framework)
     )
 
     return StructuredLabRun(

@@ -8,4 +8,3 @@ services that can be rendered by any browser client without parsing prose.
 from .schemas import API_VERSION
 
 __all__ = ["API_VERSION"]
-

@@ -106,9 +106,7 @@ def test_live_legacy_lab_request_is_explicitly_unavailable() -> None:
 
 def _missing_all_labs_extras() -> tuple[str, ...]:
     missing: list[str] = []
-    if optional.try_import(
-        "nornyx_agentic_adapters.crewai_adapter", extra="crewai"
-    ) is None:
+    if optional.try_import("nornyx_agentic_adapters.crewai_adapter", extra="crewai") is None:
         missing.append("crewai")
     if (
         optional.try_import("nornyx_agentic_adapters.langgraph", extra="langgraph") is None
@@ -125,8 +123,7 @@ def test_all_25_legacy_labs_complete_through_structured_migration() -> None:
     missing_extras = _missing_all_labs_extras()
     if missing_extras:
         pytest.skip(
-            "the all-labs migration gate requires optional extras: "
-            + ", ".join(missing_extras)
+            "the all-labs migration gate requires optional extras: " + ", ".join(missing_extras)
         )
 
     watched = (

@@ -228,22 +228,16 @@ def test_structured_construct_and_rule_forms_return_the_mutated_graph() -> None:
     assert result.lock_status == EvidenceStatus.FAIL
     assert result.canonical_document is not None
     context = next(
-        item
-        for item in result.canonical_document["contexts"]
-        if item["name"] == "TrainingContext"
+        item for item in result.canonical_document["contexts"] if item["name"] == "TrainingContext"
     )
     assert context["budget"] == {
         "max_tokens": 8000,
         "reserve_output_tokens": 1000,
     }
     assert "training/examples/*.md" in context["include"]
+    assert any(node.kind == "context" and node.label == "TrainingContext" for node in result.nodes)
     assert any(
-        node.kind == "context" and node.label == "TrainingContext"
-        for node in result.nodes
-    )
-    assert any(
-        node.kind == "resource" and node.label == "training/examples/*.md"
-        for node in result.nodes
+        node.kind == "resource" and node.label == "training/examples/*.md" for node in result.nodes
     )
     assert any(
         node.kind == "policy_rule" and node.label == "review_training_exports"
@@ -316,9 +310,7 @@ def test_construct_form_rejects_fields_that_do_not_map_to_canonical_schema() -> 
     )
 
     assert result.valid is False
-    assert {item.code for item in result.diagnostics} == {
-        "WORKBENCH_FIELD_UNSUPPORTED"
-    }
+    assert {item.code for item in result.diagnostics} == {"WORKBENCH_FIELD_UNSUPPORTED"}
     assert result.nodes
 
 

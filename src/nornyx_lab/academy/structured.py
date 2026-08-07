@@ -92,12 +92,8 @@ class StructuredLabContext(LabContext):
                 workspace_root=self.workspace_root,
                 source_root=self.source_root,
             )
-            clean_rows = tuple(
-                item for item in sanitized_rows if isinstance(item, dict)
-            )
-            clean_metadata = (
-                sanitized_metadata if isinstance(sanitized_metadata, dict) else {}
-            )
+            clean_rows = tuple(item for item in sanitized_rows if isinstance(item, dict))
+            clean_metadata = sanitized_metadata if isinstance(sanitized_metadata, dict) else {}
         block = ContentBlock(
             id=f"{self.module_id}-{self._block_counter:04d}-{kind_value}",
             kind=kind,
@@ -250,7 +246,9 @@ class StructuredLabContext(LabContext):
             self.structured_diagnostics.append(_finding_from_row(row))
         return result
 
-    def capture_diagnostics(self, items: list[dict[str, Any]], *, title: str = "Diagnostics") -> None:
+    def capture_diagnostics(
+        self, items: list[dict[str, Any]], *, title: str = "Diagnostics"
+    ) -> None:
         rows = tuple(_diagnostic_row(item) for item in items if isinstance(item, dict))
         block = self._add(BlockKind.DIAGNOSTICS, title=title, rows=rows)
         self.structured_diagnostics.extend(_finding_from_row(row) for row in block.rows)
@@ -366,7 +364,9 @@ def _sanitize(
             return f"<isolated-workspace>/{value.resolve().relative_to(workspace_root.resolve()).as_posix()}"
         except (OSError, ValueError):
             try:
-                return f"<repository>/{value.resolve().relative_to(source_root.resolve()).as_posix()}"
+                return (
+                    f"<repository>/{value.resolve().relative_to(source_root.resolve()).as_posix()}"
+                )
             except (OSError, ValueError):
                 return f"<external-path>/{value.name}"
     if isinstance(value, str):

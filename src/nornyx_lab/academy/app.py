@@ -386,8 +386,7 @@ def create_app(
         return result
 
     resolved_frontend = Path(
-        frontend_dist
-        or os.environ.get("NORNYX_ACADEMY_FRONTEND_DIST", DEFAULT_FRONTEND_DIST)
+        frontend_dist or os.environ.get("NORNYX_ACADEMY_FRONTEND_DIST", DEFAULT_FRONTEND_DIST)
     )
     if resolved_frontend.is_dir() and (resolved_frontend / "index.html").is_file():
         # Registered last so the typed API and docs retain precedence. html=True

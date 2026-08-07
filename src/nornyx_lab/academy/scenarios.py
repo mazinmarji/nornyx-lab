@@ -243,9 +243,7 @@ def _recorded_evidence(recorder: EvidenceRecorder) -> EvidencePackage:
     report = recorder.validate()
     raw_diagnostics = report.get("diagnostics", [])
     findings = tuple(
-        _diagnostic_finding(item)
-        for item in raw_diagnostics
-        if isinstance(item, dict)
+        _diagnostic_finding(item) for item in raw_diagnostics if isinstance(item, dict)
     )
     status_text = str(report.get("status", "unknown")).lower()
     status = {
@@ -301,8 +299,7 @@ def _missing_evidence(code: str, message: str) -> EvidencePackage:
 
 def _basis_for(decision: Any) -> tuple[DecisionBasis, ...]:
     return tuple(
-        DecisionBasis(kind=item.kind, ref=item.ref, detail=item.detail)
-        for item in decision.basis
+        DecisionBasis(kind=item.kind, ref=item.ref, detail=item.detail) for item in decision.basis
     )
 
 
@@ -428,8 +425,10 @@ def _fallback_decision(
 
     fail_open = options.failure_mode == "fail_open"
     bounded = options.failure_mode == "bounded"
-    code = "ENFORCEMENT_FAILURE_FAIL_OPEN" if fail_open else (
-        "ENFORCEMENT_FAILURE_BOUNDED_BLOCK" if bounded else "ENFORCEMENT_FAILURE_FAIL_CLOSED"
+    code = (
+        "ENFORCEMENT_FAILURE_FAIL_OPEN"
+        if fail_open
+        else ("ENFORCEMENT_FAILURE_BOUNDED_BLOCK" if bounded else "ENFORCEMENT_FAILURE_FAIL_CLOSED")
     )
     outcome = (
         "The application chose fail-open behavior and continued without a Nornyx decision."
@@ -507,7 +506,12 @@ def _governed_variant(
     decisions: list[DecisionTrace] = []
     fallback_kind: str | None = None
 
-    if publication_planned and options.enforcement_enabled and not options.enforcement_failure and authorizer:
+    if (
+        publication_planned
+        and options.enforcement_enabled
+        and not options.enforcement_failure
+        and authorizer
+    ):
         observed_revision = options.observed_subject_revision or LAB_SUBJECT_REVISION
         eval_ctx = EvaluationContext(
             decision_at=LAB_AS_OF,
@@ -823,9 +827,7 @@ def run_atlas_demo(
     deterministic = selected.planner_mode == "deterministic"
     planner_model_value = getattr(selected_planner, "model", None)
     planner_model = (
-        planner_model_value
-        if not deterministic and isinstance(planner_model_value, str)
-        else None
+        planner_model_value if not deterministic and isinstance(planner_model_value, str) else None
     )
 
     ungoverned, _ = _ungoverned_variant(
@@ -848,9 +850,7 @@ def run_atlas_demo(
                 "authorization request or enforcement ordering applied to the captured actions."
             ),
         )
-        ungoverned = ungoverned.model_copy(
-            update={"claims": (*ungoverned.claims, live_limitation)}
-        )
+        ungoverned = ungoverned.model_copy(update={"claims": (*ungoverned.claims, live_limitation)})
         governed = governed.model_copy(update={"claims": (*governed.claims, live_limitation)})
 
     comparisons = tuple(

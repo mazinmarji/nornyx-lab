@@ -269,7 +269,9 @@ def _summary(
     network = document.get("agentic_network", {})
     return ContractSummary(
         id=contract_id,
-        name=str(project.get("name", contract_id.title())) if isinstance(project, dict) else contract_id,
+        name=str(project.get("name", contract_id.title()))
+        if isinstance(project, dict)
+        else contract_id,
         profile=str(project.get("profile", "")) if isinstance(project, dict) else "",
         identity_count=len(document.get("agent_identities", []) or []),
         capability_count=len(document.get("capabilities", []) or []),
@@ -342,9 +344,7 @@ def _graph(
     if isinstance(project, dict):
         profile_name = str(project.get("profile", "unresolved"))
         profile_pack = project.get("profile_pack", {})
-        profile_fields = (
-            copy.deepcopy(profile_pack) if isinstance(profile_pack, dict) else {}
-        )
+        profile_fields = copy.deepcopy(profile_pack) if isinstance(profile_pack, dict) else {}
         profile_fields["profile"] = profile_name
         profile_node = add_node(
             "profile",
@@ -358,9 +358,7 @@ def _graph(
     lock_fields = {
         "status": lock_status.value,
         "subject_revision": (
-            network_for_lock.get("subject_revision")
-            if isinstance(network_for_lock, dict)
-            else None
+            network_for_lock.get("subject_revision") if isinstance(network_for_lock, dict) else None
         ),
     }
     lock_node = add_node(
@@ -456,9 +454,7 @@ def _graph(
             for dependency in record.get("dependencies", []) or []:
                 add_edge(
                     evidence_nodes.get(ref, ensure_ref("evidence", ref)),
-                    evidence_nodes.get(
-                        str(dependency), ensure_ref("evidence", dependency)
-                    ),
+                    evidence_nodes.get(str(dependency), ensure_ref("evidence", dependency)),
                     "depends_on_evidence",
                 )
 
@@ -491,9 +487,17 @@ def _graph(
         for gate in capability.get("required_gate_refs", []) or []:
             add_edge(capability_node, ensure_ref("gate", gate), "requires_gate")
         for approval in capability.get("required_approval_refs", []) or []:
-            add_edge(capability_node, approvals.get(str(approval), ensure_ref("approval", approval)), "requires_approval")
+            add_edge(
+                capability_node,
+                approvals.get(str(approval), ensure_ref("approval", approval)),
+                "requires_approval",
+            )
         for evidence in capability.get("required_evidence_refs", []) or []:
-            add_edge(capability_node, evidence_nodes.get(str(evidence), ensure_ref("evidence", evidence)), "requires_evidence")
+            add_edge(
+                capability_node,
+                evidence_nodes.get(str(evidence), ensure_ref("evidence", evidence)),
+                "requires_evidence",
+            )
 
     identities: dict[str, str] = {}
     for identity in _map_items(document.get("agent_identities")):
@@ -559,15 +563,33 @@ def _graph(
         gates[ref] = gate_node
         add_edge(network_node, gate_node, "declares_gate")
         for source in gate.get("source_zone_refs", []) or []:
-            add_edge(zones.get(str(source), ensure_ref("trust_zone", source)), gate_node, "egresses_through")
+            add_edge(
+                zones.get(str(source), ensure_ref("trust_zone", source)),
+                gate_node,
+                "egresses_through",
+            )
         for target in gate.get("target_zone_refs", []) or []:
-            add_edge(gate_node, zones.get(str(target), ensure_ref("trust_zone", target)), "enters_zone")
+            add_edge(
+                gate_node, zones.get(str(target), ensure_ref("trust_zone", target)), "enters_zone"
+            )
         for policy in gate.get("required_policy_refs", []) or []:
-            add_edge(gate_node, policies.get(str(policy), ensure_ref("policy", policy)), "requires_policy")
+            add_edge(
+                gate_node,
+                policies.get(str(policy), ensure_ref("policy", policy)),
+                "requires_policy",
+            )
         for approval in gate.get("required_approval_refs", []) or []:
-            add_edge(gate_node, approvals.get(str(approval), ensure_ref("approval", approval)), "requires_approval")
+            add_edge(
+                gate_node,
+                approvals.get(str(approval), ensure_ref("approval", approval)),
+                "requires_approval",
+            )
         for evidence in gate.get("required_evidence_refs", []) or []:
-            add_edge(gate_node, evidence_nodes.get(str(evidence), ensure_ref("evidence", evidence)), "requires_evidence")
+            add_edge(
+                gate_node,
+                evidence_nodes.get(str(evidence), ensure_ref("evidence", evidence)),
+                "requires_evidence",
+            )
 
     for membership in _map_items(network.get("memberships")):
         ref = str(membership.get("id", "unnamed-membership"))
@@ -601,7 +623,11 @@ def _graph(
         )
         add_edge(network_node, protocol_node, "declares_protocol_target")
         for identity in protocol.get("identity_refs", []) or []:
-            add_edge(identities.get(str(identity), ensure_ref("identity", identity)), protocol_node, "may_target_protocol")
+            add_edge(
+                identities.get(str(identity), ensure_ref("identity", identity)),
+                protocol_node,
+                "may_target_protocol",
+            )
 
     revocations: dict[str, str] = {}
     for revocation in _map_items(network.get("revocations")):
@@ -642,7 +668,11 @@ def _graph(
         delegation_node = add_node("delegation", ref, fields=delegation)
         source_ref = str(delegation.get("delegator_ref", ""))
         target_ref = str(delegation.get("delegate_ref", ""))
-        add_edge(identities.get(source_ref, ensure_ref("identity", source_ref)), delegation_node, "delegates")
+        add_edge(
+            identities.get(source_ref, ensure_ref("identity", source_ref)),
+            delegation_node,
+            "delegates",
+        )
         add_edge(
             delegation_node,
             identities.get(target_ref, ensure_ref("identity", target_ref)),
@@ -655,8 +685,16 @@ def _graph(
         handoff_node = add_node("handoff", ref, fields=handoff)
         source_ref = str(handoff.get("from_identity_ref", ""))
         target_ref = str(handoff.get("to_identity_ref", ""))
-        add_edge(identities.get(source_ref, ensure_ref("identity", source_ref)), handoff_node, "hands_off")
-        add_edge(handoff_node, identities.get(target_ref, ensure_ref("identity", target_ref)), "hands_off_to")
+        add_edge(
+            identities.get(source_ref, ensure_ref("identity", source_ref)),
+            handoff_node,
+            "hands_off",
+        )
+        add_edge(
+            handoff_node,
+            identities.get(target_ref, ensure_ref("identity", target_ref)),
+            "hands_off_to",
+        )
 
     revocation_sources: tuple[tuple[str, list[dict[str, Any]], str], ...] = (
         ("identity", _map_items(document.get("agent_identities")), "id"),
@@ -717,7 +755,9 @@ def list_contracts() -> tuple[ContractSummary, ...]:
         if document is None:
             # This should make fixture corruption visible rather than presenting
             # a plausible empty contract.
-            raise RuntimeError(parse_failure.message if parse_failure else f"{contract_id} is invalid")
+            raise RuntimeError(
+                parse_failure.message if parse_failure else f"{contract_id} is invalid"
+            )
         lock_status, _ = _lock_findings(root, document, composition)
         summaries.append(_summary(contract_id, document, lock_status))
     return tuple(summaries)
@@ -730,7 +770,9 @@ def get_contract(contract_id: str) -> ContractDetail:
     source = (root / "network.nyx").read_text(encoding="utf-8")
     document, composition, raw_diagnostics, parse_failure = _validate_document(root / "network.nyx")
     if document is None:
-        raise RuntimeError(parse_failure.message if parse_failure else f"{contract_id} does not parse")
+        raise RuntimeError(
+            parse_failure.message if parse_failure else f"{contract_id} does not parse"
+        )
     lock_status, lock_findings = _lock_findings(root, document, composition)
     diagnostics = tuple(_finding_from_diagnostic(item) for item in raw_diagnostics) + lock_findings
     nodes, edges = _graph(document, lock_status=lock_status)
@@ -1056,9 +1098,7 @@ _LIST_FIELDS = frozenset(
 )
 
 
-def _construct_collection(
-    document: dict[str, Any], kind: str
-) -> tuple[list[Any], str]:
+def _construct_collection(document: dict[str, Any], kind: str) -> tuple[list[Any], str]:
     if kind not in _CONSTRUCT_LOCATIONS:
         raise ContractWorkbenchError(
             "WORKBENCH_CONSTRUCT_UNSUPPORTED",
@@ -1127,14 +1167,10 @@ def _normalise_construct_fields(kind: str, raw: Any) -> dict[str, Any]:
         if "budget_max_tokens" in fields:
             budget["max_tokens"] = fields.pop("budget_max_tokens")
         if "budget_reserve_output_tokens" in fields:
-            budget["reserve_output_tokens"] = fields.pop(
-                "budget_reserve_output_tokens"
-            )
+            budget["reserve_output_tokens"] = fields.pop("budget_reserve_output_tokens")
         fields["budget"] = budget
 
-    if kind == "identity" and (
-        "framework" in fields or "framework_agent_key" in fields
-    ):
+    if kind == "identity" and ("framework" in fields or "framework_agent_key" in fields):
         framework = fields.pop("framework", "contract_fixture")
         agent_key = fields.pop("framework_agent_key", None)
         if not isinstance(framework, str) or not isinstance(agent_key, str):
@@ -1143,9 +1179,7 @@ def _normalise_construct_fields(kind: str, raw: Any) -> dict[str, Any]:
                 "Identity bindings need a framework and agent key.",
                 path="agent_identities.framework_bindings",
             )
-        fields["framework_bindings"] = [
-            {"framework": framework, "agent_key": agent_key}
-        ]
+        fields["framework_bindings"] = [{"framework": framework, "agent_key": agent_key}]
 
     if kind == "approval" and (
         {"revision_kind", "revision", "exact_revision"}.intersection(fields)
@@ -1197,9 +1231,7 @@ def _normalise_construct_fields(kind: str, raw: Any) -> dict[str, Any]:
             fields["tool"] = tool
 
     if kind == "relation" and (
-        {"source_kind", "source_ref", "target_kind", "target_ref"}.intersection(
-            fields
-        )
+        {"source_kind", "source_ref", "target_kind", "target_ref"}.intersection(fields)
     ):
         source = fields.get("source")
         target = fields.get("target")
@@ -1224,9 +1256,7 @@ def _normalise_construct_fields(kind: str, raw: Any) -> dict[str, Any]:
         fields["source"] = source
         fields["target"] = target
 
-    if kind == "revocation" and (
-        "target_kind" in fields or "target_ref" in fields
-    ):
+    if kind == "revocation" and ("target_kind" in fields or "target_ref" in fields):
         target = fields.get("target")
         if target is not None and not isinstance(target, dict):
             raise ContractWorkbenchError(
@@ -1289,11 +1319,7 @@ def _apply_mutation(document: dict[str, Any], mutation: ContractMutation) -> Non
         reference, raw_fields = _structured_construct_value(mutation.value)
         fields = _normalise_construct_fields(kind, raw_fields)
         existing = next(
-            (
-                item
-                for item in collection
-                if isinstance(item, dict) and item.get(key) == reference
-            ),
+            (item for item in collection if isinstance(item, dict) and item.get(key) == reference),
             None,
         )
         if existing is None:
@@ -1302,9 +1328,7 @@ def _apply_mutation(document: dict[str, Any], mutation: ContractMutation) -> Non
             if kind == "identity" and "framework_bindings" in fields:
                 current_bindings = _map_items(existing.get("framework_bindings"))
                 submitted_bindings = _map_items(fields.get("framework_bindings"))
-                submitted_frameworks = {
-                    item.get("framework") for item in submitted_bindings
-                }
+                submitted_frameworks = {item.get("framework") for item in submitted_bindings}
                 fields["framework_bindings"] = submitted_bindings + [
                     item
                     for item in current_bindings
@@ -1459,7 +1483,9 @@ def _apply_mutation(document: dict[str, Any], mutation: ContractMutation) -> Non
             )
         project = document.get("project")
         if not isinstance(project, dict):
-            raise ContractWorkbenchError("WORKBENCH_TARGET_UNKNOWN", "The project block is missing.", path="project")
+            raise ContractWorkbenchError(
+                "WORKBENCH_TARGET_UNKNOWN", "The project block is missing.", path="project"
+            )
         project["purpose"] = mutation.value
         return
 
@@ -1500,7 +1526,9 @@ def _apply_mutation(document: dict[str, Any], mutation: ContractMutation) -> Non
         category, enabled = _value_switch(mutation.value, noun="category")
         network = document.get("agentic_network")
         if not isinstance(network, dict):
-            raise ContractWorkbenchError("WORKBENCH_TARGET_UNKNOWN", "The agentic_network block is missing.")
+            raise ContractWorkbenchError(
+                "WORKBENCH_TARGET_UNKNOWN", "The agentic_network block is missing."
+            )
         zone = _find(
             _map_items(network.get("trust_zones")),
             "id",
@@ -1544,13 +1572,17 @@ def _apply_mutation(document: dict[str, Any], mutation: ContractMutation) -> Non
         if target in {"agentic_network", "agentic_network.subject_revision"}:
             network = document.get("agentic_network")
             if not isinstance(network, dict):
-                raise ContractWorkbenchError("WORKBENCH_TARGET_UNKNOWN", "The agentic_network block is missing.")
+                raise ContractWorkbenchError(
+                    "WORKBENCH_TARGET_UNKNOWN", "The agentic_network block is missing."
+                )
             network["subject_revision"] = mutation.value
             return
         if target in {"governance_evidence", "governance_evidence.subject_revision"}:
             evidence = document.get("governance_evidence")
             if not isinstance(evidence, dict):
-                raise ContractWorkbenchError("WORKBENCH_TARGET_UNKNOWN", "The governance_evidence block is missing.")
+                raise ContractWorkbenchError(
+                    "WORKBENCH_TARGET_UNKNOWN", "The governance_evidence block is missing."
+                )
             evidence["subject_revision"] = mutation.value
             return
         if target == "all":
@@ -1581,7 +1613,9 @@ def _apply_mutation(document: dict[str, Any], mutation: ContractMutation) -> Non
             )
         evidence = document.get("governance_evidence")
         if not isinstance(evidence, dict):
-            raise ContractWorkbenchError("WORKBENCH_TARGET_UNKNOWN", "The governance_evidence block is missing.")
+            raise ContractWorkbenchError(
+                "WORKBENCH_TARGET_UNKNOWN", "The governance_evidence block is missing."
+            )
         record = _find(
             _map_items(evidence.get("records")),
             "id",
@@ -1667,8 +1701,10 @@ def validate_workbench(request: ContractWorkbenchRequest) -> ContractValidation:
         semantic_findings = tuple(_finding_from_diagnostic(item) for item in raw_diagnostics)
         if parse_failure is not None:
             semantic_findings += (parse_failure,)
-        semantic_valid = document is not None and composition is not None and not any(
-            getattr(item, "level", None) == "error" for item in raw_diagnostics
+        semantic_valid = (
+            document is not None
+            and composition is not None
+            and not any(getattr(item, "level", None) == "error" for item in raw_diagnostics)
         )
 
         generated: tuple[dict[str, Any], ...] = ()

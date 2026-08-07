@@ -148,6 +148,37 @@ def test_the_readme_states_the_tier_and_the_bypass():
     )
 
 
+def test_the_lab_migration_matrix_is_current_and_has_no_gaps():
+    """Every original lab must have a documented disposition.
+
+    The generator exits non-zero if any lab lacks an academy module, an
+    assessment that actually exists, or membership in a learning path — so a
+    silently dropped lab fails here rather than being discovered by a learner.
+    """
+    generator = ROOT / "scripts" / "build_migration_matrix.py"
+    matrix = ROOT / "docs" / "LAB_MIGRATION_MATRIX.md"
+    assert generator.is_file()
+
+    before = matrix.read_bytes() if matrix.is_file() else b""
+    proc = subprocess.run(
+        [sys.executable, str(generator)],
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert proc.returncode == 0, f"migration matrix has gaps:\n{proc.stdout}{proc.stderr}"
+    assert matrix.read_bytes() == before, (
+        "docs/LAB_MIGRATION_MATRIX.md is stale — run scripts/build_migration_matrix.py"
+    )
+
+    text = matrix.read_text(encoding="utf-8")
+    for meta in all_labs():
+        assert f"### Lab {meta.id} — {meta.title}" in text, f"lab {meta.id} missing from the matrix"
+    assert "UNMAPPED" not in text
+
+
 def test_every_lab_has_a_valid_notebook_companion():
     """The README promises one notebook per lab. Check the promise.
 

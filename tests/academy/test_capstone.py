@@ -142,9 +142,7 @@ def test_structured_learner_design_drives_roles_timeline_and_run_identity() -> N
     starter = run_capstone()
 
     assert authored.run_id != starter.run_id
-    assert authored.results["configuration"]["roles"][0]["role"] == (
-        "learner named triage owner"
-    )
+    assert authored.results["configuration"]["roles"][0]["role"] == ("learner named triage owner")
     roles = {event["role"] for event in _variant(authored, "reference")["timeline"]}
     assert "learner named investigator" in roles
     assert "learner named customer communicator" in roles
@@ -156,9 +154,7 @@ def test_structured_learner_design_drives_roles_timeline_and_run_identity() -> N
 
 def test_capability_allocation_changes_real_decisions_business_outcome_and_eligibility() -> None:
     valid = run_capstone({"roles": _roles()})
-    invalid = run_capstone(
-        {"roles": _roles(notification_identity="identity.case_analyst")}
-    )
+    invalid = run_capstone({"roles": _roles(notification_identity="identity.case_analyst")})
 
     assert _variant(valid, "reference")["notification_completions"] == 1
     assert _variant(invalid, "reference")["notification_completions"] == 0
