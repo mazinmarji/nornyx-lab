@@ -14,6 +14,8 @@ import { GraphPage } from "./pages/GraphPage";
 import { HomePage } from "./pages/HomePage";
 import { LessonPage } from "./pages/LessonPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { OrientationPage } from "./pages/OrientationPage";
+import { GlossaryPage } from "./pages/GlossaryPage";
 import { PathsPage } from "./pages/PathsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { WorkbenchPage } from "./pages/WorkbenchPage";
@@ -23,7 +25,9 @@ export function App() {
     <Routes>
       <Route element={<Shell />}>
         <Route index element={<HomePage />} />
+        <Route path="orientation" element={<OrientationPage />} />
         <Route path="demo" element={<DemoPage />} />
+        <Route path="glossary" element={<GlossaryPage />} />
         <Route path="paths" element={<PathsPage />} />
         <Route path="curriculum" element={<CurriculumPage />} />
         <Route path="dashboard" element={<DashboardPage />} />

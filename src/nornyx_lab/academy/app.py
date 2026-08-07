@@ -69,6 +69,18 @@ class SPAStaticFiles(StaticFiles):
     """Serve Vite assets and fall back to index.html for client routes."""
 
     async def get_response(self, path: str, scope: dict[str, Any]) -> Response:
+        # An unmatched /api path must stay a 404 rather than becoming the SPA
+        # shell. This is checked before delegating because `html=True` makes
+        # StaticFiles fall back to index.html internally without raising, so a
+        # mistyped or removed endpoint returned HTML with status 200 and failed
+        # later as an unparseable body instead of a clean error.
+        #
+        # `path` is unusable for this test: StaticFiles builds it with
+        # os.path.normpath, which on Windows yields "api\v1\nope". Read the URL
+        # from the scope instead so the check behaves the same on every OS.
+        url_path: str = scope.get("path", "")
+        if url_path == "/api" or url_path.startswith("/api/"):
+            raise StarletteHTTPException(status_code=404, detail="Unknown API endpoint")
         try:
             return await super().get_response(path, scope)
         except StarletteHTTPException as exc:

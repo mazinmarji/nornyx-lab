@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import type { ContractEdge, ContractNode, DecisionTrace } from "../types";
 
 export function AssistantAgentDiagram() {
@@ -137,4 +137,113 @@ export function ContractGraph({ nodes, edges }: { nodes: ContractNode[]; edges: 
       </svg>
     </div>
   );
+}
+
+/**
+ * The five orientation diagrams. Deliberately plainer than the rest of the
+ * diagram set: at this point the learner has no vocabulary yet, so these carry
+ * a single idea each and no governance terminology at all.
+ */
+export function OrientationDiagram({ kind }: { kind: string }) {
+  const id = useId();
+  const titleId = `${id}-title`;
+  const descId = `${id}-desc`;
+  const frame = (title: string, desc: string, children: ReactNode) => (
+    <div className="diagram-frame orientation-diagram">
+      <svg viewBox="0 0 880 150" role="img" aria-labelledby={`${titleId} ${descId}`}>
+        <title id={titleId}>{title}</title>
+        <desc id={descId}>{desc}</desc>
+        <defs>
+          <marker id={`${id}-arrow`} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" className="diagram-arrow" />
+          </marker>
+        </defs>
+        {children}
+      </svg>
+    </div>
+  );
+  const box = (x: number, w: number, kicker: string, label: string, className: string) => (
+    <g className={`diagram-node ${className}`}>
+      <rect x={x} y="35" width={w} height="80" rx="8" />
+      <text x={x + 22} y="68" className="diagram-kicker">{kicker}</text>
+      <text x={x + 22} y="95" className="diagram-title">{label}</text>
+    </g>
+  );
+  const link = (from: number, to: number, label?: string) => (
+    <>
+      <path d={`M${from} 75H${to}`} className="diagram-link" markerEnd={`url(#${id}-arrow)`} />
+      {label ? <text x={from + 10} y="58" className="diagram-link-label">{label}</text> : null}
+    </>
+  );
+
+  switch (kind) {
+    case "model":
+      return frame(
+        "A model produces text",
+        "A question goes into a model and text comes out. Nothing else happens.",
+        <>
+          {box(25, 200, "YOU ASK", "A question", "node-calm")}
+          {link(245, 315)}
+          {box(335, 200, "MODEL", "Predicts text", "node-calm")}
+          {link(555, 625)}
+          {box(645, 210, "OUT", "Words on a screen", "node-calm")}
+        </>,
+      );
+    case "tool":
+      return frame(
+        "A tool is real software",
+        "A tool is a function in your own system that can change something outside it.",
+        <>
+          {box(25, 220, "MODEL", "Asks for it", "node-calm")}
+          {link(265, 335, "calls")}
+          {box(355, 220, "TOOL", "send_email()", "node-signal")}
+          {link(595, 665)}
+          {box(685, 170, "WORLD", "It happened", "node-warning")}
+        </>,
+      );
+    case "agent":
+      return frame(
+        "An agent chooses and acts",
+        "The agent decides which tool to use and calls it, with no person in between.",
+        <>
+          {box(25, 180, "AI", "Chooses", "node-signal")}
+          {link(205, 275, "decides")}
+          {box(295, 180, "ACTION", "Picks a tool", "node-signal")}
+          {link(475, 545)}
+          {box(565, 150, "TOOL", "Runs", "node-signal")}
+          {link(715, 770)}
+          {box(790, 65, "", "Out", "node-warning")}
+        </>,
+      );
+    case "risk":
+      return frame(
+        "The model can be fooled",
+        "Text inside a document can be mistaken for an instruction, and the agent acts on it.",
+        <>
+          {box(25, 230, "PAGE", "Hidden text", "node-warning")}
+          {link(255, 325, "mistaken for orders")}
+          {box(345, 200, "AGENT", "Believes it", "node-signal")}
+          {link(545, 615)}
+          {box(635, 220, "TOOL", "Acts on it", "node-warning")}
+        </>,
+      );
+    case "governance":
+      return frame(
+        "A check before the action",
+        "Before the tool is reached, software asks whether this is allowed and can refuse.",
+        <>
+          {box(25, 180, "AGENT", "Wants to act", "node-signal")}
+          {link(205, 275)}
+          {box(295, 210, "CHECK", "Is this allowed?", "node-calm")}
+          {link(505, 575, "no")}
+          <g className="diagram-node node-blocked">
+            <rect x="595" y="35" width="260" height="80" rx="8" />
+            <text x="617" y="68" className="diagram-kicker">TOOL</text>
+            <text x="617" y="95" className="diagram-title">Never called</text>
+          </g>
+        </>,
+      );
+    default:
+      return null;
+  }
 }

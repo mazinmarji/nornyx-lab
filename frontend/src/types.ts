@@ -208,6 +208,7 @@ export interface ScenarioRun {
   strongest_claim: string;
   residual_risk: string;
   restored: boolean;
+  explanation: ScenarioExplanation | null;
 }
 
 export interface DemoOptions {
@@ -415,4 +416,160 @@ export interface CapstoneDefinition {
   failure_injections: ("prompt-injection" | "expired-approval" | "artifact-tamper" | "unauthorized-delegation" | "replay" | "bypass")[];
   assessment_id: string;
   status: ModuleStatus;
+}
+
+/* ------------------------------------------------------------------ pedagogy
+   The plain-language teaching layer. These carry the formal term alongside the
+   plain one rather than instead of it; no canonical Nornyx field is renamed. */
+
+export type LearnerMode = "guided" | "explore";
+
+export type CausalStepKind =
+  | "input"
+  | "plan"
+  | "decision"
+  | "deny"
+  | "block"
+  | "blocked"
+  | "effect"
+  | "gap";
+
+export interface CausalStep {
+  label: string;
+  detail: string;
+  kind: CausalStepKind;
+}
+
+/** Derived from the run in explain.py — never authored per scenario. */
+export interface ScenarioExplanation {
+  determinate: boolean;
+  headline: string;
+  what_happened: string;
+  why: string[];
+  nornyx_role: string;
+  proves: string;
+  does_not_prove: string[];
+  remember: string;
+  causal_chain: CausalStep[];
+}
+
+export interface GlossaryTerm {
+  id: string;
+  term: string;
+  also: string[];
+  plain: string;
+  why: string;
+  example: string;
+  formal: string;
+  nornyx: string;
+  stage: number;
+}
+
+export interface Glossary {
+  api_version: string;
+  version: string;
+  terms: GlossaryTerm[];
+}
+
+export interface OrientationIdea {
+  id: string;
+  number: number;
+  name: string;
+  headline: string;
+  body: string;
+  example_prompt: string;
+  example_output: string;
+  questions: string[];
+  punchline: string;
+  diagram: string;
+}
+
+export interface Orientation {
+  api_version: string;
+  version: string;
+  id: string;
+  title: string;
+  subtitle: string;
+  lede: string;
+  minutes: number;
+  ideas: OrientationIdea[];
+  nornyx_position: { headline: string; body: string; boundary: string };
+  closing: { headline: string; body: string; cta: string };
+}
+
+export interface StageStep {
+  number: number;
+  name: string;
+  plain: string;
+  module_ids: string[];
+}
+
+export interface CurriculumStage {
+  id: string;
+  number: number;
+  name: string;
+  question: string;
+  plain: string;
+  steps: StageStep[];
+  completed_steps: number;
+  total_steps: number;
+}
+
+export interface StageMap {
+  api_version: string;
+  version: string;
+  entry: { module_ids: string[]; why: string };
+  stages: CurriculumStage[];
+  understood_concepts: string[];
+  next_concepts: string[];
+}
+
+export interface PredictionOption {
+  id: string;
+  label: string;
+}
+
+/** Never scored. Committing to an answer is what makes the reveal land. */
+export interface Prediction {
+  prompt: string;
+  options: PredictionOption[];
+}
+
+export interface NamedConcept {
+  plain_name: string;
+  formal_term: string;
+  definition: string;
+}
+
+export interface LessonTeaching {
+  api_version: string;
+  module_id: string;
+  learn: string;
+  question: string;
+  why_you_care: string;
+  story: string;
+  prediction: Prediction;
+  concept: NamedConcept;
+  nornyx_role: string;
+  takeaway: string;
+  glossary: GlossaryTerm[];
+}
+
+/** The demo story screens are rendered by the browser; shape stays loose. */
+export interface DemoStoryScreen {
+  id: string;
+  number: number;
+  kind: "story" | "predict" | "run" | "choose" | "position" | "proof" | "limits";
+  title: string;
+  lede?: string;
+  body?: string;
+  punchline?: string;
+  cta?: string;
+  [key: string]: unknown;
+}
+
+export interface DemoStory {
+  version: string;
+  note: string;
+  screens: DemoStoryScreen[];
 }
