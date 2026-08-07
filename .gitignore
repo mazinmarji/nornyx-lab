@@ -17,6 +17,7 @@ htmlcov/
 # Browser academy build and test output
 frontend/node_modules/
 frontend/dist/
+frontend/*.tsbuildinfo
 frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/

@@ -26,6 +26,7 @@ from .assessments import AssessmentService
 from .catalog import CurriculumRepository
 from .contracts import ContractWorkbenchError, get_contract, list_contracts, validate_workbench
 from .foundations import FoundationInputError, run_foundation
+from .pedagogy import PedagogyRepository
 from .progress import SQLiteLearnerRecordRepository
 from .scenarios import ScenarioUnavailable, run_atlas_demo
 from .schemas import (
@@ -42,14 +43,18 @@ from .schemas import (
     CurriculumModule,
     Dashboard,
     DemoOptions,
+    Glossary,
     Health,
+    LessonTeaching,
     LiveModelSettingsRequest,
     LiveModelSettingsResponse,
+    Orientation,
     PlatformInfo,
     ProgressExport,
     PublicAssessment,
     RunStatus,
     ScenarioRun,
+    StageMap,
     StructuredLabRun,
 )
 from .settings import LiveModelSettingsStore
@@ -113,6 +118,7 @@ def create_app(
     )
     resolved_database = Path(database_path or os.environ.get("NORNYX_ACADEMY_DB", DEFAULT_DB_PATH))
     app.state.catalog = CurriculumRepository()
+    app.state.pedagogy = PedagogyRepository()
     app.state.assessments = AssessmentService()
     app.state.progress = SQLiteLearnerRecordRepository(resolved_database)
     app.state.live_settings = LiveModelSettingsStore()
@@ -187,6 +193,35 @@ def create_app(
     def module(module_id: str) -> Any:
         try:
             return app.state.catalog.module(module_id, progress_map())
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=_detail(exc)) from exc
+
+    # ------------------------------------------------------------- pedagogy
+    @app.get(f"/api/{API_VERSION}/orientation", response_model=Orientation, tags=["pedagogy"])
+    def orientation() -> Orientation:
+        return app.state.pedagogy.orientation()
+
+    @app.get(f"/api/{API_VERSION}/demo/story", tags=["pedagogy"])
+    def demo_story() -> dict[str, Any]:
+        return app.state.pedagogy.demo_story()
+
+    @app.get(f"/api/{API_VERSION}/glossary", response_model=Glossary, tags=["pedagogy"])
+    def glossary() -> Glossary:
+        return app.state.pedagogy.glossary()
+
+    @app.get(f"/api/{API_VERSION}/stages", response_model=StageMap, tags=["pedagogy"])
+    def stages() -> StageMap:
+        statuses = {item.module_id: item.status for item in dashboard().modules}
+        return app.state.pedagogy.stages(statuses)
+
+    @app.get(
+        f"/api/{API_VERSION}/modules/{{module_id}}/teaching",
+        response_model=LessonTeaching,
+        tags=["pedagogy"],
+    )
+    def teaching(module_id: str) -> LessonTeaching:
+        try:
+            return app.state.pedagogy.teaching(module_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=_detail(exc)) from exc
 

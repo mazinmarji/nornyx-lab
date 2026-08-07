@@ -265,6 +265,34 @@ class ScenarioComparison(AcademyModel):
     interpretation: str
 
 
+class CausalStep(AcademyModel):
+    """One link in the "because" chain shown to a learner."""
+
+    label: str
+    detail: str = ""
+    kind: Literal["input", "plan", "decision", "deny", "block", "blocked", "effect", "gap"]
+
+
+class ScenarioExplanation(AcademyModel):
+    """The learner-facing reading of a run, derived in `explain.py`.
+
+    `determinate` is false when the response cannot support a narrative at all —
+    contradictory counters, a missing variant, no measured difference. The
+    browser must render that state rather than falling back to the outcome the
+    lesson expected.
+    """
+
+    determinate: bool
+    headline: str
+    what_happened: str
+    why: tuple[str, ...]
+    nornyx_role: str
+    proves: str
+    does_not_prove: tuple[str, ...]
+    remember: str
+    causal_chain: tuple[CausalStep, ...] = ()
+
+
 class ScenarioRun(AcademyModel):
     api_version: str = API_VERSION
     scenario_id: str
@@ -279,6 +307,7 @@ class ScenarioRun(AcademyModel):
     strongest_claim: str
     residual_risk: str
     restored: bool = True
+    explanation: ScenarioExplanation | None = None
 
 
 class DemoOptions(AcademyModel):
@@ -539,3 +568,138 @@ class PlatformInfo(AcademyModel):
 class Health(AcademyModel):
     status: Literal["ok"] = "ok"
     api_version: str = API_VERSION
+
+
+# ---------------------------------------------------------------- pedagogy
+# Presentation-layer teaching structures. None of these rename or replace a
+# canonical Nornyx field; they carry the plain-language layer the learner reads
+# first, with the formal term kept alongside rather than instead.
+
+
+class LearnerMode(str, Enum):
+    """How much implementation detail a learner has asked to see."""
+
+    GUIDED = "guided"
+    EXPLORE = "explore"
+
+
+class GlossaryTerm(AcademyModel):
+    id: str
+    term: str
+    also: tuple[str, ...] = ()
+    plain: str
+    why: str
+    example: str
+    formal: str
+    nornyx: str
+    stage: int = Field(ge=1, le=7)
+
+
+class Glossary(AcademyModel):
+    api_version: str = API_VERSION
+    version: str
+    terms: tuple[GlossaryTerm, ...]
+
+
+class OrientationIdea(AcademyModel):
+    id: str
+    number: int = Field(ge=1)
+    name: str
+    headline: str
+    body: str
+    example_prompt: str = ""
+    example_output: str = ""
+    questions: tuple[str, ...] = ()
+    punchline: str
+    diagram: str
+
+
+class NornyxPosition(AcademyModel):
+    headline: str
+    body: str
+    boundary: str
+
+
+class OrientationClosing(AcademyModel):
+    headline: str
+    body: str
+    cta: str
+
+
+class Orientation(AcademyModel):
+    api_version: str = API_VERSION
+    version: str
+    id: str
+    title: str
+    subtitle: str
+    lede: str
+    minutes: int = Field(gt=0)
+    ideas: tuple[OrientationIdea, ...]
+    nornyx_position: NornyxPosition
+    closing: OrientationClosing
+
+
+class StageStep(AcademyModel):
+    number: int = Field(ge=1)
+    name: str
+    plain: str
+    module_ids: tuple[str, ...]
+
+
+class CurriculumStage(AcademyModel):
+    id: str
+    number: int = Field(ge=1, le=7)
+    name: str
+    question: str
+    plain: str
+    steps: tuple[StageStep, ...]
+    completed_steps: int = 0
+    total_steps: int = 0
+
+
+class StageEntry(AcademyModel):
+    module_ids: tuple[str, ...]
+    why: str
+
+
+class StageMap(AcademyModel):
+    api_version: str = API_VERSION
+    version: str
+    entry: StageEntry
+    stages: tuple[CurriculumStage, ...]
+    understood_concepts: tuple[str, ...] = ()
+    next_concepts: tuple[str, ...] = ()
+
+
+class PredictionOption(AcademyModel):
+    id: str = ""
+    label: str
+
+
+class Prediction(AcademyModel):
+    """Never scored. Its only job is to make the learner commit before the reveal."""
+
+    prompt: str
+    options: tuple[PredictionOption, ...]
+
+
+class NamedConcept(AcademyModel):
+    plain_name: str
+    formal_term: str
+    definition: str = ""
+
+
+class LessonTeaching(AcademyModel):
+    """The A-L scaffold for one module."""
+
+    api_version: str = API_VERSION
+    module_id: str
+    learn: str
+    question: str
+    why_you_care: str
+    story: str
+    prediction: Prediction
+    concept: NamedConcept
+    nornyx_role: str
+    takeaway: str
+    glossary: tuple[GlossaryTerm, ...] = ()
