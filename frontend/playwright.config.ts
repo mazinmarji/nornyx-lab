@@ -33,8 +33,27 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
+  /**
+   * Two projects, deliberately disjoint.
+   *
+   * `chromium` is the regression suite. `journey` produces reviewer-facing
+   * screenshots and is excluded from it, because capture is not a correctness
+   * check: a screenshot shows presentation at a captured state, and the specs
+   * remain the evidence that the journey behaved correctly. Running them
+   * together would blur that, and would put capture files into every ordinary
+   * test run.
+   */
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "chromium",
+      testMatch: /.*\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "journey",
+      testMatch: /.*\.capture\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
   ],
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined

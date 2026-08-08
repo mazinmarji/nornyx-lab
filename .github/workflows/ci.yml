@@ -283,15 +283,63 @@ jobs:
       - name: Run the real API, browser UI, screenshot, and axe checks
         run: npm run test:e2e
         working-directory: frontend
+      # Debugging evidence: traces and failure screenshots. Deliberately named
+      # and uploaded separately from the reviewer-facing journey below, because
+      # the two answer different questions and confusing them would put failure
+      # screenshots in front of a reviewer as if they were the product.
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: learner-journey-evidence
+          name: playwright-debug-evidence
           path: |
             frontend/test-results
             frontend/playwright-report
           if-no-files-found: warn
           retention-days: 14
+
+      # ---------------------------------------------------------------- B4
+      # Reviewer-visible learner journey. Answers "can a reviewer see what the
+      # learner sees without checking out and building the branch?" and nothing
+      # more: these are presentation captures, not a correctness claim.
+      - name: Capture the reviewer-visible learner journey
+        run: npm run test:journey
+        working-directory: frontend
+
+      - name: Verify the set is complete before anything is published
+        # An incomplete set is never uploaded. A missing screen in a published
+        # artifact looks like a screen that does not exist, which is worse than
+        # having no artifact at all.
+        run: >
+          uv run --frozen python scripts/verify_journey_artifacts.py
+          frontend/journey-artifacts --expect-commit "$GITHUB_SHA"
+
+      - name: Name the artifact after the commit under review
+        id: journey
+        shell: bash
+        run: echo "name=learner-journey-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.journey.outputs.name }}
+          path: frontend/journey-artifacts
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Link the journey in the job summary
+        shell: bash
+        run: |
+          {
+            echo "### Reviewer-visible learner journey"
+            echo
+            echo "Artifact: **${{ steps.journey.outputs.name }}** — in the *Artifacts* section of [this run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})."
+            echo
+            echo "The nine guided screens at 375x812, plus the governed payoff at 1280x800."
+            echo "Each screen was captured after the real gate it depends on was satisfied —"
+            echo "screen 6 follows an actual governed execution, not direct navigation."
+            echo
+            echo "> These show presentation at a captured state. They are **not** evidence that"
+            echo "> the journey behaved correctly; the executable specs remain that evidence."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   container-build:
     name: Production container build and learner smoke test

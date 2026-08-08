@@ -21,6 +21,7 @@ frontend/*.tsbuildinfo
 frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
+frontend/journey-artifacts/
 
 # Your progress through the labs, and anything a lab wrote while running.
 .nornyx-lab/
