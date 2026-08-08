@@ -54,3 +54,9 @@ export function useMode(): ModeContextValue {
   if (!value) throw new Error("useMode must be used inside ModeProvider");
   return value;
 }
+
+/** Non-throwing read, for the same reason as `useAcademyOptional`. */
+export function useModeOptional(): ModeContextValue | null {
+  return useContext(ModeContext);
+}
+

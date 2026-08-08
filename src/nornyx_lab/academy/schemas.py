@@ -601,6 +601,41 @@ class Glossary(AcademyModel):
     terms: tuple[GlossaryTerm, ...]
 
 
+class RemediationGuidance(AcademyModel):
+    """Authored guidance for one diagnostic code.
+
+    Five parts, all required. `verify` is the part that keeps this honest: it
+    names what to re-run and what evidence would support closure, so guidance
+    reads as a hypothesis to test rather than an instruction that settles the
+    matter. Nothing here may claim an outcome — whether a correction worked is
+    observed from a re-run, never asserted by authored text.
+    """
+
+    code: str
+    title: str
+    means: str
+    matters: str
+    inspect: str
+    correction: str
+    verify: str
+
+
+class RemediationRegistry(AcademyModel):
+    """The registry, fetched separately from any run result.
+
+    Separate on purpose. Guidance is academy teaching material, not part of a
+    Nornyx decision payload, and shipping it inside one would invite exactly the
+    confusion the provenance label exists to prevent. Adding codes grows
+    `entries` without changing this contract.
+    """
+
+    api_version: str = API_VERSION
+    version: str
+    provenance_label: str
+    unknown_code_notice: str
+    entries: tuple[RemediationGuidance, ...]
+
+
 class OrientationIdea(AcademyModel):
     id: str
     number: int = Field(ge=1)

@@ -1,4 +1,5 @@
 import type { EvidencePackage } from "../types";
+import { RemediationHint } from "./ContentBlocks";
 import { StatusBadge } from "./StatusBadge";
 
 function observedLabel(value: boolean | null): string {
@@ -33,6 +34,11 @@ export function EvidencePanel({ evidence }: { evidence: EvidencePackage }) {
               {finding.missing_fields.length ? (
                 <p className="meta-line">Missing: {finding.missing_fields.join(", ")}</p>
               ) : null}
+              {/* This panel renders findings itself rather than through
+                  `Findings`, so the hint has to be attached here too — a
+                  diagnostic without its guidance on one surface and with it on
+                  another is worse than not having it at all. */}
+              <RemediationHint code={finding.code} />
             </div>
           </article>
         )) : <p className="muted">No validation findings were returned.</p>}

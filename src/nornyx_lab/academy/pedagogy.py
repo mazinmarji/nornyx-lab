@@ -26,10 +26,14 @@ from .schemas import (
     Orientation,
     Prediction,
     PredictionOption,
+    RemediationGuidance,
+    RemediationRegistry,
     StageEntry,
     StageMap,
     StageStep,
 )
+
+UNKNOWN_CODE_NOTICE = "No remediation guidance is registered for this code."
 
 
 def _load(name: str) -> Any:
@@ -47,6 +51,7 @@ class PedagogyRepository:
         self._stages = _load("stages.json")
         self._teaching = _load("teaching.json")
         self._demo_story = _load("demo_story.json")
+        self._remediation = _load("remediation.json")
         self._terms: dict[str, GlossaryTerm] = {
             item["id"]: GlossaryTerm(**item) for item in self._glossary["terms"]
         }
@@ -62,6 +67,34 @@ class PedagogyRepository:
     # ---------------------------------------------------------------- glossary
     def glossary(self) -> Glossary:
         return Glossary(version=self._glossary["version"], terms=tuple(self._terms.values()))
+
+    # ------------------------------------------------------------- remediation
+    def remediation(self) -> RemediationRegistry:
+        """Authored guidance per diagnostic code.
+
+        Served as its own registry rather than attached to each diagnostic, so a
+        hint is never mistaken for part of the runtime decision it accompanies,
+        and so new codes are purely additive.
+        """
+        return RemediationRegistry(
+            version=self._remediation["version"],
+            provenance_label=self._remediation["provenance_label"],
+            unknown_code_notice=UNKNOWN_CODE_NOTICE,
+            entries=tuple(
+                RemediationGuidance(code=code, **entry)
+                for code, entry in sorted(self._remediation["entries"].items())
+            ),
+        )
+
+    def remediation_for(self, code: str) -> RemediationGuidance | None:
+        """None for an unregistered code; the caller renders the notice.
+
+        Guessing guidance from the shape of a code's name would be inventing
+        behaviour, which is the failure mode this curriculum exists to teach
+        against.
+        """
+        entry = self._remediation["entries"].get(code)
+        return RemediationGuidance(code=code, **entry) if entry else None
 
     def terms_for(self, ids: tuple[str, ...]) -> tuple[GlossaryTerm, ...]:
         """Unknown ids are dropped rather than raising.
