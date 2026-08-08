@@ -231,6 +231,36 @@ def test_ci_verifies_before_it_publishes_and_names_the_artifact_by_commit() -> N
     assert "if" not in steps[upload_at]
 
 
+def test_the_artifact_is_named_for_the_commit_under_review() -> None:
+    """`GITHUB_SHA` is the wrong identity on a pull request.
+
+    GitHub sets it to an ephemeral merge commit created for the run, not to the
+    commit being reviewed. Naming the artifact after that sends a reviewer
+    looking for a SHA that exists nowhere in the branch, and the manifest then
+    misattributes what they are looking at — which still passed verification,
+    because the manifest and the check used the same wrong value.
+    """
+    workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["learner-journey"]["steps"]
+    body = "\n".join(str(step.get("run", "")) for step in steps)
+
+    assert "github.event.pull_request.head.sha" in body, (
+        "the journey must resolve the pull request head, not github.sha"
+    )
+
+    naming = next(step for step in steps if "GITHUB_OUTPUT" in str(step.get("run", "")))
+    assert "JOURNEY_COMMIT" in str(naming["run"])
+    assert "GITHUB_SHA" not in str(naming["run"])
+
+    verify_step = next(
+        step for step in steps if "verify_journey_artifacts" in str(step.get("run", ""))
+    )
+    assert "$JOURNEY_COMMIT" in str(verify_step["run"])
+
+    # The capture must stamp the same commit the artifact is published under.
+    assert "JOURNEY_COMMIT" in CAPTURE.read_text(encoding="utf-8")
+
+
 def test_debug_evidence_is_published_separately_from_reviewer_material() -> None:
     workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
     steps = workflow["jobs"]["learner-journey"]["steps"]

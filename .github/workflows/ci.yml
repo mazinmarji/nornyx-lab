@@ -301,6 +301,15 @@ jobs:
       # Reviewer-visible learner journey. Answers "can a reviewer see what the
       # learner sees without checking out and building the branch?" and nothing
       # more: these are presentation captures, not a correctness claim.
+      # On a pull_request event GITHUB_SHA is the ephemeral merge commit GitHub
+      # creates, not the commit under review. Naming the artifact after it sends
+      # a reviewer looking for a SHA that exists nowhere in the branch, and a
+      # manifest carrying it misattributes what they are looking at. Use the PR
+      # head, falling back to github.sha on push.
+      - name: Resolve the commit under review
+        shell: bash
+        run: echo "JOURNEY_COMMIT=${{ github.event.pull_request.head.sha || github.sha }}" >> "$GITHUB_ENV"
+
       - name: Capture the reviewer-visible learner journey
         run: npm run test:journey
         working-directory: frontend
@@ -311,12 +320,12 @@ jobs:
         # having no artifact at all.
         run: >
           uv run --frozen python scripts/verify_journey_artifacts.py
-          frontend/journey-artifacts --expect-commit "$GITHUB_SHA"
+          frontend/journey-artifacts --expect-commit "$JOURNEY_COMMIT"
 
       - name: Name the artifact after the commit under review
         id: journey
         shell: bash
-        run: echo "name=learner-journey-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+        run: echo "name=learner-journey-${JOURNEY_COMMIT::7}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:

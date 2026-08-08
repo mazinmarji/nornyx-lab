@@ -41,7 +41,10 @@ interface CapturedScreen {
 const captured: CapturedScreen[] = [];
 
 function commitSha(): string {
-  const fromCi = process.env.GITHUB_SHA;
+  // JOURNEY_COMMIT is the commit under review. CI sets it from the pull
+  // request head, because GITHUB_SHA on a pull_request event is an ephemeral
+  // merge commit that a reviewer cannot find in the branch.
+  const fromCi = process.env.JOURNEY_COMMIT ?? process.env.GITHUB_SHA;
   if (fromCi) return fromCi;
   try {
     return execSync("git rev-parse HEAD", { encoding: "utf8" }).trim();
