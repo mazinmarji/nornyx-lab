@@ -245,6 +245,7 @@ journey, Docker build, and Linux/Windows Python coverage.
 - [Security and sandbox boundary](docs/SECURITY.md)
 - [Honest assurance statement](docs/ASSURANCE.md)
 - [Development, deployment, and testing](docs/DEVELOPMENT.md)
+- [Operator troubleshooting and known limitations](docs/TROUBLESHOOTING.md)
 - [Contributing](CONTRIBUTING.md)
 
 ## License
