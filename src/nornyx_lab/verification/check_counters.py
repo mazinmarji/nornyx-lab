@@ -44,6 +44,17 @@ EXPECTED = {
 }
 
 
+def _is_count(value: object) -> bool:
+    """A JSON count, excluding booleans.
+
+    `bool` subclasses `int` in Python, so `isinstance(True, int)` is True and
+    `True == 1`. A response reporting `true/true` for ungoverned and
+    `false/false` for governed would otherwise satisfy the 1/1 and 0/0 checks
+    exactly, while violating the counter contract.
+    """
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 class ProductContractError(Exception):
     """The response is not the shape the API documents.
 
@@ -101,7 +112,7 @@ def evaluate(payload: Any) -> Findings:
         completions = counter.get("completions")
         meaning = counter.get("meaning")
 
-        if not isinstance(attempts, int) or not isinstance(completions, int):
+        if not _is_count(attempts) or not _is_count(completions):
             raise ProductContractError(
                 f"the '{variant_id}' {ACTION} counter has non-integer attempts/completions: "
                 f"{attempts!r}/{completions!r}"

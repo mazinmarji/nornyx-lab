@@ -44,6 +44,7 @@ def _stub_docker(
     build_sleep: int = 0,
     daemon: bool = True,
     checker_exit: int = 0,
+    persistence_exit: int = 0,
     serve: tuple | None = None,
 ) -> Path:
     """A `docker` that records its arguments instead of doing anything.
@@ -92,6 +93,9 @@ def _stub_docker(
         "  run)",
         '    if printf "%s " "$@" | grep -q check_counters; then',
         f'      echo "stubbed checker"; exit {checker_exit}',
+        "    fi",
+        '    if printf "%s " "$@" | grep -q check_persistence; then',
+        f'      echo "stubbed persistence checker"; exit {persistence_exit}',
         "    fi",
         "    exit 0 ;;",
         "  *) exit 0 ;;",
@@ -256,7 +260,7 @@ def test_a_genuinely_dirty_checkout_is_still_reported_as_dirty(tmp_path) -> None
 # ------------------------------- verifier failure is not product failure (B5.2)
 
 
-def _drive_to_step_nine(tmp_path: Path, checker_exit: int):
+def _drive_to_step_nine(tmp_path: Path, checker_exit: int, persistence_exit: int = 0):
     """Run the harness far enough to exercise the step 9 classification.
 
     The stubbed `compose up` starts the stand-in service, rather than the test
@@ -271,6 +275,7 @@ def _drive_to_step_nine(tmp_path: Path, checker_exit: int):
     _stub_docker(
         tmp_path,
         checker_exit=checker_exit,
+        persistence_exit=persistence_exit,
         serve=(sys.executable, server, fixture),
     )
 
@@ -367,3 +372,29 @@ def test_an_unknown_argument_is_a_usage_error() -> None:
         timeout=30,
     )
     assert result.returncode == 3
+
+
+def test_a_persistence_checker_crash_is_also_a_verifier_failure(tmp_path) -> None:
+    """The same routing, in the step that came after.
+
+    Step 9 was given exit-4 handling and step 10 was left with a boolean `if`,
+    so an instrument fault there still reported `product-failure` and blamed the
+    product for losing progress. Review caught it; this pins it.
+    """
+    result, evidence = _drive_to_step_nine(tmp_path, checker_exit=0, persistence_exit=4)
+
+    verdict = _verdict(evidence)
+    assert verdict["verdict"] == "verifier-failure", (
+        f"a persistence-checker fault was classified as {verdict['verdict']!r}"
+    )
+    assert verdict["product_failures"] == 0, "the product must not be blamed for an instrument bug"
+    assert result.returncode == 4
+
+
+def test_a_genuine_persistence_loss_remains_a_product_failure(tmp_path) -> None:
+    result, evidence = _drive_to_step_nine(tmp_path, checker_exit=0, persistence_exit=1)
+
+    verdict = _verdict(evidence)
+    assert verdict["verdict"] == "product-failure"
+    assert verdict["verifier_failures"] == 0
+    assert result.returncode == 1

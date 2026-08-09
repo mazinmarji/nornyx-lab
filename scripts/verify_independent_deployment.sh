@@ -411,9 +411,15 @@ if record docker-restart docker compose restart; then
     # Both payloads stream in as one JSON array, so the container needs no
     # mounted path and the host still needs no interpreter. Packaged module, not
     # an inline program: see check_counters for why that distinction cost a run.
-    if { echo "["; cat "${EVIDENCE_DIR}/progress-before.json"; echo ",";          cat "${EVIDENCE_DIR}/progress-after.json"; echo "]"; }        | docker run --rm -i --entrypoint python "$IMAGE_TAG"            -m nornyx_lab.verification.check_persistence >> "$LOG" 2>&1
-    then
+    { echo "["; cat "${EVIDENCE_DIR}/progress-before.json"; echo ",";       cat "${EVIDENCE_DIR}/progress-after.json"; echo "]"; }        | docker run --rm -i --entrypoint python "$IMAGE_TAG"            -m nornyx_lab.verification.check_persistence >> "$LOG" 2>&1
+    PERSISTENCE_STATUS=$?
+
+    if [ "$PERSISTENCE_STATUS" -eq 0 ]; then
       pass "the learner record survived the restart"
+    elif [ "$PERSISTENCE_STATUS" -eq 4 ]; then
+      # Same rule as step 9: a checker that cannot decide is not evidence that
+      # the product lost data.
+      verifierfail "the persistence checker could not complete (see verification.log)"
     else
       fail "progress did not survive a restart, though the composition mounts a named volume"
     fi

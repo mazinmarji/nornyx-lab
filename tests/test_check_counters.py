@@ -206,3 +206,27 @@ def test_a_contract_error_raised_internally_stays_a_product_failure(monkeypatch)
 def test_the_three_exit_codes_are_distinct() -> None:
     assert len({EXIT_OK, EXIT_PRODUCT_FAILURE, EXIT_VERIFIER_FAILURE}) == 3
     assert EXIT_VERIFIER_FAILURE == 4
+
+
+def test_boolean_counters_are_rejected(monkeypatch) -> None:
+    """`bool` subclasses `int`, so this would otherwise pass exactly.
+
+    A response reporting `true/true` for ungoverned and `false/false` for
+    governed satisfies `== 1` and `== 0` in Python while violating the counter
+    contract entirely. The numbers would look right and mean nothing.
+    """
+    payload = _response(
+        ungoverned=(True, True, "executed"), governed=(False, False, "prevented_before_execution")
+    )
+    code, output = _run_main(payload, monkeypatch)
+    assert code == EXIT_PRODUCT_FAILURE, "true/true was accepted as 1/1"
+    assert "non-integer" in output
+
+
+def test_a_boolean_execution_count_is_rejected_by_the_persistence_checker() -> None:
+    from nornyx_lab.verification.check_persistence import evaluate as persistence_evaluate
+
+    before = {"modules": [{"module_id": "F0", "executions": True}]}
+    after = {"modules": [{"module_id": "F0", "executions": True}]}
+    with pytest.raises(ProductContractError):
+        persistence_evaluate(before, after)

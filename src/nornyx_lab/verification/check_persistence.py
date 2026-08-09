@@ -29,6 +29,7 @@ from .check_counters import (
     EXIT_PRODUCT_FAILURE,
     EXIT_VERIFIER_FAILURE,
     ProductContractError,
+    _is_count,
 )
 
 
@@ -45,7 +46,7 @@ def _executions(payload: Any, label: str) -> dict[str, int]:
             raise ProductContractError(f"a {label} module entry is not an object")
         module_id = module.get("module_id")
         executions = module.get("executions", 0)
-        if not isinstance(module_id, str) or not isinstance(executions, int):
+        if not isinstance(module_id, str) or not _is_count(executions):
             raise ProductContractError(
                 f"a {label} module entry has an unusable id/executions pair: "
                 f"{module_id!r}/{executions!r}"
