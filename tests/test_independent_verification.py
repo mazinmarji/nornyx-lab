@@ -122,15 +122,53 @@ def test_it_builds_without_a_useful_cache() -> None:
 def test_it_requires_the_conditional_zero_zero_semantics() -> None:
     """0/0 alone is not a prevention; an action nobody planned records 0/0 too.
 
-    The check must require the ungoverned 1/1 as well, and must look at the
-    meaning rather than only the numbers.
+    The semantics now live in `nornyx_lab.verification.check_counters` rather
+    than in the shell, so this follows them there. `tests/test_check_counters.py`
+    executes them; this only pins that they still exist and are still
+    conditional.
     """
-    script = _script()
-    assert "prevented_before_execution" in script
-    assert '"executed"' in script or "'executed'" in script
+    from nornyx_lab.verification.check_counters import EXPECTED
+
+    assert EXPECTED["ungoverned"] == {"attempts": 1, "completions": 1, "meaning": "executed"}
+    assert EXPECTED["governed"] == {
+        "attempts": 0,
+        "completions": 0,
+        "meaning": "prevented_before_execution",
+    }
     assert "not_planned" in DOC.read_text(encoding="utf-8"), (
         "the procedure must explain why 0/0 alone would not be enough"
     )
+
+
+def test_no_consequential_python_is_embedded_in_the_shell() -> None:
+    """The defect the first independent run found, made unrepeatable.
+
+    The checker was a Python program inside `python -c '…'`. Its single-quoted
+    dictionary keys sat inside a single-quoted shell argument, so bash removed
+    the inner quotes and Python received `counter[attempts]`. The run died with
+    NameError, and the harness blamed the product.
+
+    A program the shell can rewrite on its way to the interpreter is a program
+    no test can honestly claim to cover, so the script may only invoke modules.
+    """
+    script = _script()
+    assert "entrypoint python" in script, "the checks still run in the image"
+    assert '-c "' not in script.replace('python -c "$(', ""), "no inline python payload"
+    assert '--entrypoint python "$IMAGE_TAG" -c' not in script
+    assert "-m nornyx_lab.verification.check_counters" in script
+    assert "-m nornyx_lab.verification.check_persistence" in script
+
+
+def test_a_verifier_fault_is_its_own_result_kind() -> None:
+    """A crash in the instrument is not evidence about the product."""
+    script = _script()
+    assert "VERIFIER_FAILURES" in script
+    assert "verifier-failure" in script
+    assert "EXIT_CODE=4" in script
+
+    doc = DOC.read_text(encoding="utf-8")
+    assert "verifier-failure" in doc, "the new result must be documented"
+    assert "`4`" in doc, "its exit code must be documented"
 
 
 def test_it_exercises_the_running_production_service() -> None:

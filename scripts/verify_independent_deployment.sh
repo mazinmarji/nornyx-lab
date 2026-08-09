@@ -40,6 +40,8 @@
 #   1  a product condition was not met
 #   2  the environment could not support the documented path
 #   3  the script was used incorrectly
+#   4  the verification instrument itself failed; this run says nothing about
+#      the product, and must not be read as a product judgement
 
 set -o pipefail
 
@@ -51,6 +53,9 @@ IMAGE_TAG="nornyx-academy:2.0.0"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-300}"
 PRODUCT_FAILURES=0
 ENVIRONMENT_FAILURES=0
+# A fault in the instrument itself. Kept apart from both other kinds: it is not
+# a statement about the product, and it is not a limitation of the machine.
+VERIFIER_FAILURES=0
 STEP=0
 # Set only after the final verification step. Absent it, the run did not finish,
 # and an unfinished run must never be able to report `pass` — a SIGTERM or an
@@ -96,6 +101,7 @@ head_() { STEP=$((STEP + 1)); say ""; say "── ${STEP}. $* ──────
 pass() { say "   PASS  $*"; }
 fail() { say "   FAIL  $*"; PRODUCT_FAILURES=$((PRODUCT_FAILURES + 1)); }
 envfail() { say "   ENV   $*"; ENVIRONMENT_FAILURES=$((ENVIRONMENT_FAILURES + 1)); }
+verifierfail() { say "   BUG   $*"; VERIFIER_FAILURES=$((VERIFIER_FAILURES + 1)); }
 
 # Capture a command's output as evidence and report whether it succeeded.
 record() {
@@ -114,7 +120,11 @@ write_verdict() {
   # timeout reaches this trap with both counters at zero; reporting that as a
   # pass would be false acceptance evidence, which is worse than none.
   local verdict="incomplete"
-  if [ "$ENVIRONMENT_FAILURES" -gt 0 ]; then
+  if [ "$VERIFIER_FAILURES" -gt 0 ]; then
+    # Ranked first: if the instrument failed, no other reading of this run is
+    # trustworthy, and the result must not be presented as a product judgement.
+    verdict="verifier-failure"
+  elif [ "$ENVIRONMENT_FAILURES" -gt 0 ]; then
     verdict="environment-failure"
   elif [ "$PRODUCT_FAILURES" -gt 0 ]; then
     verdict="product-failure"
@@ -127,6 +137,7 @@ write_verdict() {
     echo "  \"repository_sha\": \"${REPO_SHA:-unknown}\","
     echo "  \"product_failures\": ${PRODUCT_FAILURES},"
     echo "  \"environment_failures\": ${ENVIRONMENT_FAILURES},"
+    echo "  \"verifier_failures\": ${VERIFIER_FAILURES},"
     echo "  \"reached_step\": ${STEP},"
     echo "  \"completed\": $([ "$COMPLETED" -eq 1 ] && echo true || echo false),"
     echo "  \"image\": \"${IMAGE_TAG}\","
@@ -351,60 +362,28 @@ fi
 # ─────────────────────────────────────────────── 9. the semantics, not just a 200
 head_ "Require the expected counter semantics"
 
-# Parsed by the Python inside the production image, piped over stdin. The host
-# needs no interpreter: requiring one would make this script the hidden
-# portability dependency it exists to find.
-if docker run --rm -i --entrypoint python "$IMAGE_TAG" -c '
-import json, sys
+# Run as a packaged module, never as a shell string.
+#
+# This check used to be a Python program embedded in `python -c '…'`. Its
+# dictionary keys were single-quoted inside a single-quoted shell argument, so
+# bash removed the inner quotes and Python received `counter[attempts]`. The
+# first independent run died here with NameError — and the harness called that a
+# product failure. A module cannot be rewritten by the shell on its way to the
+# interpreter, and it is syntax-checked and unit-tested like any other code.
+docker run --rm -i --entrypoint python "$IMAGE_TAG"   -m nornyx_lab.verification.check_counters   < "${EVIDENCE_DIR}/demo-run.json" > "${EVIDENCE_DIR}/counter-check.txt" 2>&1
+COUNTER_STATUS=$?
 
-run = json.load(sys.stdin)
-variants = {v["id"]: v for v in run["variants"]}
-problems = []
-
-def publication(variant):
-    for counter in variants[variant]["counters"]:
-        if counter["action"] == "publish_external":
-            return counter
-    return None
-
-ungoverned = publication("ungoverned")
-governed = publication("governed")
-
-if ungoverned is None or governed is None:
-    print("no publish_external counter on one of the paths")
-    raise SystemExit(1)
-
-print(f"ungoverned publish_external: {ungoverned['attempts']}/{ungoverned['completions']} "
-      f"({ungoverned['meaning']})")
-print(f"governed   publish_external: {governed['attempts']}/{governed['completions']} "
-      f"({governed['meaning']})")
-
-# The ungoverned path must show the tool actually ran.
-if (ungoverned["attempts"], ungoverned["completions"]) != (1, 1):
-    problems.append("ungoverned path did not record 1 attempt and 1 completion")
-if ungoverned["meaning"] != "executed":
-    problems.append(f"ungoverned meaning is {ungoverned['meaning']!r}, expected 'executed'")
-
-# The governed path must show 0/0 -- AND that 0/0 means prevention here, which
-# it only does because the same plan demonstrably reached the tool without
-# governance. A 0/0 with nothing planned would prove nothing at all.
-if (governed["attempts"], governed["completions"]) != (0, 0):
-    problems.append("governed path did not record 0 attempts and 0 completions")
-if governed["meaning"] != "prevented_before_execution":
-    problems.append(
-        f"governed meaning is {governed['meaning']!r}; 0/0 counts as prevention only when "
-        f"the action was actually planned"
-    )
-if not problems:
-    print("0/0 is interpretable as prevention: the same plan recorded 1/1 without governance")
-
-for problem in problems:
-    print(f"PROBLEM: {problem}")
-raise SystemExit(1 if problems else 0)
-' < "${EVIDENCE_DIR}/demo-run.json" > "${EVIDENCE_DIR}/counter-check.txt" 2>&1
+if [ "$COUNTER_STATUS" -eq 0 ];
 then
   while IFS= read -r line; do say "   $line"; done < "${EVIDENCE_DIR}/counter-check.txt"
   pass "counter semantics are as documented"
+elif [ "$COUNTER_STATUS" -eq 4 ]; then
+  # The checker could not decide. That says nothing about the product, and
+  # recording it as a product failure would attribute a defect to the thing
+  # being measured — which is exactly what the first independent run did.
+  while IFS= read -r line; do say "   $line"; done < "${EVIDENCE_DIR}/counter-check.txt"
+  verifierfail "the semantic checker could not complete (see counter-check.txt)"
+  verifierfail "this is a fault in the verification instrument, not evidence about the product"
 else
   while IFS= read -r line; do say "   $line"; done < "${EVIDENCE_DIR}/counter-check.txt"
   fail "the counter semantics the product documents were not observed"
@@ -430,20 +409,9 @@ if record docker-restart docker compose restart; then
   if [ "$RESTART_OK" -eq 1 ]; then
     curl -fsS --max-time 30 "${BASE_URL}/api/v1/progress" -o "${EVIDENCE_DIR}/progress-after.json" 2>/dev/null || true
     # Both payloads stream in as one JSON array, so the container needs no
-    # mounted path and the host still needs no interpreter.
-    if { echo "["; cat "${EVIDENCE_DIR}/progress-before.json"; echo ",";          cat "${EVIDENCE_DIR}/progress-after.json"; echo "]"; }        | docker run --rm -i --entrypoint python "$IMAGE_TAG" -c '
-import json, sys
-before, after = json.load(sys.stdin)
-def executions(payload):
-    return {m["module_id"]: m.get("executions", 0) for m in payload.get("modules", [])}
-b, a = executions(before), executions(after)
-if not b:
-    print("no learner record before restart; nothing to compare")
-    raise SystemExit(1)
-lost = [k for k, v in b.items() if a.get(k, 0) < v]
-print("modules with fewer executions after restart:", lost or "none")
-raise SystemExit(1 if lost else 0)
-' >> "$LOG" 2>&1
+    # mounted path and the host still needs no interpreter. Packaged module, not
+    # an inline program: see check_counters for why that distinction cost a run.
+    if { echo "["; cat "${EVIDENCE_DIR}/progress-before.json"; echo ",";          cat "${EVIDENCE_DIR}/progress-after.json"; echo "]"; }        | docker run --rm -i --entrypoint python "$IMAGE_TAG"            -m nornyx_lab.verification.check_persistence >> "$LOG" 2>&1
     then
       pass "the learner record survived the restart"
     else
@@ -467,7 +435,10 @@ COMPLETED=1
 
 VERDICT="pass"
 EXIT_CODE=0
-if [ "$ENVIRONMENT_FAILURES" -gt 0 ]; then
+if [ "$VERIFIER_FAILURES" -gt 0 ]; then
+  VERDICT="verifier-failure"
+  EXIT_CODE=4
+elif [ "$ENVIRONMENT_FAILURES" -gt 0 ]; then
   VERDICT="environment-failure"
   EXIT_CODE=2
 elif [ "$PRODUCT_FAILURES" -gt 0 ]; then
@@ -478,7 +449,7 @@ fi
 say ""
 say "════════════════════════════════════════════════"
 say " Verdict: ${VERDICT}"
-say " Product failures: ${PRODUCT_FAILURES}   Environment failures: ${ENVIRONMENT_FAILURES}"
+say " Product failures: ${PRODUCT_FAILURES}   Environment: ${ENVIRONMENT_FAILURES}   Verifier: ${VERIFIER_FAILURES}"
 say " Repository: ${REPO_SHA}"
 say " Evidence:   ${EVIDENCE_DIR}"
 say "════════════════════════════════════════════════"
