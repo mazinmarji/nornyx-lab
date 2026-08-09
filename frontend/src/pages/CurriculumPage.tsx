@@ -16,7 +16,10 @@ function StepRow({
 }) {
   const modules = step.module_ids.map((id) => modulesById.get(id)).filter(Boolean) as CurriculumModule[];
   const complete = modules.length > 0 && modules.every((module) => module.status === "complete");
-  const target = modules[0];
+  // The conceptual step stays the primary unit; its heading links to the first
+  // module the learner has not finished, so "continue" always lands somewhere
+  // actionable rather than always at the first mapped module.
+  const target = modules.find((module) => module.status !== "complete") ?? modules[0];
 
   return (
     <li className={complete ? "stage-step is-complete" : "stage-step"} data-testid={`stage-step-${step.number}`}>
@@ -30,17 +33,38 @@ function StepRow({
           <span className="step-name">{step.name}</span>
         )}
         <p className="step-plain">{step.plain}</p>
-        <ExploreOnly>
-          <p className="step-modules">
+        {/* A step may be taught by several modules. Every one of them gets its
+            own learner-visible link — a step must never contain a module that
+            can only be reached through a hidden flat list. Guided mode shows
+            titles; Explore mode adds the engineering ids alongside. */}
+        {modules.length > 1 ? (
+          <ul className="step-module-links" aria-label={`Modules that teach “${step.name}”`}>
             {modules.map((module) => (
-              <span key={module.id}>
-                <code>{module.id}</code> {module.title}
-              </span>
+              <li key={module.id} className={module.status === "complete" ? "is-complete" : ""}>
+                <span aria-hidden="true">{module.status === "complete" ? "✓" : "→"}</span>
+                <Link to={`/lessons/${encodeURIComponent(module.id)}`}>
+                  <ExploreOnly>
+                    <code>{module.id}</code>{" "}
+                  </ExploreOnly>
+                  {module.title}
+                </Link>
+                <StatusBadge status={module.status} />
+              </li>
             ))}
-          </p>
-        </ExploreOnly>
+          </ul>
+        ) : (
+          <ExploreOnly>
+            <p className="step-modules">
+              {modules.map((module) => (
+                <span key={module.id}>
+                  <code>{module.id}</code> {module.title}
+                </span>
+              ))}
+            </p>
+          </ExploreOnly>
+        )}
       </div>
-      {target ? <StatusBadge status={target.status} /> : null}
+      {modules.length === 1 && target ? <StatusBadge status={target.status} /> : null}
     </li>
   );
 }

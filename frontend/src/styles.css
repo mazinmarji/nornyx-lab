@@ -1043,6 +1043,13 @@ tbody th { color: var(--ink-900); }
 .step-plain { margin: 0.2rem 0 0; color: var(--ink-600); font-size: 0.9rem; line-height: 1.45; }
 .step-modules { margin: 0.35rem 0 0; display: flex; flex-wrap: wrap; gap: 0.6rem; font-size: 0.78rem; color: var(--ink-600); }
 .step-modules code { background: var(--surface-cool); padding: 0.05rem 0.35rem; border-radius: 3px; }
+.step-module-links { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 0.3rem; }
+.step-module-links li { display: flex; align-items: center; flex-wrap: wrap; gap: 0.45rem; font-size: 0.85rem; }
+.step-module-links li > span[aria-hidden] { flex: 0 0 auto; font-weight: 700; color: var(--ink-600); }
+.step-module-links li.is-complete > span[aria-hidden] { color: var(--teal); }
+.step-module-links a { color: var(--ink-900); font-weight: 550; text-decoration-color: var(--line); }
+.step-module-links a:hover, .step-module-links a:focus-visible { text-decoration-color: currentColor; }
+.step-module-links code { background: var(--surface-cool); padding: 0.05rem 0.35rem; border-radius: 3px; font-size: 0.78rem; }
 .catalog-meta { margin-top: 2.5rem; padding: 1.3rem 1.5rem; background: var(--paper-deep); border-radius: 11px; }
 
 @media (max-width: 700px) {
