@@ -18,8 +18,13 @@ function DataTable({ rows }: { rows: Record<string, unknown>[] }) {
 }
 
 function StructuredDetails({ metadata }: { metadata: Record<string, unknown> }) {
+  // Raw implementation fields are Explore-mode material: a beginner meets
+  // concepts in the lesson prose first, and every one of these values stays
+  // one mode switch away. Nothing here carries a limitation or boundary —
+  // those are always in the visible block text.
+  const mode = useModeOptional()?.mode ?? "guided";
   const entries = Object.entries(metadata);
-  if (!entries.length) return null;
+  if (!entries.length || mode !== "explore") return null;
   return (
     <details className="structured-details">
       <summary>Inspect structured details</summary>

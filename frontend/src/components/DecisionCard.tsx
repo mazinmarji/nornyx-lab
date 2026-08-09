@@ -16,7 +16,9 @@ export function DecisionCard({ decision, index = 0 }: { decision: DecisionTrace;
         <div><dt>Identity</dt><dd>{decision.identity}</dd></div>
         <div><dt>Capability</dt><dd>{decision.capability}</dd></div>
         <div><dt>Resource</dt><dd>{decision.resource}</dd></div>
-        <div><dt>Trust zones</dt><dd>{decision.source_zone ?? "Unknown"} → {decision.target_zone ?? "Unknown"}</dd></div>
+        {/* "Unknown → Unknown" read like a defect. Absent zones mean the
+            decision did not involve a zone crossing, so say that. */}
+        <div><dt>Trust zones</dt><dd>{decision.source_zone || decision.target_zone ? `${decision.source_zone ?? "unspecified"} → ${decision.target_zone ?? "unspecified"}` : "No zone crossing in this decision"}</dd></div>
         <div><dt>Policy</dt><dd>{decision.policy_refs.length ? decision.policy_refs.join(", ") : "No policy reference reported"}</dd></div>
         <div><dt>Gate</dt><dd>{decision.gate_refs.length ? decision.gate_refs.join(", ") : "No gate reported"}</dd></div>
         <div><dt>Approval</dt><dd>{decision.approval_state.replaceAll("_", " ")}</dd></div>
