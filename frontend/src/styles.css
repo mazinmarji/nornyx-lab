@@ -284,9 +284,12 @@ input:disabled, select:disabled { background: #eaece8; color: #69787c; }
 .markdown-body h3, .markdown-body h4, .markdown-body h5 { margin-top: 1.1rem; }
 .capstone-design-form { margin-top: 0.8rem; padding: 0.9rem; border: 1px solid var(--line); border-radius: 9px; display: grid; gap: 0.7rem; }
 .capstone-design-form legend { font-weight: 700; padding: 0 0.3rem; }
-.design-role-row { display: grid; grid-template-columns: minmax(9rem, 1.2fr) 1fr 1fr; gap: 0.5rem; align-items: center; }
-.design-role-row .design-action { font-size: 0.85rem; font-weight: 600; }
-.design-role-row select { width: 100%; }
+/* The form lives in a narrow column, so the action label sits above its two
+   selects; three columns squeezed the selects into unreadable slivers. */
+.design-role-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 0.5rem; align-items: center; }
+.design-role-row .design-action { grid-column: 1 / -1; font-size: 0.85rem; font-weight: 600; }
+.design-role-row select { width: 100%; min-width: 0; }
+.design-role-row label { display: block; min-width: 0; }
 .design-zone-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
 @media (max-width: 700px) {
   .design-role-row { grid-template-columns: 1fr; gap: 0.25rem; }
