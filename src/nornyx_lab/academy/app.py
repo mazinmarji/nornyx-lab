@@ -165,6 +165,18 @@ def create_app(
                 "nornyx": _package_version("nornyx", "1.11.0"),
             },
         )
+        # Capstone runs additionally record the evidence the advanced gate
+        # reads: scaffolding level, scenario, authorship, and eligibility.
+        # Unavailable runs (missing framework) are not learner outcomes.
+        if result.module_id == "24" and result.status is RunStatus.COMPLETE:
+            competence = result.results.get("competence", {})
+            app.state.progress.record_capstone_run(
+                run_id=result.run_id,
+                scenario=str(competence.get("scenario", "customer-remediation")),
+                scaffolding=str(competence.get("scaffolding", "guided")),
+                completion_eligible=result.completion_eligible,
+                learner_authored=bool(competence.get("learner_authored", False)),
+            )
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next: Any) -> Response:
@@ -449,7 +461,7 @@ def create_app(
         from .capstone import CapstoneInputError, run_capstone
 
         try:
-            result = run_capstone(request.model_dump(mode="json"))
+            result = run_capstone(request.model_dump(mode="json", exclude_none=True))
         except CapstoneInputError as exc:
             raise HTTPException(status_code=422, detail=_detail(exc)) from exc
         record_run(result)

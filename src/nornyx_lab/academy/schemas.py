@@ -417,6 +417,24 @@ class ModuleProgress(AcademyModel):
     concepts_pending_evidence: tuple[str, ...] = ()
 
 
+class AdvancedStanding(AcademyModel):
+    """The explicit advanced-completion gate, one boolean per requirement.
+
+    ``capstone_status`` alone is content completion: a Guided run plus the
+    capstone assessment. Advanced competence additionally requires
+    learner-authored (Independent) capstone work and a completion-eligible run
+    on the transfer scenario, so a scaffolded walkthrough can never be
+    reported as independent advanced competence.
+    """
+
+    capstone_content_complete: bool = False
+    capstone_concepts_demonstrated: bool = False
+    independent_authorship_demonstrated: bool = False
+    transfer_demonstrated: bool = False
+    advanced_competence_demonstrated: bool = False
+    note: str = ""
+
+
 class Dashboard(AcademyModel):
     learner_id: str = "local"
     modules: tuple[ModuleProgress, ...]
@@ -429,6 +447,7 @@ class Dashboard(AcademyModel):
     concepts_needing_review: tuple[str, ...] = ()
     concepts_pending_evidence: tuple[str, ...] = ()
     capstone_status: ModuleStatus = ModuleStatus.NOT_STARTED
+    advanced_standing: AdvancedStanding | None = None
 
 
 class ProgressExport(AcademyModel):
@@ -531,6 +550,26 @@ class LiveModelSettingsResponse(AcademyModel):
     boundary: str
 
 
+class CapstoneScenarioInfo(AcademyModel):
+    """One deterministic capstone scenario the learner can design against.
+
+    The transfer scenario exists so independent competence is demonstrated on a
+    situation that is not the guided default: same lock-verified contract, a
+    different workflow with a different consequential boundary.
+    """
+
+    id: str
+    title: str
+    summary: str
+    consequential_action: str
+    actions: tuple[str, ...]
+    expected_capabilities: dict[str, str] = Field(default_factory=dict)
+    declared_identities: tuple[str, ...] = ()
+    declared_zones: tuple[str, ...] = ()
+    declared_delegations: tuple[str, ...] = ()
+    declared_handoffs: tuple[str, ...] = ()
+
+
 class CapstoneDefinition(AcademyModel):
     id: Literal["24"] = "24"
     title: str
@@ -549,6 +588,7 @@ class CapstoneDefinition(AcademyModel):
         ],
         ...,
     ]
+    scenarios: tuple[CapstoneScenarioInfo, ...] = ()
     assessment_id: str = "assessment.24"
     status: ModuleStatus = ModuleStatus.NOT_STARTED
 
@@ -564,6 +604,16 @@ class CapstoneRunRequest(AcademyModel):
         "bypass",
     ] = "prompt-injection"
     scaffolding: Literal["guided", "reduced", "independent"] = "guided"
+    scenario: Literal["customer-remediation", "refund-disbursement"] = "customer-remediation"
+    # Learner-authored design sections. None means "not provided": Guided mode
+    # may fall back to the academy's scaffolded defaults, Reduced/Independent
+    # scaffolding require the learner to supply them. Deep validation stays in
+    # capstone.py so the CLI/module path applies identical rules.
+    roles: tuple[dict[str, Any], ...] | None = None
+    trust_zones: dict[str, Any] | None = None
+    coordination: dict[str, Any] | None = None
+    policy: dict[str, Any] | None = None
+    assurance: dict[str, Any] | None = None
 
 
 class PlatformInfo(AcademyModel):

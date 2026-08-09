@@ -275,6 +275,23 @@ input:disabled, select:disabled { background: #eaece8; color: #69787c; }
 .concept-line span { padding: 0.28rem 0.45rem; background: #e8eeeb; border: 1px solid #d0d9d5; color: var(--ink-600); font-size: 0.67rem; }
 .concept-review span { background: var(--amber-soft); border-color: #e3c58e; }
 .concept-pending span { background: var(--surface-cool); border-style: dashed; }
+.capstone-status-note { margin: -0.6rem 0 1rem; font-size: 0.85rem; }
+.capstone-design-form { margin-top: 0.8rem; padding: 0.9rem; border: 1px solid var(--line); border-radius: 9px; display: grid; gap: 0.7rem; }
+.capstone-design-form legend { font-weight: 700; padding: 0 0.3rem; }
+.design-role-row { display: grid; grid-template-columns: minmax(9rem, 1.2fr) 1fr 1fr; gap: 0.5rem; align-items: center; }
+.design-role-row .design-action { font-size: 0.85rem; font-weight: 600; }
+.design-role-row select { width: 100%; }
+.design-zone-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+@media (max-width: 700px) {
+  .design-role-row { grid-template-columns: 1fr; gap: 0.25rem; }
+  .design-zone-row { grid-template-columns: 1fr; }
+}
+.advanced-standing { margin-top: 1.2rem; padding: 1rem 1.1rem; background: var(--paper-deep); border-radius: 10px; }
+.advanced-requirements { list-style: none; margin: 0.6rem 0; padding: 0; display: grid; gap: 0.35rem; }
+.advanced-requirements li { display: flex; gap: 0.5rem; align-items: baseline; font-size: 0.88rem; color: var(--ink-600); }
+.advanced-requirements li.is-satisfied { color: var(--ink-900); }
+.advanced-requirements li > span { font-weight: 700; }
+.advanced-requirements li.is-satisfied > span { color: var(--teal); }
 .concept-note { margin: 0 0 0.6rem; font-size: 0.82rem; }
 .assessment-concepts { margin-top: 0.6rem; font-size: 0.88rem; }
 .assessment-concepts-pending { color: var(--ink-600); }

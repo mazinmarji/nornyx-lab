@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .schemas import (
+    AdvancedStanding,
     AssessmentResult,
     Dashboard,
     ModuleProgress,
@@ -135,6 +136,24 @@ class SQLiteLearnerRecordRepository:
                 connection.execute(
                     "ALTER TABLE assessment_attempts ADD COLUMN concepts_tested TEXT"
                 )
+            # Capstone runs are recorded with their scaffolding level, scenario,
+            # and authorship so the advanced gate can distinguish a scaffolded
+            # walkthrough from learner-authored transfer work. A store created
+            # before this table existed simply has no advanced evidence yet.
+            connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS capstone_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    learner_id TEXT NOT NULL,
+                    run_id TEXT NOT NULL,
+                    scenario TEXT NOT NULL,
+                    scaffolding TEXT NOT NULL,
+                    completion_eligible INTEGER NOT NULL,
+                    learner_authored INTEGER NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                """
+            )
 
     def _ensure_row(self, connection: sqlite3.Connection, module_id: str) -> None:
         connection.execute(
@@ -347,6 +366,95 @@ class SQLiteLearnerRecordRepository:
                 module_failed=module_failed,
             )
 
+    def record_capstone_run(
+        self,
+        *,
+        run_id: str,
+        scenario: str,
+        scaffolding: str,
+        completion_eligible: bool,
+        learner_authored: bool,
+    ) -> None:
+        """Record one capstone execution as advanced-gate evidence.
+
+        Only what actually happened is stored: the scaffolding level the run
+        used, whether the design was learner-authored, and whether the run was
+        completion-eligible. The gate never upgrades a scaffolded run.
+        """
+
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO capstone_runs (
+                    learner_id, run_id, scenario, scaffolding,
+                    completion_eligible, learner_authored, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    self.learner_id,
+                    run_id,
+                    scenario,
+                    scaffolding,
+                    int(completion_eligible),
+                    int(learner_authored),
+                    self._clock(),
+                ),
+            )
+
+    def _advanced_standing(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        capstone_id: str,
+        capstone_status: ModuleStatus,
+        evidence: set[str],
+    ) -> AdvancedStanding:
+        rows = connection.execute(
+            """
+            SELECT scenario, scaffolding, completion_eligible, learner_authored
+            FROM capstone_runs WHERE learner_id = ?
+            """,
+            (self.learner_id,),
+        ).fetchall()
+        eligible = [row for row in rows if row["completion_eligible"]]
+        independent = any(
+            row["scaffolding"] == "independent" and row["learner_authored"] for row in eligible
+        )
+        transfer = any(
+            row["scenario"] != "customer-remediation"
+            and row["scaffolding"] != "guided"
+            and row["learner_authored"]
+            for row in eligible
+        )
+        content_complete = capstone_status is ModuleStatus.COMPLETE
+        capstone_concepts = set(self._assessment_concepts.get(f"assessment.{capstone_id}", ()))
+        concepts_demonstrated = bool(capstone_concepts) and capstone_concepts <= evidence
+        advanced = content_complete and concepts_demonstrated and independent and transfer
+        missing = [
+            label
+            for label, satisfied in (
+                ("capstone content completion", content_complete),
+                ("capstone concept evidence", concepts_demonstrated),
+                ("an independent learner-authored capstone", independent),
+                ("a completion-eligible transfer-scenario design", transfer),
+            )
+            if not satisfied
+        ]
+        note = (
+            "Advanced competence demonstrated: instructional completion, capstone concept "
+            "evidence, independent authorship, and transfer are all on record."
+            if advanced
+            else "Not yet advanced. Still required: " + "; ".join(missing) + "."
+        )
+        return AdvancedStanding(
+            capstone_content_complete=content_complete,
+            capstone_concepts_demonstrated=concepts_demonstrated,
+            independent_authorship_demonstrated=independent,
+            transfer_demonstrated=transfer,
+            advanced_competence_demonstrated=advanced,
+            note=note,
+        )
+
     def dashboard(self, module_ids: Iterable[str], *, capstone_id: str = "24") -> Dashboard:
         ordered = tuple(dict.fromkeys(module_ids))
         with self._lock, self._connect() as connection:
@@ -357,15 +465,22 @@ class SQLiteLearnerRecordRepository:
                 (self.learner_id,),
             ).fetchall()
             evidence, module_evidence, module_failed = self._concept_evidence(connection)
-        by_id = {
-            row["module_id"]: self._as_progress(
-                row,
+            by_id = {
+                row["module_id"]: self._as_progress(
+                    row,
+                    evidence=evidence,
+                    module_evidence=module_evidence,
+                    module_failed=module_failed,
+                )
+                for row in rows
+            }
+            capstone = by_id.get(capstone_id)
+            standing = self._advanced_standing(
+                connection,
+                capstone_id=capstone_id,
+                capstone_status=(capstone.status if capstone else ModuleStatus.NOT_STARTED),
                 evidence=evidence,
-                module_evidence=module_evidence,
-                module_failed=module_failed,
             )
-            for row in rows
-        }
         modules = tuple(by_id[module_id] for module_id in ordered)
         completed = sum(item.status == ModuleStatus.COMPLETE for item in modules)
         active = [item for item in modules if item.status != ModuleStatus.NOT_STARTED]
@@ -386,7 +501,6 @@ class SQLiteLearnerRecordRepository:
             - set(mastered)
         )
         last = max((item.last_activity for item in active if item.last_activity), default=None)
-        capstone = by_id.get(capstone_id)
         return Dashboard(
             modules=modules,
             completed_modules=completed,
@@ -398,6 +512,7 @@ class SQLiteLearnerRecordRepository:
             concepts_needing_review=tuple(review),
             concepts_pending_evidence=tuple(pending),
             capstone_status=(capstone.status if capstone else ModuleStatus.NOT_STARTED),
+            advanced_standing=standing,
         )
 
     def assessment_history(self) -> tuple[dict[str, Any], ...]:
@@ -447,3 +562,4 @@ class SQLiteLearnerRecordRepository:
             connection.execute(
                 "DELETE FROM module_progress WHERE learner_id = ?", (self.learner_id,)
             )
+            connection.execute("DELETE FROM capstone_runs WHERE learner_id = ?", (self.learner_id,))
