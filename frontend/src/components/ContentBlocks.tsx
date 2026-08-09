@@ -1,6 +1,7 @@
 import { useAcademyOptional } from "../context/AcademyContext";
 import { useModeOptional } from "../context/ModeContext";
 import type { ContentBlock, EvidenceFinding } from "../types";
+import { Markdown } from "./Markdown";
 import { StatusBadge } from "./StatusBadge";
 
 function DataTable({ rows }: { rows: Record<string, unknown>[] }) {
@@ -103,7 +104,11 @@ export function ContentBlocks({ blocks }: { blocks: ContentBlock[] }) {
       {visibleBlocks.map((block) => {
         if (block.kind === "code") return <section key={block.id} className="content-block"><h2>{block.title}</h2><pre><code>{block.body}</code></pre><StructuredDetails metadata={block.metadata} /></section>;
         if (["decision_table", "ledger_comparison", "diagnostics"].includes(block.kind)) return <section key={block.id} className={`content-block block-${block.kind}`}><h2>{block.title}</h2>{block.body ? <p>{block.body}</p> : null}<DataTable rows={block.rows} /><StructuredDetails metadata={block.metadata} /></section>;
-        return <section key={block.id} className={`content-block block-${block.kind}`}><h2>{block.title}</h2>{block.body.split("\n").filter(Boolean).map((paragraph, index) => <p key={index}>{paragraph}</p>)}{block.rows.length ? <DataTable rows={block.rows} /> : null}<StructuredDetails metadata={block.metadata} /></section>;
+        {/* Authored lesson material is Markdown (the legacy labs' `ctx.say`
+            tags it as such); render it semantically instead of exposing raw
+            syntax. Bodies not tagged markdown keep the plain-paragraph path,
+            and structured rows always stay a real DataTable. */}
+        return <section key={block.id} className={`content-block block-${block.kind}`}><h2>{block.title}</h2>{block.language === "markdown" ? <Markdown source={block.body} /> : block.body.split("\n").filter(Boolean).map((paragraph, index) => <p key={index}>{paragraph}</p>)}{block.rows.length ? <DataTable rows={block.rows} /> : null}<StructuredDetails metadata={block.metadata} /></section>;
       })}
     </div>
   );
