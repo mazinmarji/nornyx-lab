@@ -246,6 +246,7 @@ journey, Docker build, and Linux/Windows Python coverage.
 - [Honest assurance statement](docs/ASSURANCE.md)
 - [Development, deployment, and testing](docs/DEVELOPMENT.md)
 - [Operator troubleshooting and known limitations](docs/TROUBLESHOOTING.md)
+- [Independent deployment verification](docs/INDEPENDENT_VERIFICATION.md)
 - [Contributing](CONTRIBUTING.md)
 
 ## License
