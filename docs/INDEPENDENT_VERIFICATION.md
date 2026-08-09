@@ -146,20 +146,64 @@ on an eligible independent environment. Every other result — including
   across different operating systems, architectures and networks. Record which
   machine produced each result.
 
-## Execution history
+## Reporting
 
-Recorded so a later reader knows what has and has not been attempted. No
+Attach the `verification-evidence/` directory, or at minimum `verdict.json` and
+`environment.txt`, so a reader knows which machine the result describes. A pass
+with no environment record is not a portability claim about anything in
+particular.
+
+## Acceptance record
+
+Every independent execution, newest first, whatever its outcome. No
 `verification-evidence/` files are committed; these are summaries of runs
-performed elsewhere.
+performed elsewhere. A later reader should be able to see what has been
+attempted, not only what succeeded.
 
-### 2026-08-09 — first genuine independent execution
+### `73e5aad` — 2026-08-09 — PASS
 
-Commit `25b13e9`, on a fresh remote Ubuntu 24.04.4 LTS x86_64 host with Docker
-Engine 29.1.3, Compose v2, no pre-existing images or containers, a fresh clone,
-and no proxy or TLS environment variables.
+Executed once on an independently provisioned Killercoda Ubuntu 24.04.4 LTS
+x86_64 host, outside the development network, with **zero pre-existing Docker
+images or containers**, a fresh clone, and a clean working tree. Only the
+documented product prerequisite was installed beforehand.
 
-The run reached the real production scenario. Steps 1–8 passed: the image built
-from scratch in 82s, the composition started, health returned in 4s, the SPA was
+| | |
+|---|---|
+| Repository | `73e5aadf5b9d2fba3bd8f4a92465e6715d6b358b` |
+| Exit | `0` |
+| Verdict | `pass`, `completed: true` |
+| Failures | product 0 · environment 0 · verifier 0 |
+| `--no-cache` build | 90s |
+| Health | 4s |
+| Ungoverned `publish_external` | `1/1` executed |
+| Governed `publish_external` | `0/0` prevented_before_execution |
+
+The evidence carried the conditional rather than the bare numbers:
+
+```
+0/0 is interpretable as prevention: the same plan recorded 1/1 without governance
+```
+
+Incidental but useful: the host had **no Node and no npm**, and its Python was
+recorded as present-but-unused. The documented Docker path therefore did not
+quietly depend on development-machine tooling.
+
+**What this establishes:** the documented deployment and verification path
+completed on an independently provisioned clean Ubuntu 24.04 x86_64 environment
+at that commit.
+
+**What it does not establish:** portability to every host, operating system,
+architecture, Docker version or network. One independent pass is one machine.
+Accumulate records here rather than generalising from any single one.
+
+### `25b13e9` — 2026-08-09 — verifier defect, not a product finding
+
+The first genuine independent execution, on a fresh remote Ubuntu 24.04.4 LTS
+x86_64 host with Docker Engine 29.1.3, Compose v2, no pre-existing images or
+containers, a fresh clone, and no proxy or TLS environment variables.
+
+It reached the real production scenario. Steps 1–8 passed: the image built from
+scratch in 82s, the composition started, health returned in 4s, the SPA was
 served, and the five-minute demo executed inside the container. Step 10
 persistence passed.
 
@@ -167,17 +211,16 @@ persistence passed.
 harness reported `product-failure` with exit 1.
 
 That verdict was wrong in kind. The semantic checker was a Python program
-embedded in a shell string whose quoting bash rewrote; the failure was in the
+embedded in a shell string whose quoting bash rewrote, so no test had ever
+executed the payload in the form production used; the failure was in the
 instrument, not in Nornyx. **It is not evidence of a governance or counter
-defect.** The correction — moving the checker into a packaged module and adding
-`verifier-failure` — is what this history entry exists to explain.
+defect.**
 
-**B5 acceptance remains pending.** It requires a new disposable environment to
-run the corrected verifier and produce exit 0 with `verdict: pass`.
+At the time of this execution, B5 acceptance remained pending: it required a new
+disposable environment to run the corrected verifier and produce exit 0 with
+`verdict: pass`. That acceptance is the `73e5aad` entry above.
 
-## Reporting
-
-Attach the `verification-evidence/` directory, or at minimum `verdict.json` and
-`environment.txt`, so a reader knows which machine the result describes. A pass
-with no environment record is not a portability claim about anything in
-particular.
+The correction — moving both checkers into packaged `nornyx_lab.verification`
+modules and adding the `verifier-failure` class — merged in `73e5aad`. This entry
+is kept because a failed acceptance attempt is evidence too, and because the
+misattribution is the reason the third failure kind exists.
