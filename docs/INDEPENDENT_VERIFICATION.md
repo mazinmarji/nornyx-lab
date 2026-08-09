@@ -27,10 +27,28 @@ registry is unreachable, it records an environment failure and stops. A script
 that installs its own prerequisites and then reports success has proved only
 that it can install prerequisites.
 
+## Prerequisites, in three kinds
+
+Keeping these apart is the point. A verifier that quietly needs a host toolchain
+would be the very portability dependency it exists to detect — and the operator
+would install exactly what the documentation asked for, then be told afterwards
+to install something else.
+
+| Kind | What | Why |
+|---|---|---|
+| **Product** | Docker, Docker Compose v2 | What the [README](../README.md) asks an operator to install to run Nornyx Lab |
+| **Verification harness** | bash, git, curl | What the script itself needs to execute. Checked up front, before the long build, and reported as *harness* prerequisites |
+| **Not required on the host** | Python, Node, npm, `uv`, Nornyx | Anything needing a Python runtime executes inside the already-built production image |
+
+If the script reports a missing harness prerequisite, that is a limitation of
+the harness, not a finding about the product. It is still an environment
+failure — the run cannot proceed — but it says which kind it is.
+
 ## Procedure
 
-1. On the clean machine, install only what the [README](../README.md) requires
-   for the container path: Docker with Compose v2. Nothing else.
+1. On the clean machine, install the product prerequisites: Docker with Compose
+   v2. The harness also needs bash, git and curl, which most systems already
+   provide; the script checks and names them before doing any work.
 
 2. Clone the repository and check out the commit under test:
 
@@ -55,15 +73,15 @@ that it can install prerequisites.
 
 | Step | Condition |
 |---|---|
-| 1 | Records OS, architecture, Docker, Python, Node, npm, git, repository SHA and whether the tree is dirty |
-| 2 | Prerequisites present — **reported, never installed** |
+| 1 | Records OS, architecture, Docker, Compose, git, repository SHA and whether the tree is dirty. Host Python and Node are noted as present-or-not for context only; neither is used |
+| 2 | Product and harness prerequisites present, and port 8000 free — **reported, never installed** |
 | 3 | `frontend/package-lock.json` is committed, so the documented build is reproducible |
 | 4 | `docker build --no-cache --pull` succeeds, exercising `npm ci` against the lockfile and Python resolution with nothing cached |
 | 5 | `docker compose up -d` starts the documented composition |
 | 6 | Polls `/api/v1/health` until healthy rather than sleeping a fixed time |
 | 7 | `GET /` serves the application shell, not only the API |
 | 8 | The five-minute scenario runs **inside the production container** |
-| 9 | Ungoverned records `1/1` and `executed`; governed records `0/0` and `prevented_before_execution` |
+| 9 | Ungoverned records `1/1` and `executed`; governed records `0/0` and `prevented_before_execution` — parsed by the Python **inside the image**, not on the host |
 | 10 | The learner record survives `docker compose restart`, which the named volume promises |
 | 11 | Writes `verdict.json` and captures logs, image metadata and every command's output |
 

@@ -19,6 +19,19 @@
 #      findings, and collapsing them would let an infrastructure problem read as
 #      a defect, or the reverse.
 #
+# Prerequisites, in two kinds that must not be confused:
+#
+#   PRODUCT      docker, docker compose v2 — what the documentation asks an
+#                operator to install in order to run Nornyx Lab.
+#   HARNESS      bash, git, curl — what *this script* needs to execute. They are
+#                checked up front and reported as harness prerequisites, never
+#                as product ones.
+#
+# Deliberately NOT required on the host: python, node, npm, uv, nornyx. Anything
+# needing a Python runtime runs inside the already-built production image. A
+# verifier that quietly required a host toolchain would be the very portability
+# dependency it exists to detect.
+#
 # Usage:
 #   ./scripts/verify_independent_deployment.sh [--evidence DIR] [--keep-running]
 #
@@ -121,7 +134,8 @@ head_ "Record the machine"
   echo "arch=$(uname -m 2>/dev/null || echo unknown)"
   echo "docker=$(docker --version 2>/dev/null || echo MISSING)"
   echo "docker_compose=$(docker compose version 2>/dev/null | head -1 || echo MISSING)"
-  echo "python=$(python3 --version 2>/dev/null || python --version 2>/dev/null || echo MISSING)"
+  # Recorded for context only. The harness never uses a host Python.
+  echo "host_python_present_but_unused=$(command -v python3 > /dev/null 2>&1 || command -v python > /dev/null 2>&1 && echo yes || echo no)"
   echo "node=$(node --version 2>/dev/null || echo MISSING)"
   echo "npm=$(npm --version 2>/dev/null || echo MISSING)"
   echo "git=$(git --version 2>/dev/null || echo MISSING)"
@@ -156,22 +170,27 @@ if [ ! -f compose.yaml ] || [ ! -f Dockerfile ]; then
   envfail "run this from the repository root: compose.yaml and Dockerfile not found here"
 fi
 
+# Harness prerequisites. Checked here, before the fifteen-minute build, and
+# named as this script's own needs — so an operator who installed exactly what
+# the documentation asked for is never told afterwards to install something else.
+for tool in curl git; do
+  if ! command -v "$tool" > /dev/null 2>&1; then
+    envfail "${tool} is required by this verification script, not by the product."
+    envfail "install ${tool} and re-run; the script will not install it."
+  else
+    pass "${tool} is available (verification harness prerequisite)"
+  fi
+done
+
 # The composition binds 127.0.0.1:8000. Something already holding that port is a
 # condition of this machine, not a defect in the product, and catching it here
-# gives a clearer message than a daemon bind error twenty minutes into a build.
-if curl -fsS --max-time 3 "${BASE_URL}/api/v1/health" > /dev/null 2>&1; then
-  envfail "something is already serving ${BASE_URL} — stop it, or the composition cannot bind"
-elif command -v python3 > /dev/null 2>&1 || command -v python > /dev/null 2>&1; then
-  PORT_PY=$(command -v python3 || command -v python)
-  if ! "$PORT_PY" -c "
-import socket, sys
-s = socket.socket()
-sys.exit(0 if s.connect_ex(('127.0.0.1', 8000)) != 0 else 1)
-" 2>/dev/null; then
-    envfail "port 8000 on this machine is already in use; free it before verifying"
-  else
-    pass "port 8000 is free for the composition to bind"
-  fi
+# beats a daemon bind error twenty minutes into a build. Probed with bash's own
+# /dev/tcp so the check adds no dependency of its own.
+if (exec 3<>/dev/tcp/127.0.0.1/8000) 2>/dev/null; then
+  exec 3<&- 3>&- 2>/dev/null || true
+  envfail "port 8000 on this machine is already in use; free it before verifying"
+else
+  pass "port 8000 is free for the composition to bind"
 fi
 
 if [ "$ENVIRONMENT_FAILURES" -gt 0 ]; then
@@ -292,16 +311,13 @@ fi
 # ─────────────────────────────────────────────── 9. the semantics, not just a 200
 head_ "Require the expected counter semantics"
 
-PY=$(command -v python3 || command -v python)
-if [ -z "$PY" ]; then
-  envfail "no python on PATH to inspect the response; install one and re-run"
-  exit 2
-fi
-
-if "$PY" - "${EVIDENCE_DIR}/demo-run.json" > "${EVIDENCE_DIR}/counter-check.txt" 2>&1 <<'PYEOF'
+# Parsed by the Python inside the production image, piped over stdin. The host
+# needs no interpreter: requiring one would make this script the hidden
+# portability dependency it exists to find.
+if docker run --rm -i --entrypoint python "$IMAGE_TAG" -c '
 import json, sys
 
-run = json.load(open(sys.argv[1], encoding="utf-8"))
+run = json.load(sys.stdin)
 variants = {v["id"]: v for v in run["variants"]}
 problems = []
 
@@ -345,7 +361,7 @@ if not problems:
 for problem in problems:
     print(f"PROBLEM: {problem}")
 raise SystemExit(1 if problems else 0)
-PYEOF
+' < "${EVIDENCE_DIR}/demo-run.json" > "${EVIDENCE_DIR}/counter-check.txt" 2>&1
 then
   while IFS= read -r line; do say "   $line"; done < "${EVIDENCE_DIR}/counter-check.txt"
   pass "counter semantics are as documented"
@@ -373,10 +389,11 @@ if record docker-restart docker compose restart; then
 
   if [ "$RESTART_OK" -eq 1 ]; then
     curl -fsS --max-time 30 "${BASE_URL}/api/v1/progress" -o "${EVIDENCE_DIR}/progress-after.json" 2>/dev/null || true
-    if "$PY" - "${EVIDENCE_DIR}/progress-before.json" "${EVIDENCE_DIR}/progress-after.json" >> "$LOG" 2>&1 <<'PYEOF'
+    # Both payloads stream in as one JSON array, so the container needs no
+    # mounted path and the host still needs no interpreter.
+    if { echo "["; cat "${EVIDENCE_DIR}/progress-before.json"; echo ",";          cat "${EVIDENCE_DIR}/progress-after.json"; echo "]"; }        | docker run --rm -i --entrypoint python "$IMAGE_TAG" -c '
 import json, sys
-before = json.load(open(sys.argv[1], encoding="utf-8"))
-after = json.load(open(sys.argv[2], encoding="utf-8"))
+before, after = json.load(sys.stdin)
 def executions(payload):
     return {m["module_id"]: m.get("executions", 0) for m in payload.get("modules", [])}
 b, a = executions(before), executions(after)
@@ -386,7 +403,7 @@ if not b:
 lost = [k for k, v in b.items() if a.get(k, 0) < v]
 print("modules with fewer executions after restart:", lost or "none")
 raise SystemExit(1 if lost else 0)
-PYEOF
+' >> "$LOG" 2>&1
     then
       pass "the learner record survived the restart"
     else

@@ -148,6 +148,75 @@ def test_it_captures_evidence_and_a_verdict() -> None:
         assert artifact in script, f"{artifact} is not captured as evidence"
 
 
+# ------------------------- the verifier must not be the portability dependency
+def test_the_harness_never_requires_a_host_python() -> None:
+    """The verifier cannot become the thing that fails to port.
+
+    The first version told an operator who had installed exactly what the
+    documentation asked for — Docker and Compose — to "install python and
+    re-run". CI could never surface it: GitHub runners already carry Python,
+    Node, git and curl, so the harness's own dependencies were invisible.
+
+    Every Python invocation must therefore run inside the built image.
+    """
+    script = _script()
+
+    # No message may ever ask the operator for a Python.
+    for line in script.splitlines():
+        if "envfail" in line or "fail " in line:
+            assert "python" not in line.lower(), (
+                f"the harness asks the operator for a Python runtime: {line.strip()[:90]!r}"
+            )
+
+    # Every `python` execution is a container execution.
+    for match in re.finditer(r"^[^#\n]*\bpython3?\b[^\n]*$", script, re.MULTILINE):
+        line = match.group(0)
+        if "host_python_present_but_unused" in line:
+            continue  # informational record, gates nothing
+        assert "docker run" in line or "entrypoint python" in line, (
+            f"this line runs a host Python: {line.strip()[:90]!r}"
+        )
+
+    # And the interpreter must come from the image under test.
+    assert 'docker run --rm -i --entrypoint python "$IMAGE_TAG"' in script
+
+
+def test_harness_prerequisites_are_checked_before_the_build_and_named_as_such() -> None:
+    """An operator should learn about a missing `curl` in seconds, not after a
+    fifteen-minute build, and should be told whose requirement it is."""
+    script = _script()
+
+    assert re.search(r"for tool in curl git; do", script), (
+        "the harness does not check its own prerequisites"
+    )
+    assert "required by this verification script, not by the product" in script, (
+        "a harness prerequisite must not read as a product prerequisite"
+    )
+    assert script.index("for tool in curl git") < script.index("--no-cache"), (
+        "harness prerequisites must be checked before the expensive build"
+    )
+
+
+def test_the_port_probe_adds_no_dependency() -> None:
+    """The probe itself must not need an interpreter."""
+    script = _script()
+    assert "/dev/tcp/127.0.0.1/8000" in script, "use bash's own socket rather than a helper runtime"
+
+
+def test_the_procedure_separates_the_three_kinds_of_prerequisite() -> None:
+    doc = DOC.read_text(encoding="utf-8")
+    assert "Prerequisites, in three kinds" in doc
+    assert "Verification harness" in doc
+    assert "Not required on the host" in doc
+    # The three lists must actually disagree with each other.
+    harness = doc[doc.index("Verification harness") : doc.index("Not required on the host")]
+    excluded = doc[doc.index("Not required on the host") :][:400]
+    assert "curl" in harness and "git" in harness
+    for absent in ("Python", "Node", "npm"):
+        assert absent in excluded, f"{absent} must be named as not required on the host"
+        assert absent.lower() not in harness.lower(), f"{absent} is listed as a harness need"
+
+
 # ------------------------------- defects the first real run exposed, now pinned
 def test_a_verdict_is_written_from_the_exit_trap() -> None:
     """Early exits must still leave a verdict.
