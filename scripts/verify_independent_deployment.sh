@@ -47,19 +47,45 @@ EVIDENCE_DIR="${PWD}/verification-evidence"
 KEEP_RUNNING=0
 BASE_URL="http://127.0.0.1:8000"
 IMAGE_TAG="nornyx-academy:2.0.0"
-HEALTH_TIMEOUT=300
+# Overridable so a harness test can bound the wait; an operator never needs to.
+HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-300}"
 PRODUCT_FAILURES=0
 ENVIRONMENT_FAILURES=0
 STEP=0
+# Set only after the final verification step. Absent it, the run did not finish,
+# and an unfinished run must never be able to report `pass` — a SIGTERM or an
+# external timeout would otherwise leave false acceptance evidence behind.
+COMPLETED=0
+# Set only after *this* invocation brings the composition up. The teardown is
+# gated on it, so a run that stopped at the preflight cannot destroy a
+# deployment, or a progress volume, that it never created.
+COMPOSITION_STARTED=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --evidence) EVIDENCE_DIR="$2"; shift 2 ;;
+    --evidence)
+      # A bare `--evidence` must be a usage error, not an empty assignment that
+      # silently writes evidence somewhere unexpected or spins on an argument
+      # that is not there.
+      if [ "$#" -lt 2 ] || [ -z "$2" ]; then
+        echo "--evidence requires a directory" >&2
+        exit 3
+      fi
+      EVIDENCE_DIR="$2"
+      shift 2
+      ;;
     --keep-running) KEEP_RUNNING=1; shift ;;
-    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,40p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 3 ;;
   esac
 done
+
+# Read the repository's state *before* creating any evidence file. Writing the
+# log first would make a pristine checkout look dirty — the verifier
+# contaminating the very condition it is trying to record.
+REPO_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+REPO_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+REPO_DIRTY="$([ -n "$(git status --porcelain 2>/dev/null)" ] && echo yes || echo no)"
 
 mkdir -p "$EVIDENCE_DIR" || { echo "cannot write evidence to $EVIDENCE_DIR" >&2; exit 3; }
 LOG="${EVIDENCE_DIR}/verification.log"
@@ -84,11 +110,16 @@ record() {
 # The procedure tells an operator to keep verdict.json; a run that stops early
 # and produces none leaves them with evidence they cannot interpret.
 write_verdict() {
-  local verdict="pass"
+  # `pass` is earned, never defaulted. A run killed by a signal or an external
+  # timeout reaches this trap with both counters at zero; reporting that as a
+  # pass would be false acceptance evidence, which is worse than none.
+  local verdict="incomplete"
   if [ "$ENVIRONMENT_FAILURES" -gt 0 ]; then
     verdict="environment-failure"
   elif [ "$PRODUCT_FAILURES" -gt 0 ]; then
     verdict="product-failure"
+  elif [ "$COMPLETED" -eq 1 ]; then
+    verdict="pass"
   fi
   {
     echo "{"
@@ -97,6 +128,7 @@ write_verdict() {
     echo "  \"product_failures\": ${PRODUCT_FAILURES},"
     echo "  \"environment_failures\": ${ENVIRONMENT_FAILURES},"
     echo "  \"reached_step\": ${STEP},"
+    echo "  \"completed\": $([ "$COMPLETED" -eq 1 ] && echo true || echo false),"
     echo "  \"image\": \"${IMAGE_TAG}\","
     echo "  \"build_seconds\": ${BUILD_SECONDS:-null},"
     echo "  \"finished_utc\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\","
@@ -109,13 +141,20 @@ write_verdict() {
 
 cleanup() {
   write_verdict
+  if [ "$COMPOSITION_STARTED" -ne 1 ]; then
+    # Nothing was started here, so there is nothing of ours to remove. This
+    # matters most in the case the preflight exists to catch: port 8000 already
+    # held by an earlier run, where an unconditional `down -v` would stop that
+    # deployment and delete its progress volume.
+    return
+  fi
   if [ "$KEEP_RUNNING" -eq 1 ]; then
     say ""
     say "Composition left running at ${BASE_URL} (--keep-running)."
     return
   fi
   say ""
-  say "Tearing down the composition."
+  say "Tearing down the composition this run started."
   docker compose down -v >> "$LOG" 2>&1 || true
 }
 trap cleanup EXIT
@@ -139,15 +178,15 @@ head_ "Record the machine"
   echo "node=$(node --version 2>/dev/null || echo MISSING)"
   echo "npm=$(npm --version 2>/dev/null || echo MISSING)"
   echo "git=$(git --version 2>/dev/null || echo MISSING)"
-  echo "repository_sha=$(git rev-parse HEAD 2>/dev/null || echo unknown)"
-  echo "repository_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
-  echo "repository_dirty=$([ -n "$(git status --porcelain 2>/dev/null)" ] && echo yes || echo no)"
+  # Captured before any evidence file existed; see above.
+  echo "repository_sha=${REPO_SHA}"
+  echo "repository_branch=${REPO_BRANCH}"
+  echo "repository_dirty=${REPO_DIRTY}"
 } > "${EVIDENCE_DIR}/environment.txt"
 cat "${EVIDENCE_DIR}/environment.txt" | tee -a "$LOG" > /dev/null
 say "   recorded to environment.txt"
 
-REPO_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
-say "   repository at ${REPO_SHA}"
+say "   repository at ${REPO_SHA} (dirty: ${REPO_DIRTY})"
 
 # ─────────────────────────────────────────────── 2. prerequisites, never installed
 head_ "Check prerequisites (never installing them)"
@@ -239,6 +278,7 @@ fi
 head_ "Start the documented composition"
 
 if record docker-compose-up docker compose up -d --no-build; then
+  COMPOSITION_STARTED=1
   pass "composition started"
 else
   if grep -qiE "ports are not available|address already in use|bind: |port is already allocated"        "${EVIDENCE_DIR}/docker-compose-up.txt"; then
@@ -421,6 +461,9 @@ head_ "Write the verdict"
 
 docker compose logs --no-color --tail=300 > "${EVIDENCE_DIR}/container-logs.txt" 2>&1 || true
 docker image inspect "$IMAGE_TAG" > "${EVIDENCE_DIR}/image-inspect.json" 2>&1 || true
+
+# Every verification step has now run. Only from here can the verdict be pass.
+COMPLETED=1
 
 VERDICT="pass"
 EXIT_CODE=0
