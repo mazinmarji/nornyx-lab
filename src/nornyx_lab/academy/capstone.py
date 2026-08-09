@@ -2112,7 +2112,15 @@ def run_capstone(
                 "capstone-claim",
                 BlockKind.VERDICT,
                 title="Learner assurance claim review",
-                body=config.assurance.claim,
+                # Residual risk and the falsification condition are part of the
+                # claim itself, so they live in the always-visible body — an
+                # assurance limit must never sit only in collapsible metadata.
+                body=(
+                    f"{config.assurance.claim}\n"
+                    f"Residual risk: {config.assurance.residual_risk}\n"
+                    f"Falsification condition: {config.assurance.falsification_condition}\n"
+                    "Tier ceiling: Tier 2 on the named cooperative synchronous surface."
+                ),
                 metadata={
                     "residual_risk": config.assurance.residual_risk,
                     "falsification_condition": config.assurance.falsification_condition,

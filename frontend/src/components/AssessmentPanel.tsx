@@ -107,12 +107,12 @@ export function AssessmentPanel({
           {/* The mastery claim must match the evidence exactly: this item
               tested specific concepts, and passing demonstrates those — not
               every concept the module teaches. */}
-          {submission.data.passed && submission.data.concepts_mastered.length ? (
+          {submission.data.passed && (submission.data.concepts_mastered ?? []).length ? (
             <p className="assessment-concepts" data-testid="assessment-concepts-demonstrated">
               <strong>Demonstrated:</strong> {submission.data.concepts_mastered.join(", ")}.
             </p>
           ) : null}
-          {submission.data.passed && submission.data.module_concepts_pending.length ? (
+          {submission.data.passed && (submission.data.module_concepts_pending ?? []).length ? (
             <p className="assessment-concepts assessment-concepts-pending" data-testid="assessment-concepts-pending">
               <strong>Not yet demonstrated:</strong>{" "}
               {submission.data.module_concepts_pending.join(", ")} — this lesson teaches these,
