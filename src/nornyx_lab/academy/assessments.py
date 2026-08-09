@@ -41,10 +41,17 @@ class AssessmentService:
             definition.model_dump(exclude={"correct", "explanation", "incorrect_explanations"})
         )
 
-    def submit(
-        self, assessment_id: str, submission: AssessmentSubmission, *, concepts: tuple[str, ...]
-    ) -> AssessmentResult:
+    def submit(self, assessment_id: str, submission: AssessmentSubmission) -> AssessmentResult:
+        """Score one attempt.
+
+        Mastery evidence is granted only for the concepts the assessment
+        declares it tests. The caller no longer supplies the module's whole
+        concept list, because "one correct answer masters the module" was a
+        measurement defect, not a feature.
+        """
+
         definition = self.definition(assessment_id)
+        concepts = definition.concepts
         supplied = submission.answers
         if definition.kind == AssessmentKind.ORDERING:
             correct_count = sum(

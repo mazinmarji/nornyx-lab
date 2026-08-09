@@ -267,6 +267,8 @@ export interface PublicAssessment {
   id: string;
   module_id: string;
   kind: string;
+  /** The concepts this item actually tests — never the whole module. */
+  concepts: string[];
   prompt: string;
   context: string;
   options: AssessmentOption[];
@@ -281,8 +283,11 @@ export interface AssessmentResult {
   correct_answers: string[];
   explanation: string;
   feedback: string[];
+  /** Evidence granted by this attempt: the tested concepts only. */
   concepts_mastered: string[];
   concepts_needing_review: string[];
+  /** Module concepts still without mastery evidence after this attempt. */
+  module_concepts_pending: string[];
 }
 
 export interface ModuleProgress {
@@ -294,6 +299,8 @@ export interface ModuleProgress {
   last_activity: string | null;
   concepts_mastered: string[];
   concepts_needing_review: string[];
+  /** Taught by this module, no mastery evidence yet. Completion ≠ mastery. */
+  concepts_pending_evidence: string[];
 }
 
 export interface Dashboard {
@@ -306,6 +313,7 @@ export interface Dashboard {
   last_activity: string | null;
   concepts_mastered: string[];
   concepts_needing_review: string[];
+  concepts_pending_evidence: string[];
   capstone_status: ModuleStatus;
 }
 

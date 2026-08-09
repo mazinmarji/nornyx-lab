@@ -358,6 +358,10 @@ class AssessmentDefinition(AcademyModel):
     id: str
     module_id: str
     kind: AssessmentKind
+    # The concepts this item actually tests — always a proper subset of the
+    # module's concepts. Passing grants mastery evidence for these and nothing
+    # else; one correct answer must not substantiate a whole module.
+    concepts: tuple[str, ...] = ()
     prompt: str
     context: str = ""
     options: tuple[AssessmentOption, ...]
@@ -371,6 +375,7 @@ class PublicAssessment(AcademyModel):
     id: str
     module_id: str
     kind: AssessmentKind
+    concepts: tuple[str, ...] = ()
     prompt: str
     context: str = ""
     options: tuple[AssessmentOption, ...]
@@ -389,8 +394,13 @@ class AssessmentResult(AcademyModel):
     correct_answers: tuple[str, ...]
     explanation: str
     feedback: tuple[str, ...]
+    # Evidence granted by this attempt: only the concepts the assessment
+    # declares it tests, never every concept attached to the module.
     concepts_mastered: tuple[str, ...] = ()
     concepts_needing_review: tuple[str, ...] = ()
+    # Module concepts still without mastery evidence after this attempt was
+    # recorded. Lets the UI say "demonstrated X; Y still needs evidence".
+    module_concepts_pending: tuple[str, ...] = ()
 
 
 class ModuleProgress(AcademyModel):
@@ -402,6 +412,9 @@ class ModuleProgress(AcademyModel):
     last_activity: str | None = None
     concepts_mastered: tuple[str, ...] = ()
     concepts_needing_review: tuple[str, ...] = ()
+    # Concepts the module teaches for which no mastery evidence exists yet.
+    # "Complete" module status is content completion; it does not clear this.
+    concepts_pending_evidence: tuple[str, ...] = ()
 
 
 class Dashboard(AcademyModel):
@@ -414,6 +427,7 @@ class Dashboard(AcademyModel):
     last_activity: str | None = None
     concepts_mastered: tuple[str, ...] = ()
     concepts_needing_review: tuple[str, ...] = ()
+    concepts_pending_evidence: tuple[str, ...] = ()
     capstone_status: ModuleStatus = ModuleStatus.NOT_STARTED
 
 

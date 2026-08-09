@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -52,6 +52,13 @@ class SQLiteLearnerRecordRepository:
 
     The learner id is explicit in the schema even though the local experience
     uses one fixed identity.  No secret or live-model credential is stored here.
+
+    Concept mastery is derived, never trusted from a stored aggregate: the
+    evidence is the set of recorded assessment attempts, each granting only the
+    concepts its assessment declares it tests.  A pre-remediation store whose
+    ``module_progress.concepts_mastered`` column claimed every module concept
+    therefore degrades safely to "completed, but mastery not yet demonstrated"
+    instead of keeping fabricated mastery.
     """
 
     def __init__(
@@ -60,11 +67,19 @@ class SQLiteLearnerRecordRepository:
         *,
         learner_id: str = "local",
         clock: Callable[[], str] = _utc_now,
+        assessment_concepts: Mapping[str, tuple[str, ...]] | None = None,
+        module_concepts: Mapping[str, tuple[str, ...]] | None = None,
     ) -> None:
         self.path = Path(path)
         self.learner_id = learner_id
         self._clock = clock
         self._lock = threading.RLock()
+        # Resolver for attempts recorded before per-attempt concepts were
+        # stored: an old passed attempt re-derives evidence from what its
+        # assessment declares today. An assessment that no longer exists
+        # grants nothing — honest degradation, never invention.
+        self._assessment_concepts = dict(assessment_concepts or {})
+        self._module_concepts = dict(module_concepts or {})
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
@@ -110,6 +125,16 @@ class SQLiteLearnerRecordRepository:
                     ON assessment_attempts (learner_id, module_id, created_at);
                 """
             )
+            # Additive migration for stores created before per-attempt concept
+            # evidence existed. NULL marks a legacy attempt whose tested
+            # concepts are re-derived from the current assessment declarations.
+            columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(assessment_attempts)")
+            }
+            if "concepts_tested" not in columns:
+                connection.execute(
+                    "ALTER TABLE assessment_attempts ADD COLUMN concepts_tested TEXT"
+                )
 
     def _ensure_row(self, connection: sqlite3.Connection, module_id: str) -> None:
         connection.execute(
@@ -131,16 +156,71 @@ class SQLiteLearnerRecordRepository:
             return ModuleStatus.IN_PROGRESS
         return ModuleStatus.NOT_STARTED
 
-    def _as_progress(self, row: sqlite3.Row) -> ModuleProgress:
+    def _attempt_concepts(self, row: sqlite3.Row) -> tuple[str, ...]:
+        stored = row["concepts_tested"]
+        if stored is not None:
+            return tuple(json.loads(stored))
+        return tuple(self._assessment_concepts.get(row["assessment_id"], ()))
+
+    def _concept_evidence(
+        self, connection: sqlite3.Connection
+    ) -> tuple[set[str], dict[str, set[str]], dict[str, set[str]]]:
+        """Derive mastery evidence from the recorded attempts.
+
+        Returns the global evidence set (a concept demonstrated anywhere counts
+        wherever it is taught), per-module evidence, and per-module concepts
+        tested by failed attempts.
+        """
+
+        rows = connection.execute(
+            """
+            SELECT assessment_id, module_id, passed, concepts_tested
+            FROM assessment_attempts WHERE learner_id = ?
+            """,
+            (self.learner_id,),
+        ).fetchall()
+        evidence: set[str] = set()
+        module_evidence: dict[str, set[str]] = {}
+        module_failed: dict[str, set[str]] = {}
+        for row in rows:
+            concepts = set(self._attempt_concepts(row))
+            if row["passed"]:
+                evidence |= concepts
+                module_evidence.setdefault(row["module_id"], set()).update(concepts)
+            else:
+                module_failed.setdefault(row["module_id"], set()).update(concepts)
+        return evidence, module_evidence, module_failed
+
+    def _as_progress(
+        self,
+        row: sqlite3.Row,
+        *,
+        evidence: set[str],
+        module_evidence: dict[str, set[str]],
+        module_failed: dict[str, set[str]],
+    ) -> ModuleProgress:
+        # The stored concepts_mastered aggregate is deliberately ignored: a
+        # legacy store granted every module concept for one pass, and reading
+        # it back would preserve exactly that fabricated mastery.
+        module_id = row["module_id"]
+        taught = self._module_concepts.get(module_id)
+        if taught is not None:
+            mastered = sorted(set(taught) & evidence)
+            pending = sorted(set(taught) - evidence)
+        else:
+            mastered = sorted(module_evidence.get(module_id, set()))
+            pending = []
+        review = sorted(module_failed.get(module_id, set()) - evidence)
         return ModuleProgress(
-            module_id=row["module_id"],
+            module_id=module_id,
             status=self._status(row),
             executions=row["executions"],
             assessment_attempts=row["assessment_attempts"],
             best_score=row["best_score"],
             last_activity=row["last_activity"],
-            concepts_mastered=tuple(json.loads(row["concepts_mastered"])),
-            concepts_needing_review=tuple(json.loads(row["concepts_needing_review"])),
+            concepts_mastered=tuple(mastered),
+            concepts_needing_review=tuple(review),
+            concepts_pending_evidence=tuple(pending),
         )
 
     def get(self, module_id: str) -> ModuleProgress:
@@ -151,7 +231,13 @@ class SQLiteLearnerRecordRepository:
                 (self.learner_id, module_id),
             ).fetchone()
             assert row is not None
-            return self._as_progress(row)
+            evidence, module_evidence, module_failed = self._concept_evidence(connection)
+            return self._as_progress(
+                row,
+                evidence=evidence,
+                module_evidence=module_evidence,
+                module_failed=module_failed,
+            )
 
     def record_execution(
         self,
@@ -180,7 +266,13 @@ class SQLiteLearnerRecordRepository:
                 (self.learner_id, module_id),
             ).fetchone()
             assert row is not None
-            return self._as_progress(row)
+            evidence, module_evidence, module_failed = self._concept_evidence(connection)
+            return self._as_progress(
+                row,
+                evidence=evidence,
+                module_evidence=module_evidence,
+                module_failed=module_failed,
+            )
 
     def record_assessment(
         self,
@@ -191,16 +283,20 @@ class SQLiteLearnerRecordRepository:
     ) -> ModuleProgress:
         now = self._clock()
         binding = json.dumps(version_binding or {}, sort_keys=True)
-        mastered = json.dumps(sorted(set(result.concepts_mastered)))
-        review = json.dumps(sorted(set(result.concepts_needing_review)))
+        # The concepts this attempt tested, stored per attempt. Mastery is
+        # derived from these records; the module_progress aggregate columns are
+        # legacy and no longer read.
+        tested = json.dumps(
+            sorted(set(result.concepts_mastered) | set(result.concepts_needing_review))
+        )
         with self._lock, self._connect() as connection:
             self._ensure_row(connection, result.module_id)
             connection.execute(
                 """
                 INSERT INTO assessment_attempts (
                     learner_id, assessment_id, module_id, answers, score, passed,
-                    feedback, version_binding, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    feedback, version_binding, created_at, concepts_tested
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     self.learner_id,
@@ -212,6 +308,7 @@ class SQLiteLearnerRecordRepository:
                     json.dumps(result.feedback),
                     binding,
                     now,
+                    tested,
                 ),
             )
             connection.execute(
@@ -223,8 +320,6 @@ class SQLiteLearnerRecordRepository:
                         WHEN best_score IS NULL OR ? > best_score THEN ?
                         ELSE best_score
                     END,
-                    concepts_mastered = CASE WHEN ? THEN ? ELSE concepts_mastered END,
-                    concepts_needing_review = CASE WHEN ? THEN '[]' ELSE ? END,
                     version_binding = ?,
                     last_activity = ?
                 WHERE learner_id = ? AND module_id = ?
@@ -233,10 +328,6 @@ class SQLiteLearnerRecordRepository:
                     int(result.passed),
                     result.score,
                     result.score,
-                    int(result.passed),
-                    mastered,
-                    int(result.passed),
-                    review,
                     binding,
                     now,
                     self.learner_id,
@@ -248,7 +339,13 @@ class SQLiteLearnerRecordRepository:
                 (self.learner_id, result.module_id),
             ).fetchone()
             assert row is not None
-            return self._as_progress(row)
+            evidence, module_evidence, module_failed = self._concept_evidence(connection)
+            return self._as_progress(
+                row,
+                evidence=evidence,
+                module_evidence=module_evidence,
+                module_failed=module_failed,
+            )
 
     def dashboard(self, module_ids: Iterable[str], *, capstone_id: str = "24") -> Dashboard:
         ordered = tuple(dict.fromkeys(module_ids))
@@ -259,7 +356,16 @@ class SQLiteLearnerRecordRepository:
                 "SELECT * FROM module_progress WHERE learner_id = ?",
                 (self.learner_id,),
             ).fetchall()
-        by_id = {row["module_id"]: self._as_progress(row) for row in rows}
+            evidence, module_evidence, module_failed = self._concept_evidence(connection)
+        by_id = {
+            row["module_id"]: self._as_progress(
+                row,
+                evidence=evidence,
+                module_evidence=module_evidence,
+                module_failed=module_failed,
+            )
+            for row in rows
+        }
         modules = tuple(by_id[module_id] for module_id in ordered)
         completed = sum(item.status == ModuleStatus.COMPLETE for item in modules)
         active = [item for item in modules if item.status != ModuleStatus.NOT_STARTED]
@@ -275,6 +381,10 @@ class SQLiteLearnerRecordRepository:
         )
         mastered = sorted({concept for item in modules for concept in item.concepts_mastered})
         review = sorted({concept for item in modules for concept in item.concepts_needing_review})
+        pending = sorted(
+            {concept for item in modules for concept in item.concepts_pending_evidence}
+            - set(mastered)
+        )
         last = max((item.last_activity for item in active if item.last_activity), default=None)
         capstone = by_id.get(capstone_id)
         return Dashboard(
@@ -286,6 +396,7 @@ class SQLiteLearnerRecordRepository:
             last_activity=last,
             concepts_mastered=tuple(mastered),
             concepts_needing_review=tuple(review),
+            concepts_pending_evidence=tuple(pending),
             capstone_status=(capstone.status if capstone else ModuleStatus.NOT_STARTED),
         )
 

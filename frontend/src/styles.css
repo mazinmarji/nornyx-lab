@@ -274,6 +274,10 @@ input:disabled, select:disabled { background: #eaece8; color: #69787c; }
 .concept-line { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .concept-line span { padding: 0.28rem 0.45rem; background: #e8eeeb; border: 1px solid #d0d9d5; color: var(--ink-600); font-size: 0.67rem; }
 .concept-review span { background: var(--amber-soft); border-color: #e3c58e; }
+.concept-pending span { background: var(--surface-cool); border-style: dashed; }
+.concept-note { margin: 0 0 0.6rem; font-size: 0.82rem; }
+.assessment-concepts { margin-top: 0.6rem; font-size: 0.88rem; }
+.assessment-concepts-pending { color: var(--ink-600); }
 .module-status { display: flex; flex-direction: column; align-items: flex-end; gap: 0.7rem; color: var(--ink-600); font-size: 0.74rem; }
 
 .dashboard-overview { display: grid; grid-template-columns: auto minmax(260px, 1fr) minmax(250px, 0.7fr); gap: 2.5rem; align-items: center; padding: 2.4rem; background: var(--ink-900); color: #b8c9ce; }
