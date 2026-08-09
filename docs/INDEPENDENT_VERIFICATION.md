@@ -146,35 +146,6 @@ on an eligible independent environment. Every other result — including
   across different operating systems, architectures and networks. Record which
   machine produced each result.
 
-## Execution history
-
-Recorded so a later reader knows what has and has not been attempted. No
-`verification-evidence/` files are committed; these are summaries of runs
-performed elsewhere.
-
-### 2026-08-09 — first genuine independent execution
-
-Commit `25b13e9`, on a fresh remote Ubuntu 24.04.4 LTS x86_64 host with Docker
-Engine 29.1.3, Compose v2, no pre-existing images or containers, a fresh clone,
-and no proxy or TLS environment variables.
-
-The run reached the real production scenario. Steps 1–8 passed: the image built
-from scratch in 82s, the composition started, health returned in 4s, the SPA was
-served, and the five-minute demo executed inside the container. Step 10
-persistence passed.
-
-**Step 9 crashed** with `NameError: name 'attempts' is not defined`, and the
-harness reported `product-failure` with exit 1.
-
-That verdict was wrong in kind. The semantic checker was a Python program
-embedded in a shell string whose quoting bash rewrote; the failure was in the
-instrument, not in Nornyx. **It is not evidence of a governance or counter
-defect.** The correction — moving the checker into a packaged module and adding
-`verifier-failure` — is what this history entry exists to explain.
-
-**B5 acceptance remains pending.** It requires a new disposable environment to
-run the corrected verifier and produce exit 0 with `verdict: pass`.
-
 ## Reporting
 
 Attach the `verification-evidence/` directory, or at minimum `verdict.json` and
@@ -183,6 +154,11 @@ with no environment record is not a portability claim about anything in
 particular.
 
 ## Acceptance record
+
+Every independent execution, newest first, whatever its outcome. No
+`verification-evidence/` files are committed; these are summaries of runs
+performed elsewhere. A later reader should be able to see what has been
+attempted, not only what succeeded.
 
 ### `73e5aad` — 2026-08-09 — PASS
 
@@ -222,15 +198,29 @@ Accumulate records here rather than generalising from any single one.
 
 ### `25b13e9` — 2026-08-09 — verifier defect, not a product finding
 
-The first genuine independent execution reached the real production scenario —
-build, composition, health, SPA and the governed/ungoverned run all succeeded —
-and then died in step 9 with `NameError: name 'attempts' is not defined`. The
-semantic checker was a Python program embedded in a shell string whose quoting
-bash rewrote, so no test had ever executed the payload in the form production
-used.
+The first genuine independent execution, on a fresh remote Ubuntu 24.04.4 LTS
+x86_64 host with Docker Engine 29.1.3, Compose v2, no pre-existing images or
+containers, a fresh clone, and no proxy or TLS environment variables.
 
-That run reported `product-failure`, which was wrong: the instrument had failed,
-not Nornyx. It produced the `verifier-failure` class and the packaged
-`nornyx_lab.verification` modules, both merged in `73e5aad`. Recorded because a
-failed acceptance attempt is evidence too, and because the misattribution is the
-reason the third failure kind exists.
+It reached the real production scenario. Steps 1–8 passed: the image built from
+scratch in 82s, the composition started, health returned in 4s, the SPA was
+served, and the five-minute demo executed inside the container. Step 10
+persistence passed.
+
+**Step 9 crashed** with `NameError: name 'attempts' is not defined`, and the
+harness reported `product-failure` with exit 1.
+
+That verdict was wrong in kind. The semantic checker was a Python program
+embedded in a shell string whose quoting bash rewrote, so no test had ever
+executed the payload in the form production used; the failure was in the
+instrument, not in Nornyx. **It is not evidence of a governance or counter
+defect.**
+
+At the time of this execution, B5 acceptance remained pending: it required a new
+disposable environment to run the corrected verifier and produce exit 0 with
+`verdict: pass`. That acceptance is the `73e5aad` entry above.
+
+The correction — moving both checkers into packaged `nornyx_lab.verification`
+modules and adding the `verifier-failure` class — merged in `73e5aad`. This entry
+is kept because a failed acceptance attempt is evidence too, and because the
+misattribution is the reason the third failure kind exists.
