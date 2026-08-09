@@ -102,12 +102,37 @@ identical.
 | `1` | `product-failure` | The environment was adequate; something in the product did not do what the documentation says |
 | `2` | `environment-failure` | This machine could not supply what the documented path needs. **Not a finding about the product** — but if the prerequisite is one the docs never mention, the documentation is the defect |
 | `3` | usage | The script was invoked incorrectly |
+| `4` | `verifier-failure` | The instrument could not complete its own check. **This run says nothing about the product**; rerun after the verifier is repaired |
+
+### Why `verifier-failure` exists
+
+The first independent run reached the real production scenario, and the semantic
+checker then died on a shell quoting bug. The harness reported
+`product-failure` — attributing a defect to Nornyx for a fault in its own
+instrument. That is the wrong evidence semantics, and the distinction now has a
+result of its own.
+
+The boundary is deliberate. Malformed or contract-violating *product output* is
+still a product failure, because producing a well-formed response is the
+service's job. `verifier-failure` means only this: the instrument could not
+decide.
 
 A build that fails because a package registry is unreachable is reported as an
 environment failure, with the matching text from the build log kept in evidence.
 That distinction matters: an intercepting proxy and a broken Dockerfile produce
 the same red output, and treating them the same would either excuse a real
 defect or invent one.
+
+## The acceptance gate
+
+Only this combination accepts:
+
+```
+exit 0   verdict: "pass"   completed: true
+```
+
+on an eligible independent environment. Every other result — including
+`verifier-failure` — leaves B5 acceptance pending.
 
 ## What this does not establish
 
@@ -120,6 +145,35 @@ defect or invent one.
 - **One passing run proves one machine.** Portability is evidence accumulated
   across different operating systems, architectures and networks. Record which
   machine produced each result.
+
+## Execution history
+
+Recorded so a later reader knows what has and has not been attempted. No
+`verification-evidence/` files are committed; these are summaries of runs
+performed elsewhere.
+
+### 2026-08-09 — first genuine independent execution
+
+Commit `25b13e9`, on a fresh remote Ubuntu 24.04.4 LTS x86_64 host with Docker
+Engine 29.1.3, Compose v2, no pre-existing images or containers, a fresh clone,
+and no proxy or TLS environment variables.
+
+The run reached the real production scenario. Steps 1–8 passed: the image built
+from scratch in 82s, the composition started, health returned in 4s, the SPA was
+served, and the five-minute demo executed inside the container. Step 10
+persistence passed.
+
+**Step 9 crashed** with `NameError: name 'attempts' is not defined`, and the
+harness reported `product-failure` with exit 1.
+
+That verdict was wrong in kind. The semantic checker was a Python program
+embedded in a shell string whose quoting bash rewrote; the failure was in the
+instrument, not in Nornyx. **It is not evidence of a governance or counter
+defect.** The correction — moving the checker into a packaged module and adding
+`verifier-failure` — is what this history entry exists to explain.
+
+**B5 acceptance remains pending.** It requires a new disposable environment to
+run the corrected verifier and produce exit 0 with `verdict: pass`.
 
 ## Reporting
 

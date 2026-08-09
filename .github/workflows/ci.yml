@@ -372,6 +372,32 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # The defect the first independent B5 run exposed: the semantic checker was
+      # a Python program embedded in a shell string, so bash rewrote its quoting
+      # and no test ever executed the payload the way production does. Every
+      # guard passed while the checker was broken.
+      #
+      # This runs the real module, in the real image, through the exact
+      # invocation `verify_independent_deployment.sh` uses. It is the gate that
+      # would have caught it.
+      - name: Execute the B5 semantic checker inside the production image
+        run: |
+          set -uo pipefail
+
+          docker run --rm -i --entrypoint python nornyx-academy:2.0.0             -m nornyx_lab.verification.check_counters             < tests/fixtures/demo-run.valid.json
+          echo "valid fixture accepted (exit 0)"
+
+          # A governed 0/0 marked `not_planned` is the overclaim the curriculum
+          # exists to prevent. It must be rejected, and rejected as a *product*
+          # failure (1), not as an instrument failure (4).
+          status=0
+          docker run --rm -i --entrypoint python nornyx-academy:2.0.0             -m nornyx_lab.verification.check_counters             < tests/fixtures/demo-run.wrong-meaning.json || status=$?
+          if [ "$status" -ne 1 ]; then
+            echo "expected product-failure exit 1 for the bad fixture, got ${status}" >&2
+            exit 1
+          fi
+          echo "wrong-meaning fixture rejected with the product-failure code (exit 1)"
+
       # A built image is not a serving application. The README tells a learner to
       # run `docker compose up`, so that documented path — including read_only,
       # cap_drop ALL, no-new-privileges, and the named progress volume — is what
