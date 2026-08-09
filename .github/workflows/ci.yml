@@ -131,7 +131,7 @@ jobs:
         run: uv run --frozen nornyx-lab doctor
       - name: Run every original lab check and repository invariant serially
         run: >-
-          uv run --frozen pytest labs tests/test_repository.py
+          uv run --frozen pytest labs tests --ignore=tests/academy
           -q -rs --junitxml=pytest-legacy.xml
       - name: Fail if any legacy check was skipped
         if: always()
