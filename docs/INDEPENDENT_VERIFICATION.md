@@ -181,3 +181,56 @@ Attach the `verification-evidence/` directory, or at minimum `verdict.json` and
 `environment.txt`, so a reader knows which machine the result describes. A pass
 with no environment record is not a portability claim about anything in
 particular.
+
+## Acceptance record
+
+### `73e5aad` — 2026-08-09 — PASS
+
+Executed once on an independently provisioned Killercoda Ubuntu 24.04.4 LTS
+x86_64 host, outside the development network, with **zero pre-existing Docker
+images or containers**, a fresh clone, and a clean working tree. Only the
+documented product prerequisite was installed beforehand.
+
+| | |
+|---|---|
+| Repository | `73e5aadf5b9d2fba3bd8f4a92465e6715d6b358b` |
+| Exit | `0` |
+| Verdict | `pass`, `completed: true` |
+| Failures | product 0 · environment 0 · verifier 0 |
+| `--no-cache` build | 90s |
+| Health | 4s |
+| Ungoverned `publish_external` | `1/1` executed |
+| Governed `publish_external` | `0/0` prevented_before_execution |
+
+The evidence carried the conditional rather than the bare numbers:
+
+```
+0/0 is interpretable as prevention: the same plan recorded 1/1 without governance
+```
+
+Incidental but useful: the host had **no Node and no npm**, and its Python was
+recorded as present-but-unused. The documented Docker path therefore did not
+quietly depend on development-machine tooling.
+
+**What this establishes:** the documented deployment and verification path
+completed on an independently provisioned clean Ubuntu 24.04 x86_64 environment
+at that commit.
+
+**What it does not establish:** portability to every host, operating system,
+architecture, Docker version or network. One independent pass is one machine.
+Accumulate records here rather than generalising from any single one.
+
+### `25b13e9` — 2026-08-09 — verifier defect, not a product finding
+
+The first genuine independent execution reached the real production scenario —
+build, composition, health, SPA and the governed/ungoverned run all succeeded —
+and then died in step 9 with `NameError: name 'attempts' is not defined`. The
+semantic checker was a Python program embedded in a shell string whose quoting
+bash rewrote, so no test had ever executed the payload in the form production
+used.
+
+That run reported `product-failure`, which was wrong: the instrument had failed,
+not Nornyx. It produced the `verifier-failure` class and the packaged
+`nornyx_lab.verification` modules, both merged in `73e5aad`. Recorded because a
+failed acceptance attempt is evidence too, and because the misattribution is the
+reason the third failure kind exists.
