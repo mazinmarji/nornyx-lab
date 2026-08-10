@@ -43,10 +43,14 @@ const definition: CapstoneDefinition = {
   status: "not_started",
 };
 
+const runCapstoneMock = vi.fn<(request: Record<string, unknown>) => Promise<unknown>>(() =>
+  Promise.reject(new Error("not run in this test")),
+);
+
 vi.mock("../api/client", () => ({
   academyApi: {
     capstone: vi.fn(() => Promise.resolve(definition)),
-    runCapstone: vi.fn(() => Promise.reject(new Error("not run in this test"))),
+    runCapstone: (request: Record<string, unknown>) => runCapstoneMock(request),
     assessment: vi.fn(() => Promise.reject(new Error("not needed"))),
   },
   toErrorMessage: (cause: unknown) => String(cause),
@@ -125,5 +129,56 @@ describe("CapstonePage competence honesty", () => {
     expect(runButton).toBeDisabled();
     expect(screen.getByTestId("capstone-design-form")).toBeInTheDocument();
     expect(screen.getByText(/complete every allocation/i)).toBeInTheDocument();
+  });
+
+  it("submits only policy values the learner actually chose, never constants", async () => {
+    // Review finding: the form used to hardcode three of the four policy
+    // fields to true, so a field-complete section reached the backend as
+    // manufactured authorship. This walks the Reduced form (the policy path
+    // shared with Independent) and proves the outgoing request carries the
+    // learner's interactions — including a value the old constants could
+    // never produce.
+    runCapstoneMock.mockClear();
+    runCapstoneMock.mockImplementation((request: Record<string, unknown>) =>
+      Promise.reject(new Error(`captured: ${JSON.stringify(request)}`)),
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("scaffolding-meaning")).toBeInTheDocument());
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: /scaffolding/i }),
+      "reduced",
+    );
+
+    const form = screen.getByTestId("capstone-design-form");
+    const rows = form.querySelectorAll(".design-role-row");
+    expect(rows.length).toBe(2);
+    for (const row of rows) {
+      const [identity, capability] = row.querySelectorAll("select");
+      await userEvent.selectOptions(identity, "identity.intake_agent");
+      await userEvent.selectOptions(capability, capability.options[1].value);
+    }
+
+    const runButton = screen.getByRole("button", { name: /run capstone workflow/i });
+    // Allocations alone are not enough: the four policy decisions are unmade.
+    expect(runButton).toBeDisabled();
+
+    await userEvent.selectOptions(screen.getByTestId("policy-approval-mode"), "expired");
+    await userEvent.selectOptions(screen.getByTestId("policy-require_external_approval"), "no");
+    await userEvent.selectOptions(screen.getByTestId("policy-require_handoff_approval"), "yes");
+    await userEvent.selectOptions(
+      screen.getByTestId("policy-require_integrity_preflight"),
+      "yes",
+    );
+    expect(runButton).toBeEnabled();
+    await userEvent.click(runButton);
+
+    await waitFor(() => expect(runCapstoneMock).toHaveBeenCalledTimes(1));
+    const request = runCapstoneMock.mock.calls[0][0] as { policy: Record<string, unknown> };
+    expect(request.policy).toEqual({
+      approval_mode: "expired",
+      require_external_approval: false,
+      require_handoff_approval: true,
+      require_integrity_preflight: true,
+    });
   });
 });

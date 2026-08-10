@@ -42,6 +42,37 @@ function emptyRoles(scenario: CapstoneScenarioInfo): RoleRow[] {
   return scenario.actions.map((action) => ({ action, identity_ref: "", capability_ref: "" }));
 }
 
+/**
+ * The four policy decisions, every one made by the learner in Reduced and
+ * Independent mode. None is pre-answered: a pre-checked box the learner never
+ * touched would be academy authorship reported as learner authorship — the
+ * exact overclaim the scaffolding levels exist to prevent. Each starts unset
+ * and the run stays blocked until the learner has decided all of them.
+ */
+const POLICY_QUESTIONS = [
+  {
+    key: "require_external_approval",
+    label: "Require a human approval before the consequential action?",
+  },
+  {
+    key: "require_handoff_approval",
+    label: "Require approval on the closure handoff?",
+  },
+  {
+    key: "require_integrity_preflight",
+    label: "Run the artifact-integrity preflight before executing?",
+  },
+] as const;
+
+type PolicyAnswer = "" | "yes" | "no";
+type PolicyChoices = Record<(typeof POLICY_QUESTIONS)[number]["key"], PolicyAnswer>;
+
+const UNANSWERED_POLICY: PolicyChoices = {
+  require_external_approval: "",
+  require_handoff_approval: "",
+  require_integrity_preflight: "",
+};
+
 function AdvancedStandingPanel({ standing }: { standing: AdvancedStanding }) {
   const rows: [string, boolean][] = [
     ["Capstone content complete (any scaffolding + assessment)", standing.capstone_content_complete],
@@ -80,7 +111,9 @@ export function CapstonePage() {
   const [scaffolding, setScaffolding] = useState("guided");
   const [scenarioId, setScenarioId] = useState("customer-remediation");
   const [roles, setRoles] = useState<RoleRow[]>([]);
-  const [approvalMode, setApprovalMode] = useState("missing");
+  // "" = not yet decided. The learner must choose, not inherit.
+  const [approvalMode, setApprovalMode] = useState("");
+  const [policyChoices, setPolicyChoices] = useState<PolicyChoices>(UNANSWERED_POLICY);
   const [sourceZone, setSourceZone] = useState("zone.remediation_internal");
   const [targetZone, setTargetZone] = useState("zone.customer_channel");
   const [delegationId, setDelegationId] = useState("delegation.refund_proposal");
@@ -99,9 +132,12 @@ export function CapstonePage() {
   const independent = scaffolding === "independent";
 
   // Reset the design worksheet whenever the design space changes: allocations
-  // from one scenario must not silently carry into the other.
+  // and policy answers from one scenario must not silently carry into the
+  // other.
   useEffect(() => {
     if (scenario) setRoles(emptyRoles(scenario));
+    setApprovalMode("");
+    setPolicyChoices(UNANSWERED_POLICY);
   }, [scenarioId, scaffolding, definition.data]); // scenario derives from these
 
   const identityOptions = scenario?.declared_identities ?? [];
@@ -111,8 +147,10 @@ export function CapstonePage() {
   );
 
   const rolesComplete = roles.every((row) => row.identity_ref && row.capability_ref);
+  const policyComplete =
+    approvalMode !== "" && POLICY_QUESTIONS.every((question) => policyChoices[question.key] !== "");
   const assuranceComplete = claim.trim().length >= 20 && residualRisk.trim().length >= 20 && falsification.trim().length >= 20;
-  const canRun = !authoring || (rolesComplete && (!independent || assuranceComplete));
+  const canRun = !authoring || (rolesComplete && policyComplete && (!independent || assuranceComplete));
 
   function buildRequest(): Record<string, unknown> {
     const request: Record<string, unknown> = {
@@ -129,11 +167,14 @@ export function CapstonePage() {
       capability_ref: row.capability_ref,
       action: row.action,
     }));
+    // Every value here is a decision the learner made in the form. Constants
+    // would let a field-complete section reach the backend as manufactured
+    // authorship: API completeness ≠ learner authorship.
     request.policy = {
       approval_mode: approvalMode,
-      require_external_approval: true,
-      require_handoff_approval: true,
-      require_integrity_preflight: true,
+      require_external_approval: policyChoices.require_external_approval === "yes",
+      require_handoff_approval: policyChoices.require_handoff_approval === "yes",
+      require_integrity_preflight: policyChoices.require_integrity_preflight === "yes",
     };
     if (independent) {
       request.coordination = {
@@ -215,12 +256,30 @@ export function CapstonePage() {
                   </div>
                 ))}
                 <label><span>Approval assertion supplied with the consequential step</span>
-                  <select value={approvalMode} onChange={(event) => setApprovalMode(event.target.value)}>
+                  <select required value={approvalMode} onChange={(event) => setApprovalMode(event.target.value)} data-testid="policy-approval-mode">
+                    <option value="">Decide…</option>
                     <option value="missing">None (watch it fail closed)</option>
                     <option value="valid">Valid human approval</option>
                     <option value="expired">Expired approval</option>
                   </select>
                 </label>
+                {/* The three protection requirements are learner decisions, not
+                    academy constants. Each starts undecided; the design review
+                    will show — with real checks — what disabling one costs. */}
+                {POLICY_QUESTIONS.map((question) => (
+                  <label key={question.key}><span>{question.label}</span>
+                    <select
+                      required
+                      value={policyChoices[question.key]}
+                      onChange={(event) => setPolicyChoices((current) => ({ ...current, [question.key]: event.target.value as PolicyAnswer }))}
+                      data-testid={`policy-${question.key}`}
+                    >
+                      <option value="">Decide…</option>
+                      <option value="yes">Yes — require it</option>
+                      <option value="no">No — proceed without it</option>
+                    </select>
+                  </label>
+                ))}
                 {independent ? (
                   <>
                     {scenario.declared_zones.length ? (
@@ -240,7 +299,7 @@ export function CapstonePage() {
             ) : null}
 
             <button className="button button-accent button-large" type="submit" disabled={run.loading || !canRun}>{run.loading ? "Running capstone…" : "Run capstone workflow"}</button>
-            {!canRun ? <p className="muted" role="status">Complete every allocation{independent ? " and write the three assurance statements (at least 20 characters each)" : ""} before running.</p> : null}
+            {!canRun ? <p className="muted" role="status">Complete every allocation, decide all four policy questions{independent ? ", and write the three assurance statements (at least 20 characters each)" : ""} before running.</p> : null}
           </form>
         </section>
       </> : null}
