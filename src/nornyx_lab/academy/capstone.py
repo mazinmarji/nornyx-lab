@@ -403,6 +403,7 @@ class CapstoneConfig:
             section for section in _DESIGN_SECTIONS if not _section_authored(raw.get(section))
         )
         _require_authorship(scaffolding, defaults_used, scenario)
+        _require_field_completeness(scaffolding, scenario, raw)
 
         roles = _parse_roles(raw.get("roles"), scenario)  # type: ignore[arg-type]
         return cls(
@@ -422,6 +423,53 @@ class CapstoneConfig:
 
 
 _DESIGN_SECTIONS = ("roles", "trust_zones", "coordination", "policy", "assurance")
+
+
+# Every decision a section carries. Above Guided, a required section must be
+# field-complete: a partial section would be silently completed with academy
+# defaults while being credited as learner authorship — the same overclaim as
+# an empty section, one field at a time.
+_SECTION_REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
+    "policy": (
+        "approval_mode",
+        "require_external_approval",
+        "require_handoff_approval",
+        "require_integrity_preflight",
+    ),
+    "coordination": ("delegation_id", "handoff_id", "require_delegation", "require_handoff"),
+    "trust_zones": ("source_zone", "target_zone"),
+    "assurance": ("claim", "residual_risk", "falsification_condition"),
+}
+
+
+def _require_field_completeness(scaffolding: str, scenario: str, raw: Mapping[str, Any]) -> None:
+    """Reject partial required sections above Guided.
+
+    Independent requires field-complete policy, coordination, and assurance
+    (plus trust zones where the scenario crosses one); Reduced requires a
+    field-complete policy, because that is the section its contract says the
+    learner authored. A field may be explicitly ``null`` where null is a
+    legitimate decision (the coordination refs); what it may not be is absent.
+    """
+
+    if scaffolding == "guided":
+        return
+    required = {"policy"}
+    if scaffolding == "independent":
+        required |= {"coordination", "assurance"}
+        if scenario == "customer-remediation":
+            required.add("trust_zones")
+    for section in sorted(required):
+        value = raw.get(section)
+        if not isinstance(value, Mapping) or not value:
+            continue  # missing/empty sections are handled by _require_authorship
+        missing = sorted(set(_SECTION_REQUIRED_FIELDS[section]) - set(value))
+        if missing:
+            raise CapstoneInputError(
+                f"{scaffolding} scaffolding requires a field-complete {section} section: "
+                f"missing {', '.join(missing)}. A partial section would be silently "
+                "completed with academy defaults and misreported as learner authorship."
+            )
 
 
 def _section_authored(value: Any) -> bool:
@@ -511,11 +559,40 @@ def _boolean(value: Any, *, label: str, default: bool) -> bool:
     return selected
 
 
-def _optional_ref(value: Any, *, label: str, default: str | None) -> str | None:
-    selected = default if value is None else value
-    if selected is None:
+def _explicit(raw: Mapping[str, Any], key: str, label: str) -> Any:
+    """Field value with omitted-vs-null distinguished.
+
+    An absent key means "accept the academy default" (legitimate only where
+    scaffolding allows defaults). An explicit ``null`` is rejected here, so a
+    learner's typed choice is never silently replaced with a default — fields
+    where null IS a legitimate decision use ``_optional_ref_from`` instead.
+    """
+
+    if key not in raw:
         return None
-    return _text(selected, label=label)
+    if raw[key] is None:
+        raise CapstoneInputError(
+            f"{label} must not be null: omit the field to accept the academy default "
+            "(where scaffolding allows it), or supply a decision"
+        )
+    return raw[key]
+
+
+def _optional_ref_from(
+    raw: Mapping[str, Any], key: str, *, label: str, default: str | None
+) -> str | None:
+    """Nullable reference with omitted-vs-null distinguished.
+
+    Absent key → academy default. Explicit ``null`` → the learner's own
+    decision that no declared ref is used, preserved as-is.
+    """
+
+    if key not in raw:
+        return default
+    value = raw[key]
+    if value is None:
+        return None
+    return _text(value, label=label)
 
 
 def _parse_roles(value: Any, scenario: Scenario = "customer-remediation") -> tuple[RoleDesign, ...]:
@@ -552,12 +629,12 @@ def _parse_trust_zones(value: Any) -> TrustZoneDesign:
     _reject_unknown(raw, {"source_zone", "target_zone"}, "trust_zones")
     return TrustZoneDesign(
         source_zone=_text(
-            raw.get("source_zone"),
+            _explicit(raw, "source_zone", "trust_zones.source_zone"),
             label="trust_zones.source_zone",
             default="zone.remediation_internal",
         ),
         target_zone=_text(
-            raw.get("target_zone"),
+            _explicit(raw, "target_zone", "trust_zones.target_zone"),
             label="trust_zones.target_zone",
             default="zone.customer_channel",
         ),
@@ -572,23 +649,28 @@ def _parse_coordination(value: Any) -> CoordinationDesign:
         "coordination",
     )
     return CoordinationDesign(
-        delegation_id=_optional_ref(
-            raw.get("delegation_id"),
+        # The refs are the one place an explicit null is itself a decision:
+        # "this design declares no delegation/handoff". Preserved, never
+        # replaced with the academy default.
+        delegation_id=_optional_ref_from(
+            raw,
+            "delegation_id",
             label="coordination.delegation_id",
             default="delegation.refund_proposal",
         ),
-        handoff_id=_optional_ref(
-            raw.get("handoff_id"),
+        handoff_id=_optional_ref_from(
+            raw,
+            "handoff_id",
             label="coordination.handoff_id",
             default="handoff.compliance_closure",
         ),
         require_delegation=_boolean(
-            raw.get("require_delegation"),
+            _explicit(raw, "require_delegation", "coordination.require_delegation"),
             label="coordination.require_delegation",
             default=True,
         ),
         require_handoff=_boolean(
-            raw.get("require_handoff"),
+            _explicit(raw, "require_handoff", "coordination.require_handoff"),
             label="coordination.require_handoff",
             default=True,
         ),
@@ -609,23 +691,23 @@ def _parse_policy(value: Any) -> PolicyDesign:
     )
     return PolicyDesign(
         approval_mode=_choice(
-            raw.get("approval_mode"),
+            _explicit(raw, "approval_mode", "policy.approval_mode"),
             "policy.approval_mode",
             "missing",
             {"missing", "valid", "expired"},
         ),  # type: ignore[arg-type]
         require_external_approval=_boolean(
-            raw.get("require_external_approval"),
+            _explicit(raw, "require_external_approval", "policy.require_external_approval"),
             label="policy.require_external_approval",
             default=True,
         ),
         require_handoff_approval=_boolean(
-            raw.get("require_handoff_approval"),
+            _explicit(raw, "require_handoff_approval", "policy.require_handoff_approval"),
             label="policy.require_handoff_approval",
             default=True,
         ),
         require_integrity_preflight=_boolean(
-            raw.get("require_integrity_preflight"),
+            _explicit(raw, "require_integrity_preflight", "policy.require_integrity_preflight"),
             label="policy.require_integrity_preflight",
             default=True,
         ),
@@ -652,15 +734,20 @@ def _parse_assurance(value: Any, *, require_all: bool = False) -> AssuranceDesig
             )
     defaults = AssuranceDesign()
     return AssuranceDesign(
-        claim=_text(raw.get("claim"), label="assurance.claim", default=defaults.claim, minimum=20),
+        claim=_text(
+            _explicit(raw, "claim", "assurance.claim"),
+            label="assurance.claim",
+            default=defaults.claim,
+            minimum=20,
+        ),
         residual_risk=_text(
-            raw.get("residual_risk"),
+            _explicit(raw, "residual_risk", "assurance.residual_risk"),
             label="assurance.residual_risk",
             default=defaults.residual_risk,
             minimum=20,
         ),
         falsification_condition=_text(
-            raw.get("falsification_condition"),
+            _explicit(raw, "falsification_condition", "assurance.falsification_condition"),
             label="assurance.falsification_condition",
             default=defaults.falsification_condition,
             minimum=20,

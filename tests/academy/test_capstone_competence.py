@@ -316,3 +316,95 @@ def test_complete_explicitly_authored_workflow_remains_eligible() -> None:
     run = run_capstone(INDEPENDENT_DISBURSEMENT)
     assert run.results["design_review"]["checks"]["required_workflow_actions_covered"] is True
     assert run.completion_eligible is True
+
+
+# --------------------------------------------- partial-authorship regressions
+
+
+def test_partial_policy_is_not_learner_authorship_in_independent() -> None:
+    """A one-field policy must not be credited as an authored policy.
+
+    Review finding: non-empty sections counted as fully authored while the
+    parsers silently defaulted every omitted field, so `policy:
+    {"approval_mode": "missing"}` earned authorship credit for four decisions
+    the learner made one of.
+    """
+
+    config = {**INDEPENDENT_DISBURSEMENT, "policy": {"approval_mode": "missing"}}
+    with pytest.raises(CapstoneInputError, match="field-complete policy"):
+        run_capstone(config)
+
+
+def test_partial_coordination_is_not_learner_authorship_in_independent() -> None:
+    config = {**INDEPENDENT_DISBURSEMENT, "coordination": {"require_delegation": True}}
+    with pytest.raises(CapstoneInputError, match="field-complete coordination"):
+        run_capstone(config)
+
+
+def test_partial_trust_zones_are_not_learner_authorship_on_remediation() -> None:
+    config = {
+        **INDEPENDENT_DISBURSEMENT,
+        "scenario": "customer-remediation",
+        "trust_zones": {"source_zone": "zone.remediation_internal"},
+    }
+    with pytest.raises(CapstoneInputError, match="field-complete trust_zones"):
+        run_capstone(config)
+
+
+def test_reduced_policy_must_also_be_field_complete() -> None:
+    """Reduced's contract says the learner authored the policy — all of it."""
+
+    config = {
+        "scaffolding": "reduced",
+        "scenario": "refund-disbursement",
+        "roles": DISBURSEMENT_ROLES,
+        "policy": {"approval_mode": "missing"},
+    }
+    with pytest.raises(CapstoneInputError, match="field-complete policy"):
+        run_capstone(config)
+
+
+def test_explicit_null_never_silently_becomes_a_default() -> None:
+    """`null` on a non-nullable field is rejected, not replaced."""
+
+    config = {
+        **INDEPENDENT_DISBURSEMENT,
+        "policy": {**INDEPENDENT_DISBURSEMENT["policy"], "require_external_approval": None},
+    }
+    with pytest.raises(CapstoneInputError, match="must not be null"):
+        run_capstone(config)
+
+
+def test_explicit_null_coordination_refs_are_preserved_learner_decisions() -> None:
+    """Where null IS a legitimate decision, the learner's null survives.
+
+    Declaring no delegation and no handoff is a real governance choice; it
+    must reach the run as None, never be swapped for the academy's declared
+    default refs.
+    """
+
+    config = {
+        **INDEPENDENT_DISBURSEMENT,
+        "coordination": {
+            "delegation_id": None,
+            "handoff_id": None,
+            "require_delegation": False,
+            "require_handoff": False,
+        },
+    }
+    run = run_capstone(config)
+
+    coordination = run.results["configuration"]["coordination"]
+    assert coordination["delegation_id"] is None
+    assert coordination["handoff_id"] is None
+    assert run.results["design_review"]["checks"]["delegation_choice_complete"] is True
+    assert run.results["design_review"]["checks"]["handoff_choice_complete"] is True
+
+
+def test_fully_explicit_independent_design_remains_the_positive_control() -> None:
+    run = run_capstone(INDEPENDENT_DISBURSEMENT)
+    assert run.completion_eligible is True
+    assert run.results["competence"]["learner_authored"] is True
+    # The disbursement scenario has no zone crossing, so trust_zones is the
+    # one section legitimately left to the (unused) academy default.
+    assert run.results["competence"]["defaults_used"] == ["trust_zones"]
