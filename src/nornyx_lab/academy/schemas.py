@@ -415,6 +415,10 @@ class ModuleProgress(AcademyModel):
     # Concepts the module teaches for which no mastery evidence exists yet.
     # "Complete" module status is content completion; it does not clear this.
     concepts_pending_evidence: tuple[str, ...] = ()
+    # Pending because the learner's passing evidence was earned under a
+    # competence revision the current contract no longer admits. A subset of
+    # concepts_pending_evidence that separates "do it again" from "never done".
+    concepts_requiring_redemonstration: tuple[str, ...] = ()
 
 
 class AdvancedStanding(AcademyModel):
@@ -432,6 +436,10 @@ class AdvancedStanding(AcademyModel):
     independent_authorship_demonstrated: bool = False
     transfer_demonstrated: bool = False
     advanced_competence_demonstrated: bool = False
+    # True when a requirement is unmet specifically because prior qualifying
+    # work was earned under a superseded competence revision. Distinguishes
+    # "must be demonstrated again" from "was never demonstrated".
+    requires_redemonstration: bool = False
     note: str = ""
 
 
@@ -446,6 +454,7 @@ class Dashboard(AcademyModel):
     concepts_mastered: tuple[str, ...] = ()
     concepts_needing_review: tuple[str, ...] = ()
     concepts_pending_evidence: tuple[str, ...] = ()
+    concepts_requiring_redemonstration: tuple[str, ...] = ()
     capstone_status: ModuleStatus = ModuleStatus.NOT_STARTED
     advanced_standing: AdvancedStanding | None = None
 

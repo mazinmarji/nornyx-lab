@@ -186,9 +186,15 @@ def test_concept_evidence_transfers_across_modules_that_teach_it(tmp_path) -> No
 def test_legacy_record_degrades_to_completed_without_fabricated_mastery(tmp_path) -> None:
     """A pre-remediation store granted every module concept on one pass.
 
-    Reading it under the new model keeps completion but derives mastery only
-    from what the recorded attempts can substantiate under the current
-    declarations: completed, but mastery not yet demonstrated.
+    Reading it under the current model keeps the completion — the work really
+    happened — but grants no mastery at all. The attempt carries no competence
+    revision, so nothing establishes that passing it still demonstrates what it
+    once did; the concepts surface as requiring re-demonstration instead.
+
+    This assertion was narrowed by the competence-revision remediation. It
+    previously expected the legacy attempt to still grant its assessment's
+    declared concepts, which was the last remaining way for unbound historical
+    evidence to support a present-tense competence claim.
     """
 
     db_path = tmp_path / "legacy.db"
@@ -233,10 +239,11 @@ def test_legacy_record_degrades_to_completed_without_fabricated_mastery(tmp_path
     progress = repository.get("F0")
 
     assert progress.status is ModuleStatus.COMPLETE
-    assert set(progress.concepts_mastered) == set(definition.concepts)
-    assert set(progress.concepts_pending_evidence) == set(module.concepts) - set(
-        definition.concepts
-    )
+    assert progress.concepts_mastered == ()
+    assert set(progress.concepts_pending_evidence) == set(module.concepts)
+    # The concepts the legacy attempt covered are distinguishable from the ones
+    # the learner never attempted: these need doing again, not doing first.
+    assert set(progress.concepts_requiring_redemonstration) == set(definition.concepts)
 
 
 def test_unknown_legacy_assessment_grants_nothing(tmp_path) -> None:

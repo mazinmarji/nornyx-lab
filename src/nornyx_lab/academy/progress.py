@@ -6,10 +6,12 @@ import json
 import sqlite3
 import threading
 from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from .competence import CompetenceContract, EvidenceFamily
 from .schemas import (
     AdvancedStanding,
     AssessmentResult,
@@ -22,6 +24,21 @@ from .schemas import (
 
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+@dataclass(frozen=True)
+class _ConceptEvidence:
+    """Concept evidence split by what the current contract can still accept.
+
+    ``stale`` is the honest middle ground the old model had no room for: the
+    learner really did pass, and the row is still on file, but it was earned
+    under semantics that no longer apply.
+    """
+
+    admissible: set[str]
+    by_module: dict[str, set[str]]
+    failed_by_module: dict[str, set[str]]
+    stale_by_module: dict[str, set[str]]
 
 
 class LearnerRecordRepository(Protocol):
@@ -60,6 +77,14 @@ class SQLiteLearnerRecordRepository:
     ``module_progress.concepts_mastered`` column claimed every module concept
     therefore degrades safely to "completed, but mastery not yet demonstrated"
     instead of keeping fabricated mastery.
+
+    Evidence is additionally bound to the competence semantics it was earned
+    under.  Every stored row records its ``competence_revision``, and reads
+    admit a row only when the current contract classifies that revision as
+    CURRENT or an explicitly declared COMPATIBLE prior.  Rows from an
+    INCOMPATIBLE revision, and legacy rows with no binding at all, are retained
+    as history but stop satisfying present-tense competence gates: they surface
+    as "requires re-demonstration" rather than silently holding standing open.
     """
 
     def __init__(
@@ -70,11 +95,16 @@ class SQLiteLearnerRecordRepository:
         clock: Callable[[], str] = _utc_now,
         assessment_concepts: Mapping[str, tuple[str, ...]] | None = None,
         module_concepts: Mapping[str, tuple[str, ...]] | None = None,
+        competence: CompetenceContract | None = None,
     ) -> None:
         self.path = Path(path)
         self.learner_id = learner_id
         self._clock = clock
         self._lock = threading.RLock()
+        # The contract that decides whether stored evidence still means what it
+        # meant when it was recorded. Injectable so a test can move the
+        # semantics without rewriting a single historical row.
+        self._competence = competence or CompetenceContract.load()
         # Resolver for attempts recorded before per-attempt concepts were
         # stored: an old passed attempt re-derives evidence from what its
         # assessment declares today. An assessment that no longer exists
@@ -136,6 +166,15 @@ class SQLiteLearnerRecordRepository:
                 connection.execute(
                     "ALTER TABLE assessment_attempts ADD COLUMN concepts_tested TEXT"
                 )
+            # Additive migration for stores written before evidence was bound to
+            # competence semantics. NULL is meaningful and is never backfilled:
+            # the revision those attempts were earned under is genuinely
+            # unknown, and guessing one would manufacture the admissibility the
+            # binding exists to establish.
+            if "competence_revision" not in columns:
+                connection.execute(
+                    "ALTER TABLE assessment_attempts ADD COLUMN competence_revision TEXT"
+                )
             # Capstone runs are recorded with their scaffolding level, scenario,
             # and authorship so the advanced gate can distinguish a scaffolded
             # walkthrough from learner-authored transfer work. A store created
@@ -154,6 +193,11 @@ class SQLiteLearnerRecordRepository:
                 );
                 """
             )
+            capstone_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(capstone_runs)")
+            }
+            if "competence_revision" not in capstone_columns:
+                connection.execute("ALTER TABLE capstone_runs ADD COLUMN competence_revision TEXT")
 
     def _ensure_row(self, connection: sqlite3.Connection, module_id: str) -> None:
         connection.execute(
@@ -181,19 +225,19 @@ class SQLiteLearnerRecordRepository:
             return tuple(json.loads(stored))
         return tuple(self._assessment_concepts.get(row["assessment_id"], ()))
 
-    def _concept_evidence(
-        self, connection: sqlite3.Connection
-    ) -> tuple[set[str], dict[str, set[str]], dict[str, set[str]]]:
+    def _concept_evidence(self, connection: sqlite3.Connection) -> _ConceptEvidence:
         """Derive mastery evidence from the recorded attempts.
 
-        Returns the global evidence set (a concept demonstrated anywhere counts
-        wherever it is taught), per-module evidence, and per-module concepts
-        tested by failed attempts.
+        A passed attempt contributes only when the competence contract still
+        admits the revision it was earned under. Passes from an incompatible or
+        unbound revision are kept in ``stale`` instead: the work happened, but
+        it no longer demonstrates anything under the current semantics, so it
+        must be re-demonstrated rather than quietly counted.
         """
 
         rows = connection.execute(
             """
-            SELECT assessment_id, module_id, passed, concepts_tested
+            SELECT assessment_id, module_id, passed, concepts_tested, competence_revision
             FROM assessment_attempts WHERE learner_id = ?
             """,
             (self.learner_id,),
@@ -201,35 +245,39 @@ class SQLiteLearnerRecordRepository:
         evidence: set[str] = set()
         module_evidence: dict[str, set[str]] = {}
         module_failed: dict[str, set[str]] = {}
+        module_stale: dict[str, set[str]] = {}
         for row in rows:
             concepts = set(self._attempt_concepts(row))
-            if row["passed"]:
+            admissible = self._competence.admits(
+                EvidenceFamily.ASSESSMENT, row["competence_revision"]
+            ).admissible
+            if row["passed"] and admissible:
                 evidence |= concepts
                 module_evidence.setdefault(row["module_id"], set()).update(concepts)
+            elif row["passed"]:
+                module_stale.setdefault(row["module_id"], set()).update(concepts)
             else:
                 module_failed.setdefault(row["module_id"], set()).update(concepts)
-        return evidence, module_evidence, module_failed
+        return _ConceptEvidence(evidence, module_evidence, module_failed, module_stale)
 
-    def _as_progress(
-        self,
-        row: sqlite3.Row,
-        *,
-        evidence: set[str],
-        module_evidence: dict[str, set[str]],
-        module_failed: dict[str, set[str]],
-    ) -> ModuleProgress:
+    def _as_progress(self, row: sqlite3.Row, *, found: _ConceptEvidence) -> ModuleProgress:
         # The stored concepts_mastered aggregate is deliberately ignored: a
         # legacy store granted every module concept for one pass, and reading
         # it back would preserve exactly that fabricated mastery.
         module_id = row["module_id"]
+        evidence = found.admissible
         taught = self._module_concepts.get(module_id)
         if taught is not None:
             mastered = sorted(set(taught) & evidence)
             pending = sorted(set(taught) - evidence)
         else:
-            mastered = sorted(module_evidence.get(module_id, set()))
+            mastered = sorted(found.by_module.get(module_id, set()))
             pending = []
-        review = sorted(module_failed.get(module_id, set()) - evidence)
+        review = sorted(found.failed_by_module.get(module_id, set()) - evidence)
+        # Separates "never demonstrated" from "demonstrated under semantics
+        # that no longer apply". Both are pending; only the second is the
+        # learner being told to do something again.
+        stale = sorted(found.stale_by_module.get(module_id, set()) - evidence)
         return ModuleProgress(
             module_id=module_id,
             status=self._status(row),
@@ -240,6 +288,7 @@ class SQLiteLearnerRecordRepository:
             concepts_mastered=tuple(mastered),
             concepts_needing_review=tuple(review),
             concepts_pending_evidence=tuple(pending),
+            concepts_requiring_redemonstration=tuple(stale),
         )
 
     def get(self, module_id: str) -> ModuleProgress:
@@ -250,13 +299,8 @@ class SQLiteLearnerRecordRepository:
                 (self.learner_id, module_id),
             ).fetchone()
             assert row is not None
-            evidence, module_evidence, module_failed = self._concept_evidence(connection)
-            return self._as_progress(
-                row,
-                evidence=evidence,
-                module_evidence=module_evidence,
-                module_failed=module_failed,
-            )
+            found = self._concept_evidence(connection)
+            return self._as_progress(row, found=found)
 
     def record_execution(
         self,
@@ -285,13 +329,8 @@ class SQLiteLearnerRecordRepository:
                 (self.learner_id, module_id),
             ).fetchone()
             assert row is not None
-            evidence, module_evidence, module_failed = self._concept_evidence(connection)
-            return self._as_progress(
-                row,
-                evidence=evidence,
-                module_evidence=module_evidence,
-                module_failed=module_failed,
-            )
+            found = self._concept_evidence(connection)
+            return self._as_progress(row, found=found)
 
     def record_assessment(
         self,
@@ -314,8 +353,9 @@ class SQLiteLearnerRecordRepository:
                 """
                 INSERT INTO assessment_attempts (
                     learner_id, assessment_id, module_id, answers, score, passed,
-                    feedback, version_binding, created_at, concepts_tested
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    feedback, version_binding, created_at, concepts_tested,
+                    competence_revision
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     self.learner_id,
@@ -328,6 +368,12 @@ class SQLiteLearnerRecordRepository:
                     binding,
                     now,
                     tested,
+                    # version_binding records the release the attempt ran on and
+                    # is kept for provenance; it is NOT the competence binding.
+                    # The package version does not move when an assessment's
+                    # declared concepts or accepted answers change, so the
+                    # semantic revision is recorded separately.
+                    self._competence.revision(EvidenceFamily.ASSESSMENT),
                 ),
             )
             connection.execute(
@@ -358,13 +404,8 @@ class SQLiteLearnerRecordRepository:
                 (self.learner_id, result.module_id),
             ).fetchone()
             assert row is not None
-            evidence, module_evidence, module_failed = self._concept_evidence(connection)
-            return self._as_progress(
-                row,
-                evidence=evidence,
-                module_evidence=module_evidence,
-                module_failed=module_failed,
-            )
+            found = self._concept_evidence(connection)
+            return self._as_progress(row, found=found)
 
     def record_capstone_run(
         self,
@@ -387,8 +428,9 @@ class SQLiteLearnerRecordRepository:
                 """
                 INSERT INTO capstone_runs (
                     learner_id, run_id, scenario, scaffolding,
-                    completion_eligible, learner_authored, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    completion_eligible, learner_authored, created_at,
+                    competence_revision
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     self.learner_id,
@@ -398,6 +440,7 @@ class SQLiteLearnerRecordRepository:
                     int(completion_eligible),
                     int(learner_authored),
                     self._clock(),
+                    self._competence.revision(EvidenceFamily.CAPSTONE),
                 ),
             )
 
@@ -408,28 +451,60 @@ class SQLiteLearnerRecordRepository:
         capstone_id: str,
         capstone_status: ModuleStatus,
         evidence: set[str],
+        stale_concepts: set[str],
     ) -> AdvancedStanding:
         rows = connection.execute(
             """
-            SELECT scenario, scaffolding, completion_eligible, learner_authored
+            SELECT scenario, scaffolding, completion_eligible, learner_authored,
+                   competence_revision
             FROM capstone_runs WHERE learner_id = ?
             """,
             (self.learner_id,),
         ).fetchall()
-        eligible = [row for row in rows if row["completion_eligible"]]
-        independent = any(
-            row["scaffolding"] == "independent" and row["learner_authored"] for row in eligible
-        )
-        transfer = any(
-            row["scenario"] != "customer-remediation"
-            and row["scaffolding"] != "guided"
-            and row["learner_authored"]
-            for row in eligible
-        )
+
+        # A run only counts while the capstone semantics it was judged under
+        # are still in force. Rows from a superseded revision stay on file and
+        # are reported as stale, never quietly folded into the gate.
+        def admits(row: sqlite3.Row) -> bool:
+            return self._competence.admits(
+                EvidenceFamily.CAPSTONE, row["competence_revision"]
+            ).admissible
+
+        eligible = [row for row in rows if row["completion_eligible"] and admits(row)]
+        stale_eligible = [row for row in rows if row["completion_eligible"] and not admits(row)]
+
+        def independent_of(candidates: list[sqlite3.Row]) -> bool:
+            return any(
+                row["scaffolding"] == "independent" and row["learner_authored"]
+                for row in candidates
+            )
+
+        def transfer_of(candidates: list[sqlite3.Row]) -> bool:
+            return any(
+                row["scenario"] != "customer-remediation"
+                and row["scaffolding"] != "guided"
+                and row["learner_authored"]
+                for row in candidates
+            )
+
+        independent = independent_of(eligible)
+        transfer = transfer_of(eligible)
         content_complete = capstone_status is ModuleStatus.COMPLETE
         capstone_concepts = set(self._assessment_concepts.get(f"assessment.{capstone_id}", ()))
         concepts_demonstrated = bool(capstone_concepts) and capstone_concepts <= evidence
         advanced = content_complete and concepts_demonstrated and independent and transfer
+
+        # Which unmet requirements are unmet *because* prior work went stale.
+        # This is what lets the learner be told "do it again" rather than
+        # "you never did this", which would be false.
+        stale_reasons: list[str] = []
+        if not independent and independent_of(stale_eligible):
+            stale_reasons.append("independent authorship")
+        if not transfer and transfer_of(stale_eligible):
+            stale_reasons.append("transfer")
+        if not concepts_demonstrated and capstone_concepts & stale_concepts:
+            stale_reasons.append("capstone concept evidence")
+
         missing = [
             label
             for label, satisfied in (
@@ -440,18 +515,27 @@ class SQLiteLearnerRecordRepository:
             )
             if not satisfied
         ]
-        note = (
-            "Advanced competence demonstrated: instructional completion, capstone concept "
-            "evidence, independent authorship, and transfer are all on record."
-            if advanced
-            else "Not yet advanced. Still required: " + "; ".join(missing) + "."
-        )
+        if advanced:
+            note = (
+                "Advanced competence demonstrated: instructional completion, capstone concept "
+                "evidence, independent authorship, and transfer are all on record."
+            )
+        else:
+            note = "Not yet advanced. Still required: " + "; ".join(missing) + "."
+            if stale_reasons:
+                note += (
+                    " Previous work covering "
+                    + ", ".join(stale_reasons)
+                    + " was earned under an older competence definition and must be"
+                    " demonstrated again."
+                )
         return AdvancedStanding(
             capstone_content_complete=content_complete,
             capstone_concepts_demonstrated=concepts_demonstrated,
             independent_authorship_demonstrated=independent,
             transfer_demonstrated=transfer,
             advanced_competence_demonstrated=advanced,
+            requires_redemonstration=bool(stale_reasons),
             note=note,
         )
 
@@ -464,22 +548,18 @@ class SQLiteLearnerRecordRepository:
                 "SELECT * FROM module_progress WHERE learner_id = ?",
                 (self.learner_id,),
             ).fetchall()
-            evidence, module_evidence, module_failed = self._concept_evidence(connection)
-            by_id = {
-                row["module_id"]: self._as_progress(
-                    row,
-                    evidence=evidence,
-                    module_evidence=module_evidence,
-                    module_failed=module_failed,
-                )
-                for row in rows
-            }
+            found = self._concept_evidence(connection)
+            by_id = {row["module_id"]: self._as_progress(row, found=found) for row in rows}
             capstone = by_id.get(capstone_id)
             standing = self._advanced_standing(
                 connection,
                 capstone_id=capstone_id,
                 capstone_status=(capstone.status if capstone else ModuleStatus.NOT_STARTED),
-                evidence=evidence,
+                evidence=found.admissible,
+                stale_concepts={
+                    concept for concepts in found.stale_by_module.values() for concept in concepts
+                }
+                - found.admissible,
             )
         modules = tuple(by_id[module_id] for module_id in ordered)
         completed = sum(item.status == ModuleStatus.COMPLETE for item in modules)
@@ -500,6 +580,10 @@ class SQLiteLearnerRecordRepository:
             {concept for item in modules for concept in item.concepts_pending_evidence}
             - set(mastered)
         )
+        redemonstrate = sorted(
+            {concept for item in modules for concept in item.concepts_requiring_redemonstration}
+            - set(mastered)
+        )
         last = max((item.last_activity for item in active if item.last_activity), default=None)
         return Dashboard(
             modules=modules,
@@ -511,6 +595,7 @@ class SQLiteLearnerRecordRepository:
             concepts_mastered=tuple(mastered),
             concepts_needing_review=tuple(review),
             concepts_pending_evidence=tuple(pending),
+            concepts_requiring_redemonstration=tuple(redemonstrate),
             capstone_status=(capstone.status if capstone else ModuleStatus.NOT_STARTED),
             advanced_standing=standing,
         )
@@ -520,7 +605,7 @@ class SQLiteLearnerRecordRepository:
             rows = connection.execute(
                 """
                 SELECT assessment_id, module_id, answers, score, passed, feedback,
-                       version_binding, created_at
+                       version_binding, created_at, competence_revision
                 FROM assessment_attempts
                 WHERE learner_id = ?
                 ORDER BY created_at, id
@@ -537,6 +622,13 @@ class SQLiteLearnerRecordRepository:
                 "feedback": json.loads(row["feedback"]),
                 "version_binding": json.loads(row["version_binding"]),
                 "created_at": row["created_at"],
+                # The exported record states both what the attempt was earned
+                # under and how the current contract reads it, so a reader can
+                # see why a historical pass is or is not counted today.
+                "competence_revision": row["competence_revision"],
+                "competence_admissibility": self._competence.admits(
+                    EvidenceFamily.ASSESSMENT, row["competence_revision"]
+                ).value,
             }
             for row in rows
         )

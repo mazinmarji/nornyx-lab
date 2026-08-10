@@ -58,17 +58,64 @@ enforcement: the gates in `src/nornyx_lab/academy/capstone.py`, the derived
 concept-evidence model in `src/nornyx_lab/academy/progress.py`, and the
 request-capture regressions in `frontend/src/pages/CapstonePage.test.tsx`.
 
-It is **not yet a complete reference for every rule in this contract**:
-persisted capstone and assessment evidence is not currently revalidated
-against a versioned competence contract when Academy semantics change, so
-historical rows can continue to support advanced standing after the semantics
-that earned them have moved. Stale-evidence invalidation therefore remains a
-separate implementation requirement. When it lands, evidence acceptance
-should mean: evidence payload + the assessment/capstone semantic revision it
-was earned under + a current compatibility/revalidation rule — with
-historical evidence either remaining valid because its binding is still
-compatible, being explicitly revalidated, or degrading to "evidence requires
-re-demonstration"; never silently retaining standing.
+Stale-evidence invalidation, previously listed here as outstanding, is now
+implemented in `src/nornyx_lab/academy/competence.py` and enforced by the
+learner record. Evidence acceptance means:
+
+> evidence payload
+> + the semantic revision it was earned under
+> + the current compatibility rule
+> → admissible evidence
 
 The principle itself is not coupled to the capstone and applies to every
 feature that reports learner standing.
+
+## Evidence expiry
+
+Learner evidence records the competence semantics it was earned under, and is
+re-evaluated against the current contract on every read.
+
+**What defines a revision.** `content/competence.json` declares a revision per
+evidence *family* — `assessment` (which concepts an item tests, what counts as
+a correct answer, the passing threshold) and `capstone` (each scenario's
+consequential boundary and required workflow actions, the declared identities
+and zones, and the field-completeness rules that define authorship). Families
+are separate so editing one module's assessment does not invalidate unrelated
+capstone authorship. A package or Nornyx version is **not** a competence
+binding: `nornyx-lab` stays at one version across curriculum edits, so a
+release number cannot answer whether the meaning of evidence changed.
+
+**How compatibility is determined.** Only by explicit declaration. A prior
+revision counts if and only if the family lists it in `compatible_with`.
+Compatibility is never inferred from ordering, recency, timestamps, package
+versions, or name similarity, and a family's `compatible_with` may not contain
+its own revision.
+
+**How drift is caught.** Each family also declares a digest of the authored
+semantics its revision stands for; `tests/academy/test_competence_contract.py`
+recomputes that digest and fails when the two disagree. A semantic edit that
+arrives without a revision decision therefore fails CI rather than silently
+preserving standing. The digest covers authored data. Changes to the rule
+*code* — the authorship gates, the advanced-standing composition — are a
+maintainer obligation: **bump the family revision in the same change**, and add
+the prior revision to `compatible_with` only if existing evidence genuinely
+still holds. Overwriting a digest to make the gate green, while leaving the
+revision untouched, re-creates the exact defect this section exists to prevent.
+
+**Legacy and unbound evidence.** Rows written before the binding existed carry
+no revision. That is recorded honestly as unbound and **never backfilled** — the
+semantics those rows were earned under are genuinely unknown, and inventing one
+would manufacture the admissibility the binding exists to establish. Unbound
+evidence does not support present-tense competence.
+
+**When re-demonstration is required.** Whenever a required evidence item is
+incompatible or unbound. The learner is told which — `AdvancedStanding.
+requires_redemonstration` and `concepts_requiring_redemonstration` distinguish
+*never demonstrated* from *demonstrated under an older definition*, so the
+product says "show this again", never the false "you never did this".
+
+**Why historical rows are retained.** Deleting them would destroy the true
+record that the work happened, and truthful history is not the same thing as
+current admissibility. The two are kept apart: **a record exists** is a fact
+about the past; **a record is admissible competence evidence** is a claim about
+the present, and only the second expires.

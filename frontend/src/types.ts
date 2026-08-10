@@ -301,6 +301,8 @@ export interface ModuleProgress {
   concepts_needing_review: string[];
   /** Taught by this module, no mastery evidence yet. Completion ≠ mastery. */
   concepts_pending_evidence: string[];
+  /** Pending because prior passing evidence predates the current competence definition. */
+  concepts_requiring_redemonstration: string[];
 }
 
 export interface AdvancedStanding {
@@ -309,6 +311,8 @@ export interface AdvancedStanding {
   independent_authorship_demonstrated: boolean;
   transfer_demonstrated: boolean;
   advanced_competence_demonstrated: boolean;
+  /** A requirement is unmet because earlier qualifying work went stale. */
+  requires_redemonstration: boolean;
   note: string;
 }
 
@@ -323,6 +327,7 @@ export interface Dashboard {
   concepts_mastered: string[];
   concepts_needing_review: string[];
   concepts_pending_evidence: string[];
+  concepts_requiring_redemonstration: string[];
   capstone_status: ModuleStatus;
   advanced_standing: AdvancedStanding | null;
 }

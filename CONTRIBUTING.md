@@ -111,6 +111,13 @@ The assessment must:
 Add scoring tests for correct, incorrect, reordered, partial, duplicate, and unknown answers as
 applicable. Verify that progress reaches `complete` only after both execution and assessment pass.
 
+Changing which concepts an item tests, what counts as a correct answer, or the passing threshold
+changes what existing learner evidence means. Bump the affected family revision in
+`src/nornyx_lab/academy/content/competence.json` in the same change, and list the prior revision in
+`compatible_with` only if evidence earned under it genuinely still holds. The digest gate in
+`tests/academy/test_competence_contract.py` fails when a semantic edit arrives without that
+decision; see [`docs/ACADEMY_DESIGN_PRINCIPLES.md`](docs/ACADEMY_DESIGN_PRINCIPLES.md).
+
 ## API and schema definition of done
 
 The browser consumes structures, not prose conventions. For any public change:

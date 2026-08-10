@@ -1,0 +1,18 @@
+{
+  "version": "1.0.0",
+  "note": "The competence contract. Each family declares the revision its evidence is currently earned under, the superseded revisions it still explicitly accepts, and a digest of the authored semantics that revision stands for. Compatibility is never inferred: a prior revision counts only when listed in compatible_with. The digests are verified against the authored inputs by tests/academy/test_competence.py, so a semantic edit that arrives without a revision decision fails CI.",
+  "families": {
+    "assessment": {
+      "revision": "assessment.2026-08-a",
+      "compatible_with": [],
+      "semantic_digest": "sha256:87d72b5d900b9c8e11e2e5b8aed79330985cfbcbb451afc0c39b3fa3fc7f6ebc",
+      "covers": "Per-item assessment semantics: which concepts an item declares it tests, what counts as a correct answer, and the passing threshold."
+    },
+    "capstone": {
+      "revision": "capstone.2026-08-a",
+      "compatible_with": [],
+      "semantic_digest": "sha256:04fe5735f4990e2839bc898146fe5b5a2a281c72fceb454d1fe10e821e4f7148",
+      "covers": "Capstone competence semantics: each scenario's consequential boundary and required workflow actions, the declared identities and zones a design may use, and the field-completeness requirements that define learner authorship."
+    }
+  }
+}
