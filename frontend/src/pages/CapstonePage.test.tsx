@@ -181,4 +181,78 @@ describe("CapstonePage competence honesty", () => {
       require_integrity_preflight: true,
     });
   });
+
+  // Typing three assurance statements keystroke-by-keystroke is slow under a
+  // loaded full-suite run; the default 5s budget is for assertions, not input.
+  it("submits only coordination and trust-zone values the learner decided", { timeout: 20000 }, async () => {
+    // Review finding: Independent mode preselected the academy's zones and
+    // coordination refs, so a learner could run without touching them and the
+    // request still arrived field-complete — visible/preselected is not
+    // decided. This walks the full Independent form and proves the captured
+    // request carries the learner's own choices, including the explicit-None
+    // delegation (a compound decision: null ref + requirement disabled) that
+    // the old preselection could never produce.
+    runCapstoneMock.mockClear();
+    runCapstoneMock.mockImplementation((request: Record<string, unknown>) =>
+      Promise.reject(new Error(`captured: ${JSON.stringify(request)}`)),
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("scaffolding-meaning")).toBeInTheDocument());
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: /scaffolding/i }),
+      "independent",
+    );
+
+    const form = screen.getByTestId("capstone-design-form");
+    for (const row of form.querySelectorAll(".design-role-row")) {
+      const [identity, capability] = row.querySelectorAll("select");
+      await userEvent.selectOptions(identity, "identity.remediation_agent");
+      await userEvent.selectOptions(capability, capability.options[1].value);
+    }
+    await userEvent.selectOptions(screen.getByTestId("policy-approval-mode"), "valid");
+    await userEvent.selectOptions(screen.getByTestId("policy-require_external_approval"), "yes");
+    await userEvent.selectOptions(screen.getByTestId("policy-require_handoff_approval"), "yes");
+    await userEvent.selectOptions(
+      screen.getByTestId("policy-require_integrity_preflight"),
+      "yes",
+    );
+    for (const [field, text] of [
+      ["Your assurance claim", "A learner-authored claim scoped to the named surface only."],
+      ["Residual risk", "Direct-call bypass remains possible outside the named surface."],
+      ["Falsification condition", "Falsify if the callable completes without a decision."],
+    ] as const) {
+      await userEvent.type(screen.getByLabelText(new RegExp(field, "i")), text);
+    }
+
+    const runButton = screen.getByRole("button", { name: /run capstone workflow/i });
+    // Everything else is authored; the undecided coordination and zones must
+    // still block the run — preselection is gone.
+    expect(runButton).toBeDisabled();
+
+    await userEvent.selectOptions(screen.getByTestId("coordination-delegation"), "__none__");
+    await userEvent.selectOptions(
+      screen.getByTestId("coordination-handoff"),
+      "handoff.compliance_closure",
+    );
+    await userEvent.selectOptions(screen.getByTestId("zone-source"), "zone.remediation_internal");
+    await userEvent.selectOptions(screen.getByTestId("zone-target"), "zone.customer_channel");
+    expect(runButton).toBeEnabled();
+    await userEvent.click(runButton);
+
+    await waitFor(() => expect(runCapstoneMock).toHaveBeenCalledTimes(1));
+    const request = runCapstoneMock.mock.calls[0][0] as {
+      coordination: Record<string, unknown>;
+      trust_zones: Record<string, unknown>;
+    };
+    expect(request.coordination).toEqual({
+      delegation_id: null,
+      handoff_id: "handoff.compliance_closure",
+      require_delegation: false,
+      require_handoff: true,
+    });
+    expect(request.trust_zones).toEqual({
+      source_zone: "zone.remediation_internal",
+      target_zone: "zone.customer_channel",
+    });
+  });
 });

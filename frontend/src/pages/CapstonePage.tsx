@@ -73,6 +73,14 @@ const UNANSWERED_POLICY: PolicyChoices = {
   require_integrity_preflight: "",
 };
 
+/**
+ * The learner's explicit decision that a design declares no delegation (or no
+ * handoff). Distinct from "" (undecided): undecided blocks the run, while
+ * NONE_REF is a real governance choice submitted as an explicit null with the
+ * matching requirement disabled — one compound decision.
+ */
+const NONE_REF = "__none__";
+
 function AdvancedStandingPanel({ standing }: { standing: AdvancedStanding }) {
   const rows: [string, boolean][] = [
     ["Capstone content complete (any scaffolding + assessment)", standing.capstone_content_complete],
@@ -111,13 +119,18 @@ export function CapstonePage() {
   const [scaffolding, setScaffolding] = useState("guided");
   const [scenarioId, setScenarioId] = useState("customer-remediation");
   const [roles, setRoles] = useState<RoleRow[]>([]);
-  // "" = not yet decided. The learner must choose, not inherit.
+  // "" = not yet decided. The learner must choose, not inherit — this holds
+  // for every design control: policy, coordination, and trust zones alike.
+  // Preselected values would reach the backend as manufactured authorship.
   const [approvalMode, setApprovalMode] = useState("");
   const [policyChoices, setPolicyChoices] = useState<PolicyChoices>(UNANSWERED_POLICY);
-  const [sourceZone, setSourceZone] = useState("zone.remediation_internal");
-  const [targetZone, setTargetZone] = useState("zone.customer_channel");
-  const [delegationId, setDelegationId] = useState("delegation.refund_proposal");
-  const [handoffId, setHandoffId] = useState("handoff.compliance_closure");
+  const [sourceZone, setSourceZone] = useState("");
+  const [targetZone, setTargetZone] = useState("");
+  // Three states: "" undecided · NONE_REF the learner's explicit decision to
+  // declare no delegation/handoff · otherwise a declared ref. Selecting a ref
+  // is one compound choice: it both names the ref and requires it.
+  const [delegationId, setDelegationId] = useState("");
+  const [handoffId, setHandoffId] = useState("");
   const [claim, setClaim] = useState("");
   const [residualRisk, setResidualRisk] = useState("");
   const [falsification, setFalsification] = useState("");
@@ -131,13 +144,17 @@ export function CapstonePage() {
   const authoring = scaffolding !== "guided";
   const independent = scaffolding === "independent";
 
-  // Reset the design worksheet whenever the design space changes: allocations
-  // and policy answers from one scenario must not silently carry into the
-  // other.
+  // Reset the design worksheet whenever the design space changes: no decision
+  // — allocation, policy, coordination, or zone — may silently carry from one
+  // scenario or scaffolding level into another.
   useEffect(() => {
     if (scenario) setRoles(emptyRoles(scenario));
     setApprovalMode("");
     setPolicyChoices(UNANSWERED_POLICY);
+    setSourceZone("");
+    setTargetZone("");
+    setDelegationId("");
+    setHandoffId("");
   }, [scenarioId, scaffolding, definition.data]); // scenario derives from these
 
   const identityOptions = scenario?.declared_identities ?? [];
@@ -149,8 +166,15 @@ export function CapstonePage() {
   const rolesComplete = roles.every((row) => row.identity_ref && row.capability_ref);
   const policyComplete =
     approvalMode !== "" && POLICY_QUESTIONS.every((question) => policyChoices[question.key] !== "");
+  const zonesApplicable = Boolean(scenario?.declared_zones.length);
+  const coordinationComplete = delegationId !== "" && handoffId !== "";
+  const zonesComplete = !zonesApplicable || (sourceZone !== "" && targetZone !== "");
   const assuranceComplete = claim.trim().length >= 20 && residualRisk.trim().length >= 20 && falsification.trim().length >= 20;
-  const canRun = !authoring || (rolesComplete && policyComplete && (!independent || assuranceComplete));
+  const canRun =
+    !authoring ||
+    (rolesComplete &&
+      policyComplete &&
+      (!independent || (coordinationComplete && zonesComplete && assuranceComplete)));
 
   function buildRequest(): Record<string, unknown> {
     const request: Record<string, unknown> = {
@@ -177,13 +201,17 @@ export function CapstonePage() {
       require_integrity_preflight: policyChoices.require_integrity_preflight === "yes",
     };
     if (independent) {
+      // Compound learner choice per ref (documented, tested): choosing a
+      // declared ref both names it and requires it; choosing "None" submits
+      // an explicit null with the requirement disabled. Undecided ("") never
+      // reaches here — the run is blocked until both are decided.
       request.coordination = {
-        delegation_id: delegationId || null,
-        handoff_id: handoffId || null,
-        require_delegation: Boolean(delegationId),
-        require_handoff: Boolean(handoffId),
+        delegation_id: delegationId === NONE_REF ? null : delegationId,
+        handoff_id: handoffId === NONE_REF ? null : handoffId,
+        require_delegation: delegationId !== NONE_REF,
+        require_handoff: handoffId !== NONE_REF,
       };
-      if (scenario?.declared_zones.length) {
+      if (zonesApplicable) {
         request.trust_zones = { source_zone: sourceZone, target_zone: targetZone };
       }
       request.assurance = {
@@ -284,12 +312,14 @@ export function CapstonePage() {
                   <>
                     {scenario.declared_zones.length ? (
                       <div className="design-zone-row">
-                        <label><span>Source zone</span><select value={sourceZone} onChange={(event) => setSourceZone(event.target.value)}>{scenario.declared_zones.map((zone) => <option key={zone} value={zone}>{zone}</option>)}</select></label>
-                        <label><span>Target zone</span><select value={targetZone} onChange={(event) => setTargetZone(event.target.value)}>{scenario.declared_zones.map((zone) => <option key={zone} value={zone}>{zone}</option>)}</select></label>
+                        <label><span>Source zone</span><select required value={sourceZone} onChange={(event) => setSourceZone(event.target.value)} data-testid="zone-source"><option value="">Decide…</option>{scenario.declared_zones.map((zone) => <option key={zone} value={zone}>{zone}</option>)}</select></label>
+                        <label><span>Target zone</span><select required value={targetZone} onChange={(event) => setTargetZone(event.target.value)} data-testid="zone-target"><option value="">Decide…</option>{scenario.declared_zones.map((zone) => <option key={zone} value={zone}>{zone}</option>)}</select></label>
                       </div>
                     ) : null}
-                    <label><span>Declared delegation</span><select value={delegationId} onChange={(event) => setDelegationId(event.target.value)}><option value="">None required</option>{scenario.declared_delegations.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-                    <label><span>Declared handoff</span><select value={handoffId} onChange={(event) => setHandoffId(event.target.value)}><option value="">None required</option>{scenario.declared_handoffs.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                    {/* Choosing a ref is the decision to require it; "None" is
+                        the decision to design without one. Neither is assumed. */}
+                    <label><span>Declared delegation</span><select required value={delegationId} onChange={(event) => setDelegationId(event.target.value)} data-testid="coordination-delegation"><option value="">Decide…</option><option value={NONE_REF}>None — this design declares no delegation</option>{scenario.declared_delegations.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                    <label><span>Declared handoff</span><select required value={handoffId} onChange={(event) => setHandoffId(event.target.value)} data-testid="coordination-handoff"><option value="">Decide…</option><option value={NONE_REF}>None — this design declares no handoff</option>{scenario.declared_handoffs.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
                     <label><span>Your assurance claim (scoped to this design)</span><textarea rows={3} value={claim} onChange={(event) => setClaim(event.target.value)} placeholder="What exactly does this run support, on which named surface?" /></label>
                     <label><span>Residual risk you accept</span><textarea rows={2} value={residualRisk} onChange={(event) => setResidualRisk(event.target.value)} placeholder="What remains possible — bypass, authentication, egress?" /></label>
                     <label><span>Falsification condition</span><textarea rows={2} value={falsification} onChange={(event) => setFalsification(event.target.value)} placeholder="What observation would prove your claim false?" /></label>
@@ -299,7 +329,7 @@ export function CapstonePage() {
             ) : null}
 
             <button className="button button-accent button-large" type="submit" disabled={run.loading || !canRun}>{run.loading ? "Running capstone…" : "Run capstone workflow"}</button>
-            {!canRun ? <p className="muted" role="status">Complete every allocation, decide all four policy questions{independent ? ", and write the three assurance statements (at least 20 characters each)" : ""} before running.</p> : null}
+            {!canRun ? <p className="muted" role="status">Complete every allocation and decide all four policy questions{independent ? `, the delegation and handoff choices, ${zonesApplicable ? "the source and target zones, " : ""}and write the three assurance statements (at least 20 characters each)` : ""} before running.</p> : null}
           </form>
         </section>
       </> : null}
