@@ -399,7 +399,9 @@ class CapstoneConfig:
             set(_SCENARIOS),
         )
 
-        defaults_used = tuple(section for section in _DESIGN_SECTIONS if raw.get(section) is None)
+        defaults_used = tuple(
+            section for section in _DESIGN_SECTIONS if not _section_authored(raw.get(section))
+        )
         _require_authorship(scaffolding, defaults_used, scenario)
 
         roles = _parse_roles(raw.get("roles"), scenario)  # type: ignore[arg-type]
@@ -420,6 +422,25 @@ class CapstoneConfig:
 
 
 _DESIGN_SECTIONS = ("roles", "trust_zones", "coordination", "policy", "assurance")
+
+
+def _section_authored(value: Any) -> bool:
+    """A design section counts as authored only when it carries decisions.
+
+    ``None`` and empty containers are the same thing: nothing supplied. An
+    empty object would otherwise be silently filled with academy defaults
+    while being credited as learner authorship — exactly the overclaim the
+    scaffolding levels exist to prevent. Malformed non-container values are
+    left for the section parsers to reject with their specific errors.
+    """
+
+    if value is None:
+        return False
+    if isinstance(value, Mapping):
+        return bool(value)
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return bool(value)
+    return True
 
 
 def _require_authorship(scaffolding: str, defaults_used: tuple[str, ...], scenario: str) -> None:
@@ -877,6 +898,11 @@ def _design_review(
     checks = {
         "unique_step_ids": len(ids) == len(set(ids)),
         "known_actions": all(action in action_capabilities for action in actions),
+        # Every workflow stage the scenario declares must be present. Without
+        # this, a design that omits analysis, proposal, approval routing, or
+        # closure could still validate — and an incomplete workflow must never
+        # substantiate competence evidence.
+        "required_workflow_actions_covered": set(action_capabilities) <= set(actions),
         "three_distinct_identities": len({role.identity_ref for role in config.roles}) >= 3,
         "capability_allocations_allowed": allocations_allowed,
         "one_consequential_step": len(consequential_roles) == 1,

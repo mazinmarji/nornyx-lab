@@ -335,9 +335,12 @@ export function DemoPage() {
   const [gapFound, setGapFound] = useState(restored.progress?.gapFound ?? false);
   const [ungovernedRun, setUngovernedRun] = useState<ScenarioRun | null>(restored.runs.ungoverned);
   const [governedRun, setGovernedRun] = useState<ScenarioRun | null>(restored.runs.governed);
-  const [runsRestored, setRunsRestored] = useState(
-    Boolean(restored.runs.ungoverned || restored.runs.governed),
-  );
+  // Provenance is tracked per variant: re-running one variant must not strip
+  // the "restored" label from the other, still-restored result.
+  const [runsRestored, setRunsRestored] = useState({
+    ungoverned: Boolean(restored.runs.ungoverned),
+    governed: Boolean(restored.runs.governed),
+  });
 
   useEffect(() => {
     saveDemoProgress({ index, prediction, gapPick, gapFound });
@@ -400,7 +403,7 @@ export function DemoPage() {
       const options = variant === "ungoverned" ? UNGOVERNED_OPTIONS : defaultDemoOptions;
       const run = await task.run(() => academyApi.runDemo(options));
       if (!run) return;
-      setRunsRestored(false);
+      setRunsRestored((current) => ({ ...current, [variant]: false }));
       if (variant === "ungoverned") setUngovernedRun(run);
       else {
         setGovernedRun(run);
@@ -517,7 +520,9 @@ export function DemoPage() {
       {/* Provenance of restored results: these came from runs the learner
           actually executed in an earlier session, and are labeled so a reload
           never silently presents an old result as a new execution. */}
-      {runsRestored && screen.kind === "run" && runForScreen ? (
+      {screen.kind === "run" &&
+      runForScreen &&
+      runsRestored[(screen.variant as "ungoverned" | "governed") ?? "governed"] ? (
         <p className="demo-restored-note" role="status" data-testid="demo-restored-note">
           Restored from your last visit: this is the result of a run you executed earlier, not a
           new execution.

@@ -249,3 +249,70 @@ def test_failed_independent_run_grants_no_advanced_credit(tmp_path) -> None:
     standing = client.get("/api/v1/progress").json()["advanced_standing"]
     assert standing["independent_authorship_demonstrated"] is False
     assert standing["advanced_competence_demonstrated"] is False
+
+
+# ------------------------------------------------- review-found regressions
+
+
+@pytest.mark.parametrize("section", ["roles", "coordination", "policy", "assurance"])
+def test_empty_object_sections_are_not_learner_authorship(section: str) -> None:
+    """`{}` (or `[]`) is nothing supplied, not an authored design section.
+
+    Review finding: Independent mode only checked for None, so `policy: {}`
+    was silently filled with academy defaults while being credited as learner
+    authorship. Empty containers must be rejected exactly like omissions.
+    """
+
+    config = {**INDEPENDENT_DISBURSEMENT, section: [] if section == "roles" else {}}
+    with pytest.raises(CapstoneInputError, match="independent"):
+        run_capstone(config)
+
+
+def test_empty_trust_zones_object_is_not_authorship_on_remediation() -> None:
+    remediation = {
+        **INDEPENDENT_DISBURSEMENT,
+        "scenario": "customer-remediation",
+        "trust_zones": {},
+    }
+    with pytest.raises(CapstoneInputError, match="trust_zones"):
+        run_capstone(remediation)
+
+
+def test_guided_empty_objects_still_count_as_academy_defaults() -> None:
+    """Even in Guided mode, `{}` must be recorded as defaults, never authorship."""
+
+    run = run_capstone({"scaffolding": "guided", "policy": {}, "coordination": {}})
+    competence = run.results["competence"]
+    assert "policy" in competence["defaults_used"]
+    assert "coordination" in competence["defaults_used"]
+    assert competence["learner_authored"] is False
+
+
+def test_incomplete_workflow_is_rejected_as_a_design_defect() -> None:
+    """Omitting analysis/proposal/approval/closure must not stay eligible.
+
+    Review finding: the design review validated only the steps that were
+    supplied, so a two-step design (read the case, issue the refund) could
+    potentially earn advanced evidence despite skipping the workflow stages
+    the scenario exists to govern.
+    """
+
+    truncated = {
+        **INDEPENDENT_DISBURSEMENT,
+        "roles": [DISBURSEMENT_ROLES[0], DISBURSEMENT_ROLES[4]],
+    }
+    run = run_capstone(truncated)
+
+    checks = run.results["design_review"]["checks"]
+    assert checks["required_workflow_actions_covered"] is False
+    assert run.results["design_review"]["valid"] is False
+    assert run.completion_eligible is False
+    assert run.results["competence"]["counts_toward_advanced"] is False
+
+
+def test_complete_explicitly_authored_workflow_remains_eligible() -> None:
+    """The positive control: full authorship still passes the tightened gates."""
+
+    run = run_capstone(INDEPENDENT_DISBURSEMENT)
+    assert run.results["design_review"]["checks"]["required_workflow_actions_covered"] is True
+    assert run.completion_eligible is True
