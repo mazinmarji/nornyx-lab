@@ -73,6 +73,7 @@ vi.mock("../context/AcademyContext", async () => {
         concepts_mastered: [],
         concepts_needing_review: [],
         concepts_pending_evidence: [],
+        concepts_requiring_redemonstration: [],
         capstone_status: "complete",
         advanced_standing: {
           capstone_content_complete: true,
@@ -80,6 +81,7 @@ vi.mock("../context/AcademyContext", async () => {
           independent_authorship_demonstrated: false,
           transfer_demonstrated: false,
           advanced_competence_demonstrated: false,
+          requires_redemonstration: false,
           note: "Not yet advanced. Still required: an independent learner-authored capstone; a completion-eligible transfer-scenario design.",
         },
       },

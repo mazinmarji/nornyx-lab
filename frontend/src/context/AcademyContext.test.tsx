@@ -16,6 +16,7 @@ const dashboard = {
   concepts_mastered: [],
   concepts_needing_review: [],
   concepts_pending_evidence: [],
+  concepts_requiring_redemonstration: [],
   capstone_status: "not_started",
   advanced_standing: null,
 };

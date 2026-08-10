@@ -105,6 +105,15 @@ function AdvancedStandingPanel({ standing }: { standing: AdvancedStanding }) {
           </li>
         ))}
       </ul>
+      {/* Says "again", not "never" — the learner did the work, and being told
+          otherwise would be its own false claim. */}
+      {standing.requires_redemonstration ? (
+        <p className="muted" data-testid="advanced-standing-redemonstration">
+          Some of this was demonstrated under an older competence definition. That work is
+          still recorded, but it has to be demonstrated again before it counts towards
+          advanced standing.
+        </p>
+      ) : null}
       <p className="muted">{standing.note}</p>
     </section>
   );
