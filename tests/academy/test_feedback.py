@@ -381,6 +381,43 @@ def test_no_identifying_or_device_information_is_recorded(tmp_path) -> None:
         assert fact and fact not in serialized, f"{fact!r} reached the outbound payload"
 
 
+def test_the_feedback_record_and_the_platform_endpoint_cannot_disagree(tmp_path) -> None:
+    """One installation must report one set of versions.
+
+    A rating recorded against one set of version numbers while the about page
+    shows another would make the corpus unreadable. Both read the same helper;
+    what this pins is the *fallback* each uses when package metadata is absent,
+    because that is where two hardcoded constants could silently drift apart.
+    """
+
+    import json as _json
+    from importlib.resources import files
+
+    from nornyx_lab.academy.versions import adapter_version, nornyx_version
+
+    baseline = _json.loads(
+        files("nornyx_lab.academy.content")
+        .joinpath("compatibility.json")
+        .read_text(encoding="utf-8")
+    )["runtime_baseline"]
+
+    with _client(tmp_path) as client:
+        platform = client.get("/api/v1/platform").json()
+        client.post("/api/v1/feedback/modules/F0", json=VALID_MODULE_FEEDBACK)
+        payload = client.app.state.feedback.build_payload(
+            client.get("/api/v1/feedback").json()["session_id"]
+        )
+
+    runtime = payload["runtime"]
+    assert runtime["academy_version"] == platform["academy_version"]
+    assert runtime["nornyx_version"] == platform["nornyx_runtime_version"]
+    assert runtime["adapter_version"] == platform["adapter_version"]
+    # And the uninstalled-package fallbacks agree with the declared baseline,
+    # so a source checkout reports the same numbers a deployment does.
+    assert nornyx_version() == baseline["nornyx_version"]
+    assert adapter_version() == baseline["adapter_version"]
+
+
 def test_the_payload_carries_exactly_the_documented_top_level_sections(tmp_path) -> None:
     """A new section must be a deliberate schema decision, not an accident."""
 
