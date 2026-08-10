@@ -1,12 +1,12 @@
 {
   "version": "1.0.0",
-  "note": "The competence contract. Each family declares the revision its evidence is currently earned under, the superseded revisions it still explicitly accepts, and a digest of the authored semantics that revision stands for. Compatibility is never inferred: a prior revision counts only when listed in compatible_with. The digests are verified against the authored inputs by tests/academy/test_competence.py, so a semantic edit that arrives without a revision decision fails CI.",
+  "note": "The competence contract. Each family declares the revision its evidence is currently earned under, the superseded revisions it still explicitly accepts, and a digest of the authored semantics that revision stands for. Compatibility is never inferred: a prior revision counts only when listed in compatible_with. The digests are verified against the authored inputs by tests/academy/test_competence_contract.py, so a semantic edit that arrives without a revision decision fails CI.",
   "families": {
     "assessment": {
       "revision": "assessment.2026-08-a",
       "compatible_with": [],
-      "semantic_digest": "sha256:87d72b5d900b9c8e11e2e5b8aed79330985cfbcbb451afc0c39b3fa3fc7f6ebc",
-      "covers": "Per-item assessment semantics: which concepts an item declares it tests, what counts as a correct answer, and the passing threshold."
+      "semantic_digest": "sha256:05ec65d3f8da9094657ce6540b9ed523a14ce1e32248f50afca2dc5bc118cd05",
+      "covers": "Per-item assessment semantics: the learner-visible stimulus (prompt, context, and the labelled options an answer id points at), which concepts an item declares it tests, what counts as a correct answer, and the passing threshold."
     },
     "capstone": {
       "revision": "capstone.2026-08-a",

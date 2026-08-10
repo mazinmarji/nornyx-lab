@@ -81,8 +81,44 @@ def test_digest_tracks_the_fields_that_decide_what_evidence_means() -> None:
     assert compute_assessment_digest([rethresholded, *definitions[1:]]) != baseline
 
 
-def test_digest_ignores_wording_that_does_not_change_what_passing_proves() -> None:
-    """Improving a prompt must not force every learner to re-demonstrate."""
+def test_digest_tracks_the_learner_visible_stimulus() -> None:
+    """The stimulus decides what an answer id *means*, so it is semantic.
+
+    ``correct`` stores option ids. Negating a prompt, or relabelling the option
+    that id points at, inverts what the learner had to demonstrate while every
+    id stays identical. An earlier version of this gate excluded the stimulus
+    and would have let exactly that change pass without a revision — the defect
+    the competence contract exists to prevent.
+    """
+
+    service = AssessmentService()
+    definitions = [service.definition(assessment_id) for assessment_id in service.ids()]
+    baseline = compute_assessment_digest(definitions)
+
+    negated = definitions[0].model_copy(
+        update={"prompt": "Which action does NOT require approval?"}
+    )
+    assert compute_assessment_digest([negated, *definitions[1:]]) != baseline
+
+    recontextualised = definitions[0].model_copy(
+        update={"context": "A materially different situation to reason about."}
+    )
+    assert compute_assessment_digest([recontextualised, *definitions[1:]]) != baseline
+
+    first_option = definitions[0].options[0]
+    inverted_label = definitions[0].model_copy(
+        update={
+            "options": (
+                first_option.model_copy(update={"label": "Allow without human approval"}),
+                *definitions[0].options[1:],
+            )
+        }
+    )
+    assert compute_assessment_digest([inverted_label, *definitions[1:]]) != baseline
+
+
+def test_digest_ignores_material_shown_only_after_scoring() -> None:
+    """Explanations cannot change what the learner had to demonstrate."""
 
     service = AssessmentService()
     definitions = [service.definition(assessment_id) for assessment_id in service.ids()]
@@ -90,11 +126,28 @@ def test_digest_ignores_wording_that_does_not_change_what_passing_proves() -> No
 
     reworded = definitions[0].model_copy(
         update={
-            "prompt": "A clearer way of asking exactly the same question.",
             "explanation": "A clearer explanation of exactly the same answer.",
+            "incorrect_explanations": {"zzz": "A clearer note about a wrong choice."},
         }
     )
     assert compute_assessment_digest([reworded, *definitions[1:]]) == baseline
+
+
+def test_digest_ignores_option_order_and_definition_order() -> None:
+    """Serialisation changes are not semantic and must not raise false drift."""
+
+    service = AssessmentService()
+    definitions = [service.definition(assessment_id) for assessment_id in service.ids()]
+    baseline = compute_assessment_digest(definitions)
+
+    multi_option = next(item for item in definitions if len(item.options) > 1)
+    reordered_options = multi_option.model_copy(
+        update={"options": tuple(reversed(multi_option.options))}
+    )
+    swapped = [reordered_options if item.id == multi_option.id else item for item in definitions]
+    assert compute_assessment_digest(swapped) == baseline
+
+    assert compute_assessment_digest(list(reversed(definitions))) == baseline
 
 
 def test_capstone_digest_tracks_scenario_and_authorship_semantics() -> None:

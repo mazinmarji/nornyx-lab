@@ -156,14 +156,23 @@ def _digest(payload: Any) -> str:
 
 
 def compute_assessment_digest(definitions: Iterable[Any]) -> str:
-    """Digest the parts of an assessment that decide what passing it proves.
+    """Digest everything that decides what passing an assessment proves.
 
-    Included: the item's identity, the module it belongs to, its kind, the
-    concepts it declares it tests, the accepted answers, and the passing
-    threshold. Excluded: prompts, option labels, and explanations — improving
-    the wording of a question does not change which concept a correct answer
-    evidences, and forcing every learner to re-demonstrate over a typo fix
-    would make the gate an obstacle rather than a measurement.
+    ``correct`` holds option *ids*, and an id means nothing on its own: what
+    the learner had to demonstrate is fixed by the prompt, the context, and the
+    label attached to that id. Relabelling option ``a`` from "Require human
+    approval" to "Allow without human approval", or negating a prompt, inverts
+    the item's meaning while every id stays put — so the stimulus is part of
+    the digest. Options are canonicalised by id, so reordering them (pure
+    presentation) does not raise false drift.
+
+    Excluded: ``explanation`` and ``incorrect_explanations``. Those are shown
+    after scoring and cannot change what the learner had to demonstrate.
+
+    A genuinely wording-only improvement is not blocked by this — it is handled
+    the safe way, with a new revision that explicitly declares the prior one
+    compatible. That is a deliberate decision on the record, which is strictly
+    better than a digest trying to guess whether prose changed meaning.
     """
 
     rows = [
@@ -172,6 +181,12 @@ def compute_assessment_digest(definitions: Iterable[Any]) -> str:
             "module_id": item.module_id,
             "kind": item.kind.value if hasattr(item.kind, "value") else str(item.kind),
             "concepts": sorted(item.concepts),
+            "prompt": item.prompt,
+            "context": item.context,
+            "options": sorted(
+                ({"id": option.id, "label": option.label} for option in item.options),
+                key=lambda option: option["id"],
+            ),
             "correct": list(item.correct),
             "minimum_score": item.minimum_score,
         }

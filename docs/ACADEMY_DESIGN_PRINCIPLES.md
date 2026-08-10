@@ -76,8 +76,10 @@ Learner evidence records the competence semantics it was earned under, and is
 re-evaluated against the current contract on every read.
 
 **What defines a revision.** `content/competence.json` declares a revision per
-evidence *family* — `assessment` (which concepts an item tests, what counts as
-a correct answer, the passing threshold) and `capstone` (each scenario's
+evidence *family* — `assessment` (the learner-visible stimulus: prompt,
+context, and the labelled options an answer id points at, plus which concepts
+the item tests, what counts as a correct answer, and the passing threshold) and
+`capstone` (each scenario's
 consequential boundary and required workflow actions, the declared identities
 and zones, and the field-completeness rules that define authorship). Families
 are separate so editing one module's assessment does not invalidate unrelated
@@ -95,7 +97,19 @@ its own revision.
 semantics its revision stands for; `tests/academy/test_competence_contract.py`
 recomputes that digest and fails when the two disagree. A semantic edit that
 arrives without a revision decision therefore fails CI rather than silently
-preserving standing. The digest covers authored data. Changes to the rule
+preserving standing.
+
+The assessment digest deliberately covers the whole stimulus, not just the
+answer key. `correct` stores option *ids*, and an id means nothing by itself:
+relabelling the option it points at, or negating the prompt, inverts what the
+learner had to demonstrate while every id stays identical. Only material shown
+*after* scoring — explanations — is excluded, because it cannot change what was
+demonstrated. A genuinely wording-only improvement is therefore handled by a
+new revision that explicitly declares the prior one compatible: a decision on
+the record, which is safer than a digest guessing whether prose changed
+meaning.
+
+The digest covers authored data. Changes to the rule
 *code* — the authorship gates, the advanced-standing composition — are a
 maintainer obligation: **bump the family revision in the same change**, and add
 the prior revision to `compatible_with` only if existing evidence genuinely
