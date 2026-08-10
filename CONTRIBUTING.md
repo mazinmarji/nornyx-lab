@@ -150,6 +150,10 @@ do not count as an interaction.
 
 ## Honest-claim checklist
 
+Any feature reporting learner standing (mastery, readiness, advanced completion, or similar) is
+additionally reviewed against the acceptance contract in
+[`docs/ACADEMY_DESIGN_PRINCIPLES.md`](docs/ACADEMY_DESIGN_PRINCIPLES.md).
+
 Before adding or changing a material claim, answer:
 
 1. What exact planner, graph node, tool, resource, artifact, workflow, or path is the target?
