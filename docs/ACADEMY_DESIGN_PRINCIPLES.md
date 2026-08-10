@@ -52,10 +52,23 @@ or independent competence.
 
 ## Reference implementation
 
-The capstone advanced-standing path is the current reference: authorship and
-field-completeness gates in `src/nornyx_lab/academy/capstone.py`, the derived
+The capstone advanced-standing path is the current reference implementation
+for authorship, field-completeness, transfer, and request-capture
+enforcement: the gates in `src/nornyx_lab/academy/capstone.py`, the derived
 concept-evidence model in `src/nornyx_lab/academy/progress.py`, and the
 request-capture regressions in `frontend/src/pages/CapstonePage.test.tsx`.
-The principle is not coupled to that feature — it applies to anything that
-reports learner standing, and the reference merely shows one complete
-enforcement of the chain.
+
+It is **not yet a complete reference for every rule in this contract**:
+persisted capstone and assessment evidence is not currently revalidated
+against a versioned competence contract when Academy semantics change, so
+historical rows can continue to support advanced standing after the semantics
+that earned them have moved. Stale-evidence invalidation therefore remains a
+separate implementation requirement. When it lands, evidence acceptance
+should mean: evidence payload + the assessment/capstone semantic revision it
+was earned under + a current compatibility/revalidation rule — with
+historical evidence either remaining valid because its binding is still
+compatible, being explicitly revalidated, or degrading to "evidence requires
+re-demonstration"; never silently retaining standing.
+
+The principle itself is not coupled to the capstone and applies to every
+feature that reports learner standing.
