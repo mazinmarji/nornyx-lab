@@ -16,6 +16,7 @@ import { useAsyncTask } from "../components/useAsyncTask";
 import { useAcademy } from "../context/AcademyContext";
 import { useMode } from "../context/ModeContext";
 import type { ActionCounter, DemoOptions, DemoStory, DemoStoryScreen, GlossaryTerm, ScenarioRun } from "../types";
+import { loadDemoProgress, loadDemoRuns, saveDemoProgress, saveDemoRuns } from "./demoStorage";
 
 export const defaultDemoOptions: DemoOptions = {
   injection_enabled: true,
@@ -318,14 +319,36 @@ export function DemoPage() {
   const [story, setStory] = useState<DemoStory | null>(null);
   const [glossary, setGlossary] = useState<GlossaryTerm[]>([]);
   const [storyError, setStoryError] = useState<string | null>(null);
-  const [index, setIndex] = useState(0);
-  const [prediction, setPrediction] = useState<string | null>(null);
+  // Progress, commitments, and run results restore separately from
+  // localStorage (see demoStorage.ts). Runs are restored only from a stored
+  // real response and are labeled as restored; a reload can never mark a run
+  // executed that was not.
+  const [restored] = useState(() => ({
+    progress: loadDemoProgress(),
+    runs: loadDemoRuns(),
+  }));
+  const [index, setIndex] = useState(restored.progress?.index ?? 0);
+  const [prediction, setPrediction] = useState<string | null>(restored.progress?.prediction ?? null);
   // Lifted out of ChooseScreen so the answer survives Back navigation and can
   // gate progress. `gapFound` is only true for the correct choice.
-  const [gapPick, setGapPick] = useState<string | null>(null);
-  const [gapFound, setGapFound] = useState(false);
-  const [ungovernedRun, setUngovernedRun] = useState<ScenarioRun | null>(null);
-  const [governedRun, setGovernedRun] = useState<ScenarioRun | null>(null);
+  const [gapPick, setGapPick] = useState<string | null>(restored.progress?.gapPick ?? null);
+  const [gapFound, setGapFound] = useState(restored.progress?.gapFound ?? false);
+  const [ungovernedRun, setUngovernedRun] = useState<ScenarioRun | null>(restored.runs.ungoverned);
+  const [governedRun, setGovernedRun] = useState<ScenarioRun | null>(restored.runs.governed);
+  // Provenance is tracked per variant: re-running one variant must not strip
+  // the "restored" label from the other, still-restored result.
+  const [runsRestored, setRunsRestored] = useState({
+    ungoverned: Boolean(restored.runs.ungoverned),
+    governed: Boolean(restored.runs.governed),
+  });
+
+  useEffect(() => {
+    saveDemoProgress({ index, prediction, gapPick, gapFound });
+  }, [index, prediction, gapPick, gapFound]);
+
+  useEffect(() => {
+    saveDemoRuns({ ungoverned: ungovernedRun, governed: governedRun });
+  }, [ungovernedRun, governedRun]);
 
   useEffect(() => {
     let active = true;
@@ -344,6 +367,28 @@ export function DemoPage() {
     };
   }, []);
 
+  // If restored navigation points past what the restored state can support
+  // (for example a stored run failed validation), fall back to the furthest
+  // step the surviving state has actually earned.
+  useEffect(() => {
+    if (!story) return;
+    const complete = (item: DemoStoryScreen): boolean => {
+      switch (item.kind) {
+        case "predict":
+          return prediction !== null;
+        case "choose":
+          return gapFound;
+        case "run":
+          return Boolean(item.variant === "ungoverned" ? ungovernedRun : governedRun);
+        default:
+          return true;
+      }
+    };
+    const firstIncomplete = story.screens.findIndex((item) => !complete(item));
+    const unlocked = firstIncomplete === -1 ? story.screens.length - 1 : firstIncomplete;
+    if (index > unlocked) setIndex(unlocked);
+  }, [story, index, prediction, gapFound, ungovernedRun, governedRun]);
+
   const screens = story?.screens ?? [];
   const screen = screens[index];
   const governedResult = governedRun;
@@ -358,6 +403,7 @@ export function DemoPage() {
       const options = variant === "ungoverned" ? UNGOVERNED_OPTIONS : defaultDemoOptions;
       const run = await task.run(() => academyApi.runDemo(options));
       if (!run) return;
+      setRunsRestored((current) => ({ ...current, [variant]: false }));
       if (variant === "ungoverned") setUngovernedRun(run);
       else {
         setGovernedRun(run);
@@ -470,6 +516,18 @@ export function DemoPage() {
           );
         })}
       </ol>
+
+      {/* Provenance of restored results: these came from runs the learner
+          actually executed in an earlier session, and are labeled so a reload
+          never silently presents an old result as a new execution. */}
+      {screen.kind === "run" &&
+      runForScreen &&
+      runsRestored[(screen.variant as "ungoverned" | "governed") ?? "governed"] ? (
+        <p className="demo-restored-note" role="status" data-testid="demo-restored-note">
+          Restored from your last visit: this is the result of a run you executed earlier, not a
+          new execution.
+        </p>
+      ) : null}
 
       <section className="demo-screen" data-testid={`demo-screen-${screen.id}`} aria-live="polite">
         {screen.kind === "story" && screen.id === "meet" ? <MeetScreen screen={screen} /> : null}

@@ -30,19 +30,18 @@ def test_public_assessment_never_exposes_answer_or_explanation() -> None:
     assert "explanation" not in payload
 
 
-def test_correct_answer_passes_and_returns_mastery() -> None:
+def test_correct_answer_passes_and_masters_only_declared_concepts() -> None:
+    # The caller no longer supplies the module's whole concept list; the
+    # previous assertion (all supplied concepts returned as mastered) was the
+    # measurement defect the mastery model removes.
     service = AssessmentService()
     definition = service.definition("assessment.F3")
 
-    result = service.submit(
-        definition.id,
-        AssessmentSubmission(answers=definition.correct),
-        concepts=("attempt", "completion", "evidence"),
-    )
+    result = service.submit(definition.id, AssessmentSubmission(answers=definition.correct))
 
     assert result.passed is True
     assert result.score == 1.0
-    assert result.concepts_mastered == ("attempt", "completion", "evidence")
+    assert result.concepts_mastered == definition.concepts
     assert result.concepts_needing_review == ()
 
 
@@ -59,13 +58,12 @@ def test_wrong_extra_answer_is_penalized_and_returns_review_concepts() -> None:
     result = service.submit(
         definition.id,
         AssessmentSubmission(answers=(*definition.correct, wrong)),
-        concepts=("assurance boundary",),
     )
 
     assert result.passed is False
     assert result.score < 1.0
     assert result.concepts_mastered == ()
-    assert result.concepts_needing_review == ("assurance boundary",)
+    assert result.concepts_needing_review == definition.concepts
 
 
 def test_ordering_requires_exact_order() -> None:
@@ -79,7 +77,6 @@ def test_ordering_requires_exact_order() -> None:
     result = service.submit(
         definition.id,
         AssessmentSubmission(answers=tuple(reversed(definition.correct))),
-        concepts=("workflow",),
     )
 
     assert result.passed is False

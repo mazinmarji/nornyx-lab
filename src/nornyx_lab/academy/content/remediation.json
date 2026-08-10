@@ -258,6 +258,46 @@
       "inspect": "The message and path exactly as reported, and the construct they refer to.",
       "correction": "Act on what the message identifies. If this code appears often in a recognisable pattern, it is a candidate for its own guidance entry.",
       "verify": "Re-check the contract and confirm the diagnostic no longer appears, and that no new diagnostic replaced it."
+    },
+    "AN_IDENTITY_UNKNOWN": {
+      "title": "A membership references an identity that is not declared",
+      "means": "A zone membership names an agent identity id that does not exist in agent_identities.",
+      "matters": "Memberships are how identities gain standing inside a trust zone; a dangling reference means either the identity was removed while its memberships remained, or the id is misspelled.",
+      "inspect": "The membership at the reported path, and whether the identity it names was removed or renamed by an earlier change in this same mutation queue.",
+      "correction": "Either restore or re-declare the identity, or remove/update the memberships (and any delegations, handoffs, and relations) that still reference it.",
+      "verify": "Re-run validation on the corrected copy and confirm this code is gone. Its absence shows references are consistent, not that the allocation is appropriate."
+    },
+    "AN_DELEGATOR_UNKNOWN": {
+      "title": "A delegation names a delegator identity that is not declared",
+      "means": "The delegation's delegator_ref does not match any declared agent identity.",
+      "matters": "A delegation lends a capability from one identity to another; with no valid delegator there is no authority to lend, so the whole delegation is unverifiable.",
+      "inspect": "The delegation at the reported path, and whether its delegator was removed or renamed elsewhere in the contract.",
+      "correction": "Point delegator_ref at a declared identity that actually holds the delegated capability, or remove the delegation together with whatever depends on it.",
+      "verify": "Re-run validation and confirm the code is gone, then check the delegation still expresses the intended bounded lending."
+    },
+    "AN_DELEGATE_UNKNOWN": {
+      "title": "A delegation names a delegate identity that is not declared",
+      "means": "The delegation's delegate_ref does not match any declared agent identity.",
+      "matters": "The receiving side of a delegation must be a declared identity, or the lent capability would flow to something the contract cannot describe.",
+      "inspect": "The delegation at the reported path, and whether the delegate identity was removed or renamed.",
+      "correction": "Point delegate_ref at a declared identity, or remove the delegation.",
+      "verify": "Re-run validation and confirm the code is gone."
+    },
+    "AN_RELATION_SOURCE_UNKNOWN": {
+      "title": "A typed relation's source no longer exists",
+      "means": "The relation names a source (for example an agent identity) that is not declared with that kind.",
+      "matters": "Relations document how declared things connect; a relation whose endpoint is gone describes a network that no longer exists.",
+      "inspect": "The relation at the reported path, and which earlier change removed or renamed its source.",
+      "correction": "Update the relation to a declared source of the right kind, or remove the relation along with the construct it described.",
+      "verify": "Re-run validation and confirm the code is gone."
+    },
+    "AN_RELATION_TARGET_UNKNOWN": {
+      "title": "A typed relation's target no longer exists",
+      "means": "The relation names a target that is not declared with that kind.",
+      "matters": "Relations document how declared things connect; a relation whose endpoint is gone describes a network that no longer exists.",
+      "inspect": "The relation at the reported path, and which earlier change removed or renamed its target.",
+      "correction": "Update the relation to a declared target of the right kind, or remove the relation along with the construct it described.",
+      "verify": "Re-run validation and confirm the code is gone."
     }
   }
 }

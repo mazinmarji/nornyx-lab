@@ -133,7 +133,17 @@ def create_app(
     app.state.catalog = CurriculumRepository()
     app.state.pedagogy = PedagogyRepository()
     app.state.assessments = AssessmentService()
-    app.state.progress = SQLiteLearnerRecordRepository(resolved_database)
+    # The learner record derives concept mastery from recorded attempts and the
+    # concepts each assessment declares it tests; it needs both maps so legacy
+    # attempts re-derive honest evidence instead of keeping blanket mastery.
+    app.state.progress = SQLiteLearnerRecordRepository(
+        resolved_database,
+        assessment_concepts={
+            assessment_id: app.state.assessments.definition(assessment_id).concepts
+            for assessment_id in app.state.assessments.ids()
+        },
+        module_concepts={module.id: module.concepts for module in app.state.catalog.modules()},
+    )
     app.state.live_settings = LiveModelSettingsStore()
 
     def module_ids() -> tuple[str, ...]:
@@ -155,6 +165,18 @@ def create_app(
                 "nornyx": _package_version("nornyx", "1.11.0"),
             },
         )
+        # Capstone runs additionally record the evidence the advanced gate
+        # reads: scaffolding level, scenario, authorship, and eligibility.
+        # Unavailable runs (missing framework) are not learner outcomes.
+        if result.module_id == "24" and result.status is RunStatus.COMPLETE:
+            competence = result.results.get("competence", {})
+            app.state.progress.record_capstone_run(
+                run_id=result.run_id,
+                scenario=str(competence.get("scenario", "customer-remediation")),
+                scaffolding=str(competence.get("scaffolding", "guided")),
+                completion_eligible=result.completion_eligible,
+                learner_authored=bool(competence.get("learner_authored", False)),
+            )
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next: Any) -> Response:
@@ -330,16 +352,10 @@ def create_app(
     )
     def submit_assessment(assessment_id: str, submission: AssessmentSubmission) -> AssessmentResult:
         try:
-            definition = app.state.assessments.definition(assessment_id)
-            module_model = app.state.catalog.module(definition.module_id)
-            result = app.state.assessments.submit(
-                assessment_id,
-                submission,
-                concepts=module_model.concepts,
-            )
+            result = app.state.assessments.submit(assessment_id, submission)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=_detail(exc)) from exc
-        app.state.progress.record_assessment(
+        progress = app.state.progress.record_assessment(
             result,
             answers=submission.answers,
             version_binding={
@@ -347,7 +363,11 @@ def create_app(
                 "assessment": result.assessment_id,
             },
         )
-        return result
+        # Report what the module still lacks evidence for, so the UI can state
+        # partial mastery instead of implying the module's concepts are done.
+        return result.model_copy(
+            update={"module_concepts_pending": progress.concepts_pending_evidence}
+        )
 
     @app.get(f"/api/{API_VERSION}/progress", response_model=Dashboard, tags=["progress"])
     def get_progress() -> Dashboard:
@@ -441,7 +461,7 @@ def create_app(
         from .capstone import CapstoneInputError, run_capstone
 
         try:
-            result = run_capstone(request.model_dump(mode="json"))
+            result = run_capstone(request.model_dump(mode="json", exclude_none=True))
         except CapstoneInputError as exc:
             raise HTTPException(status_code=422, detail=_detail(exc)) from exc
         record_run(result)

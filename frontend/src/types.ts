@@ -267,6 +267,8 @@ export interface PublicAssessment {
   id: string;
   module_id: string;
   kind: string;
+  /** The concepts this item actually tests — never the whole module. */
+  concepts: string[];
   prompt: string;
   context: string;
   options: AssessmentOption[];
@@ -281,8 +283,11 @@ export interface AssessmentResult {
   correct_answers: string[];
   explanation: string;
   feedback: string[];
+  /** Evidence granted by this attempt: the tested concepts only. */
   concepts_mastered: string[];
   concepts_needing_review: string[];
+  /** Module concepts still without mastery evidence after this attempt. */
+  module_concepts_pending: string[];
 }
 
 export interface ModuleProgress {
@@ -294,6 +299,17 @@ export interface ModuleProgress {
   last_activity: string | null;
   concepts_mastered: string[];
   concepts_needing_review: string[];
+  /** Taught by this module, no mastery evidence yet. Completion ≠ mastery. */
+  concepts_pending_evidence: string[];
+}
+
+export interface AdvancedStanding {
+  capstone_content_complete: boolean;
+  capstone_concepts_demonstrated: boolean;
+  independent_authorship_demonstrated: boolean;
+  transfer_demonstrated: boolean;
+  advanced_competence_demonstrated: boolean;
+  note: string;
 }
 
 export interface Dashboard {
@@ -306,7 +322,9 @@ export interface Dashboard {
   last_activity: string | null;
   concepts_mastered: string[];
   concepts_needing_review: string[];
+  concepts_pending_evidence: string[];
   capstone_status: ModuleStatus;
+  advanced_standing: AdvancedStanding | null;
 }
 
 export interface ContractSummary {
@@ -406,6 +424,19 @@ export interface LiveModelSettingsResponse {
   boundary: string;
 }
 
+export interface CapstoneScenarioInfo {
+  id: string;
+  title: string;
+  summary: string;
+  consequential_action: string;
+  actions: string[];
+  expected_capabilities: Record<string, string>;
+  declared_identities: string[];
+  declared_zones: string[];
+  declared_delegations: string[];
+  declared_handoffs: string[];
+}
+
 export interface CapstoneDefinition {
   id: "24";
   title: string;
@@ -414,6 +445,7 @@ export interface CapstoneDefinition {
   requirements: string[];
   frameworks: ("framework-neutral" | "crewai" | "langgraph")[];
   failure_injections: ("prompt-injection" | "expired-approval" | "artifact-tamper" | "unauthorized-delegation" | "replay" | "bypass")[];
+  scenarios: CapstoneScenarioInfo[];
   assessment_id: string;
   status: ModuleStatus;
 }

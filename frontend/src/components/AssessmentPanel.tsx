@@ -104,6 +104,22 @@ export function AssessmentPanel({
           </div>
           <p><strong>Score: {Math.round(submission.data.score * 100)}%.</strong> {submission.data.explanation}</p>
           {submission.data.feedback.length ? <ul>{submission.data.feedback.map((item, index) => <li key={index}>{item}</li>)}</ul> : null}
+          {/* The mastery claim must match the evidence exactly: this item
+              tested specific concepts, and passing demonstrates those — not
+              every concept the module teaches. */}
+          {submission.data.passed && (submission.data.concepts_mastered ?? []).length ? (
+            <p className="assessment-concepts" data-testid="assessment-concepts-demonstrated">
+              <strong>Demonstrated:</strong> {submission.data.concepts_mastered.join(", ")}.
+            </p>
+          ) : null}
+          {submission.data.passed && (submission.data.module_concepts_pending ?? []).length ? (
+            <p className="assessment-concepts assessment-concepts-pending" data-testid="assessment-concepts-pending">
+              <strong>Not yet demonstrated:</strong>{" "}
+              {submission.data.module_concepts_pending.join(", ")} — this lesson teaches these,
+              but this check did not test them. Evidence for them comes from later lessons
+              and checks.
+            </p>
+          ) : null}
           {submission.data.passed ? <Link className="text-link" to="/dashboard">See saved progress →</Link> : null}
         </div>
       ) : null}

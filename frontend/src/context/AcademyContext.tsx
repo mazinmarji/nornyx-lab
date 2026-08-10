@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { academyApi, toErrorMessage } from "../api/client";
+import { clearDemoStorage } from "../pages/demoStorage";
 import type {
   CurriculumCatalog,
   Dashboard,
@@ -54,6 +55,10 @@ export function AcademyProvider({ children }: { children: ReactNode }) {
 
   const resetProgress = useCallback(async () => {
     setDashboard(await academyApi.resetProgress());
+    // "Reset everything" must also cover the browser-persisted demo state:
+    // a reset learner record with resurrected predictions and run results
+    // would misrepresent what the learner has actually done.
+    clearDemoStorage();
     await refreshCatalog();
   }, [refreshCatalog]);
 

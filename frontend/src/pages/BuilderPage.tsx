@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { academyApi } from "../api/client";
-import { Findings } from "../components/ContentBlocks";
+import { CausalFindings } from "../components/BuilderDiagnostics";
 import { ContractGraph } from "../components/Diagrams";
 import { ErrorNotice, InfoNotice } from "../components/Feedback";
 import { StatusBadge } from "../components/StatusBadge";
@@ -365,7 +365,7 @@ export function BuilderPage() {
           {previewNodes.length ? <ContractGraph nodes={previewNodes} edges={previewEdges} /> : null}
           {baseline.error ? <ErrorNotice message={baseline.error} /> : null}
           {validation.error ? <ErrorNotice title="Workbench validation failed" message={validation.error} /> : null}
-          {validation.data ? <section className="validation-result"><h3>{validation.data.valid ? "Contract is valid" : "Contract needs repair"}</h3><p>Lock status: <StatusBadge status={validation.data.lock_status} />{validation.data.lock_refreshed ? " Refreshed inside the temporary copy." : " Compared with the committed lock."}</p>{validation.data.diagnostics.length ? <Findings findings={validation.data.diagnostics} /> : <p>No diagnostics were returned.</p>}<details open><summary>Authoritative returned source</summary><pre className="source-view"><code>{validation.data.source}</code></pre></details><details><summary>Generated controls ({validation.data.generated_controls.length})</summary><pre><code>{JSON.stringify(validation.data.generated_controls, null, 2)}</code></pre></details><p className="limitation">{validation.data.semantic_paths_only ? "Forms map to semantic fields; comments and original YAML formatting are not promised to round-trip." : "The response reports additional mutation semantics."}</p></section> : <p className="preview-placeholder">Queue a structured change and validate to synchronize the graph, canonical source, diagnostics, generated controls, and lock status.</p>}
+          {validation.data ? <section className="validation-result"><h3>{validation.data.valid ? "Contract is valid" : "Contract needs repair"}</h3><p>Lock status: <StatusBadge status={validation.data.lock_status} />{validation.data.lock_refreshed ? " Refreshed inside the temporary copy." : " Compared with the committed lock."}</p>{validation.data.diagnostics.length ? <CausalFindings findings={validation.data.diagnostics} /> : <p>No diagnostics were returned.</p>}<details open><summary>Authoritative returned source</summary><pre className="source-view"><code>{validation.data.source}</code></pre></details><details><summary>Generated controls ({validation.data.generated_controls.length})</summary><pre><code>{JSON.stringify(validation.data.generated_controls, null, 2)}</code></pre></details><p className="limitation">{validation.data.semantic_paths_only ? "Forms map to semantic fields; comments and original YAML formatting are not promised to round-trip." : "The response reports additional mutation semantics."}</p></section> : <p className="preview-placeholder">Queue a structured change and validate to synchronize the graph, canonical source, diagnostics, generated controls, and lock status.</p>}
         </div>
       </section>
     </div>
