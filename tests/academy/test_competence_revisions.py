@@ -597,3 +597,69 @@ def test_live_api_stamps_the_real_contract_and_exposes_redemonstration(tmp_path)
     after = moved.dashboard(("F0",), capstone_id=CAPSTONE_ID)
     assert after.concepts_mastered == ()
     assert set(after.concepts_requiring_redemonstration) == set(definition.concepts)
+
+
+# --------------------------------------- review findings: stale signal leakage
+
+
+def test_failed_attempt_from_a_superseded_revision_stops_driving_review(tmp_path) -> None:
+    """A wrong answer under old semantics is not current review guidance.
+
+    The item may no longer ask that question, or may no longer treat that
+    answer as wrong. Telling the learner to revise a concept on that basis is
+    the same overclaim as counting a stale pass, pointed the other way.
+    """
+
+    db = tmp_path / "learner.db"
+    earned = repository(db, REVISION_ONE)
+    earned.record_execution("MX", passed=True)
+    earned.record_assessment(
+        AssessmentResult(
+            assessment_id="assessment.MX",
+            module_id="MX",
+            score=0.0,
+            passed=False,
+            correct_answers=("a",),
+            explanation="explanation",
+            feedback=("feedback",),
+            concepts_mastered=(),
+            concepts_needing_review=("alpha", "beta"),
+        ),
+        answers=("wrong",),
+    )
+    assert set(earned.get("MX").concepts_needing_review) == {"alpha", "beta"}
+
+    moved = repository(db, REVISION_TWO).get("MX")
+    assert moved.concepts_needing_review == ()
+    # A failure is not evidence, so it is not something to re-demonstrate either.
+    assert moved.concepts_requiring_redemonstration == ()
+    assert set(moved.concepts_pending_evidence) == {"alpha", "beta", "gamma"}
+
+
+def test_redemonstration_never_names_a_concept_the_module_no_longer_teaches(
+    tmp_path,
+) -> None:
+    """A dropped or renamed concept must not become a chore that cannot be done."""
+
+    db = tmp_path / "learner.db"
+    earn_everything(repository(db, REVISION_ONE))
+
+    # The new revision retires "beta" from the curriculum entirely.
+    retired = SQLiteLearnerRecordRepository(
+        db,
+        assessment_concepts={"assessment.MX": ("alpha",)},
+        module_concepts={"MX": ("alpha", "gamma"), CAPSTONE_ID: ("claim register",)},
+        competence=REVISION_TWO,
+    )
+    progress = retired.get("MX")
+
+    assert "beta" not in progress.concepts_requiring_redemonstration
+    assert "beta" not in progress.concepts_pending_evidence
+    assert set(progress.concepts_requiring_redemonstration) == {"alpha"}
+    # Everything the learner is asked to redo is something they can still do.
+    assert set(progress.concepts_requiring_redemonstration) <= set(
+        progress.concepts_pending_evidence
+    )
+
+    dashboard = retired.dashboard(MODULES, capstone_id=CAPSTONE_ID)
+    assert "beta" not in dashboard.concepts_requiring_redemonstration

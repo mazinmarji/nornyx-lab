@@ -251,11 +251,16 @@ class SQLiteLearnerRecordRepository:
             admissible = self._competence.admits(
                 EvidenceFamily.ASSESSMENT, row["competence_revision"]
             ).admissible
-            if row["passed"] and admissible:
+            if not admissible:
+                # Inadmissible rows drive no current signal in either direction.
+                # A failure under superseded semantics is not a reason to tell
+                # the learner to review something today: the answer they got
+                # wrong may no longer be wrong, or may no longer be asked.
+                if row["passed"]:
+                    module_stale.setdefault(row["module_id"], set()).update(concepts)
+            elif row["passed"]:
                 evidence |= concepts
                 module_evidence.setdefault(row["module_id"], set()).update(concepts)
-            elif row["passed"]:
-                module_stale.setdefault(row["module_id"], set()).update(concepts)
             else:
                 module_failed.setdefault(row["module_id"], set()).update(concepts)
         return _ConceptEvidence(evidence, module_evidence, module_failed, module_stale)
@@ -276,8 +281,11 @@ class SQLiteLearnerRecordRepository:
         review = sorted(found.failed_by_module.get(module_id, set()) - evidence)
         # Separates "never demonstrated" from "demonstrated under semantics
         # that no longer apply". Both are pending; only the second is the
-        # learner being told to do something again.
-        stale = sorted(found.stale_by_module.get(module_id, set()) - evidence)
+        # learner being told to do something again — and only for concepts the
+        # module still teaches. A revision that drops or renames a concept must
+        # not leave the learner chasing something that no longer exists.
+        stale_found = found.stale_by_module.get(module_id, set()) - evidence
+        stale = sorted(stale_found & set(pending) if taught is not None else stale_found)
         return ModuleProgress(
             module_id=module_id,
             status=self._status(row),
