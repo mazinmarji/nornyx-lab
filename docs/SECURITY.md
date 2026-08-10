@@ -66,6 +66,42 @@ Do not expose the local service to an untrusted network while using an in-memory
 or remote deployment, add TLS, authentication, secret-manager integration, CSRF protection,
 rate limits, tenant-isolated storage, and an outbound policy before enabling live mode.
 
+## Learner feedback and the GitHub credential boundary
+
+Optional learner feedback adds the academy's only outbound data path. It is
+designed so the learner installation holds no external authority:
+
+- the browser sends learner perception only; scores, statuses, versions, the
+  competence revision, and the session identifier are derived server-side, and a
+  request carrying any of them is rejected rather than silently stripped;
+- nothing is transmitted before an explicit, never-pre-checked opt-in, and the
+  consent state is read from the database rather than from the request;
+- the local write commits before any network call and is never rolled back by a
+  delivery failure;
+- the outbound endpoint must be HTTPS outside loopback, carries an explicit
+  timeout, and refuses redirects;
+- **no GitHub credential exists in the learner distribution.** The hosted
+  feedback gateway is a separate project under `gateway/`, is not copied into
+  the production image, is excluded by `.dockerignore`, and is the only holder
+  of GitHub write authority;
+- the gateway injects its token at runtime, never as a build argument, and never
+  returns, logs, or persists it. An unconfigured gateway fails closed;
+- learner free text is stored and transmitted exactly as typed and made inert at
+  rendering: it is emitted only inside a code fence sized so it cannot close its
+  own fence, and issue title, labels, repository, and state come from
+  configuration alone;
+- no CI job requires a real GitHub credential; the GitHub boundary is
+  substituted in every test, and a repository invariant fails if a workflow ever
+  references a secret;
+- the application does not persist IP addresses. The gateway holds a client
+  address transiently in memory as a rate-limit key only.
+
+Feedback is not described as anonymous. A learner can type identifying
+information into a comment box, hosting and network infrastructure process
+metadata this application does not control, and GitHub applies its own
+retention. See [LEARNER_FEEDBACK.md](LEARNER_FEEDBACK.md) for the full boundary,
+the exact fields collected and excluded, and the claims audit.
+
 ## Browser and API controls
 
 - same-origin UI and API; no wildcard CORS;

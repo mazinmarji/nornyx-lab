@@ -629,3 +629,127 @@ export interface DemoStory {
   note: string;
   screens: DemoStoryScreen[];
 }
+
+// ------------------------------------------------------- learner feedback (H1)
+// Research instrumentation. Nothing in this section is competence evidence, and
+// no value here affects scoring, completion, mastery, or advanced standing.
+//
+// Note the asymmetry between the request and record types below: the browser can
+// state how a lesson felt and nothing else. Scores, statuses, versions, the
+// competence revision, and the session identifier are derived by the server and
+// are read-only here — a client cannot author its own provenance.
+
+export type FeedbackDifficulty = "too_easy" | "right_level" | "too_hard";
+export type FeedbackUnderstanding = "understood" | "partly_understood" | "still_confused";
+export type FeedbackRecommendation = "yes" | "maybe" | "no";
+export type FeedbackConsentState = "not_asked" | "granted" | "revoked";
+export type FeedbackSyncStatus =
+  | "not_configured"
+  | "no_consent"
+  | "never_attempted"
+  | "synced"
+  | "failed";
+export type DestinationVisibility = "public" | "private" | "unknown";
+
+/** Everything the browser is allowed to send about a module. */
+export interface ModuleFeedbackRequest {
+  clarity: number;
+  confidence: number;
+  difficulty: FeedbackDifficulty;
+  self_assessment: FeedbackUnderstanding;
+  comment?: string | null;
+}
+
+export interface CourseFeedbackRequest {
+  overall_clarity: number;
+  progression: number;
+  usefulness: number;
+  final_confidence: number;
+  overall_difficulty: FeedbackDifficulty;
+  recommend: FeedbackRecommendation;
+  most_helpful_module?: string | null;
+  most_confusing_module?: string | null;
+  missing_topic?: string | null;
+  comments?: string | null;
+}
+
+/** Server-derived. Read-only from the browser's point of view. */
+export interface FeedbackAcademyContext {
+  module_status: ModuleStatus;
+  assessment_score: number | null;
+  assessment_passed: boolean | null;
+  assessment_attempts: number;
+  competence_revision: string | null;
+  learning_path_id: string | null;
+  session_elapsed_seconds: number | null;
+}
+
+export interface ModuleFeedbackRecord {
+  record_id: number;
+  module_id: string;
+  created_at: string;
+  clarity: number;
+  confidence: number;
+  difficulty: FeedbackDifficulty;
+  self_assessment: FeedbackUnderstanding;
+  comment: string | null;
+  academy_context: FeedbackAcademyContext;
+}
+
+export interface CourseFeedbackRecord {
+  record_id: number;
+  created_at: string;
+  overall_clarity: number;
+  progression: number;
+  usefulness: number;
+  final_confidence: number;
+  overall_difficulty: FeedbackDifficulty;
+  recommend: FeedbackRecommendation;
+  most_helpful_module: string | null;
+  most_confusing_module: string | null;
+  missing_topic: string | null;
+  comments: string | null;
+  academy_context: FeedbackAcademyContext;
+}
+
+export interface FeedbackSyncState {
+  status: FeedbackSyncStatus;
+  attempts: number;
+  last_attempt_at: string | null;
+  last_success_at: string | null;
+  last_error_code: string | null;
+  remote_reference: string | null;
+  pending_changes: boolean;
+}
+
+export interface FeedbackStatus {
+  api_version: string;
+  schema_id: string;
+  session_id: string;
+  session_started_at: string;
+  consent_state: FeedbackConsentState;
+  consent_at: string | null;
+  consent_document_version: string;
+  sending_configured: boolean;
+  destination_visibility: DestinationVisibility;
+  sync: FeedbackSyncState;
+  module_feedback: ModuleFeedbackRecord[];
+  course_feedback: CourseFeedbackRecord | null;
+  /** Composed by the server. The browser renders it and never invents its own. */
+  learner_message: string;
+  consent_disclosure: string[];
+}
+
+export interface FeedbackSubmissionResponse {
+  saved: boolean;
+  record_id: number;
+  status: FeedbackStatus;
+}
+
+export interface FeedbackDeletionResponse {
+  deleted_module_records: number;
+  deleted_course_records: number;
+  previously_submitted_externally: boolean;
+  limitation: string;
+  status: FeedbackStatus;
+}

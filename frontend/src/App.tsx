@@ -10,6 +10,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { DemoPage } from "./pages/DemoPage";
 import { DiagnosticsPage } from "./pages/DiagnosticsPage";
 import { EvidencePage } from "./pages/EvidencePage";
+import { FeedbackPage } from "./pages/FeedbackPage";
 import { GraphPage } from "./pages/GraphPage";
 import { HomePage } from "./pages/HomePage";
 import { LessonPage } from "./pages/LessonPage";
@@ -31,6 +32,7 @@ export function App() {
         <Route path="paths" element={<PathsPage />} />
         <Route path="curriculum" element={<CurriculumPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="feedback" element={<FeedbackPage />} />
         <Route path="lessons/:moduleId" element={<LessonPage />} />
         <Route path="workbench" element={<WorkbenchPage />} />
         <Route path="contracts" element={<ContractsPage />} />

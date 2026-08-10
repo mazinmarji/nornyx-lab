@@ -27,6 +27,14 @@ export function PathsPage() {
               <dl className="path-details"><div><dt>Prerequisites</dt><dd>{path.prerequisites.length ? path.prerequisites.join(" · ") : "None"}</dd></div><div><dt>Concepts</dt><dd>{path.concepts.slice(0, 5).join(" · ")}</dd></div></dl>
               <details><summary>Expected outcomes and completion</summary><ul>{path.outcomes.map((outcome) => <li key={outcome}>{outcome}</li>)}</ul><p><strong>Complete when:</strong> {path.completion_criteria}</p></details>
               <Link className="button button-secondary" to={`/curriculum?path=${encodeURIComponent(path.id)}`}>View this path</Link>
+              {/* Asked where finishing actually happens, and only there. A
+                  learner who has just completed a path has something to say;
+                  one who is halfway through has been interrupted. */}
+              {path.total_modules > 0 && path.completed_modules === path.total_modules ? (
+                <p className="path-feedback-invite" data-testid={`path-feedback-${path.id}`}>
+                  You finished this path. <Link className="text-link" to="/feedback">Tell us how it went</Link> — optional, and it has no effect on your results.
+                </p>
+              ) : null}
             </article>
           );
         })}

@@ -188,6 +188,139 @@ jobs:
           path: pytest-structured.xml
           if-no-files-found: error
 
+  feedback-gateway:
+    name: Feedback gateway (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.9.3"
+          enable-cache: true
+          cache-dependency-glob: gateway/uv.lock
+      # The gateway is a separate distribution with its own lock, because it is
+      # the only component that holds GitHub write authority and must never be
+      # installable as part of a learner deployment.
+      - name: Verify that the gateway pyproject and lock agree
+        working-directory: gateway
+        run: uv lock --check
+      - name: Prove lock verification did not rewrite the lock
+        run: git diff --exit-code -- gateway/uv.lock
+      - run: uv sync --frozen --extra dev
+        working-directory: gateway
+      - name: Intake, idempotency, untrusted-content, and GitHub-boundary tests
+        working-directory: gateway
+        # The GitHub boundary is substituted in every one of these. No job in
+        # this workflow may require a real GitHub credential, and this one is
+        # the job that would be tempted to.
+        run: uv run --frozen pytest -q -rs --junitxml=pytest-gateway.xml
+      - name: Fail if any gateway gate was skipped
+        if: always()
+        working-directory: gateway
+        run: >-
+          uv run --frozen python -c "import pathlib, xml.etree.ElementTree as ET;
+          p=pathlib.Path('pytest-gateway.xml');
+          root=ET.parse(p).getroot();
+          skipped=sum(int(s.attrib.get('skipped', 0)) for s in root.iter('testsuite'));
+          print(f'pytest skipped: {skipped}');
+          raise SystemExit(skipped > 0)"
+      - name: Refuse to ship a gateway that carries a credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -rInE 'ghp_[A-Za-z0-9]|github_pat_[A-Za-z0-9]' gateway/ --exclude-dir=.venv; then
+            echo "::error::a GitHub credential pattern is committed under gateway/"
+            exit 1
+          fi
+          echo "no committed credential pattern under gateway/"
+      - run: uv run --frozen ruff check .
+        working-directory: gateway
+      - run: uv run --frozen ruff format --check .
+        working-directory: gateway
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: gateway-junit-${{ matrix.os }}
+          path: gateway/pytest-gateway.xml
+          if-no-files-found: error
+
+  feedback-gateway-container:
+    name: Feedback gateway container build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [feedback-gateway]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the gateway image
+        uses: docker/build-push-action@v6
+        with:
+          context: gateway
+          file: gateway/Dockerfile
+          push: false
+          load: true
+          tags: nornyx-feedback-gateway:0.1.0
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Prove it serves health with no credential configured
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Started with no GitHub configuration at all: the service must come
+          # up and report honestly rather than refusing to boot or pretending
+          # it has a destination.
+          docker run -d --name gateway -p 127.0.0.1:8080:8080 \
+            -e NORNYX_FEEDBACK_DB=/tmp/gateway.db \
+            nornyx-feedback-gateway:0.1.0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/health >/dev/null 2>&1; then ready=1; break; fi
+            sleep 2
+          done
+          if [ "${ready:-0}" != 1 ]; then docker logs gateway; exit 1; fi
+          curl -fsS http://127.0.0.1:8080/health -o health.json
+          python - <<'PY'
+          import json, sys
+          body = json.load(open("health.json"))
+          print("gateway health:", body)
+          if body["github_configured"] is not False:
+              sys.exit("an unconfigured gateway reported a configured destination")
+          if body["destination_visibility"] != "unknown":
+              sys.exit("an unconfigured gateway claimed to know its destination")
+          PY
+      - name: Prove the container runs as a non-root user
+        run: |
+          test "$(docker exec gateway id -u)" -ne 0
+          echo "gateway runs as uid $(docker exec gateway id -u)"
+      - name: Prove no credential is baked into any image layer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker history --no-trunc nornyx-feedback-gateway:0.1.0 > history.txt
+          if grep -qiE 'NORNYX_FEEDBACK_GITHUB_TOKEN=|ghp_[A-Za-z0-9]|github_pat_' history.txt; then
+            echo "::error::a credential reached the image history"
+            exit 1
+          fi
+          docker run --rm --entrypoint env nornyx-feedback-gateway:0.1.0 > env.txt
+          if grep -q 'NORNYX_FEEDBACK_GITHUB_TOKEN' env.txt; then
+            echo "::error::the image sets a GitHub token in its environment"
+            exit 1
+          fi
+          echo "no credential in image history or default environment"
+      - name: Gateway logs on failure
+        if: failure()
+        run: docker logs gateway || true
+      - name: Tear down
+        if: always()
+        run: docker rm -f gateway || true
+
   adapter-conformance:
     name: Adapter runtime conformance (required frameworks)
     runs-on: ubuntu-latest
@@ -418,6 +551,41 @@ jobs:
           # The browser application must be served from the same origin.
           curl -fsS http://127.0.0.1:8000/ -o index.html
           grep -qi '<div id="root"' index.html || { echo "::error::the SPA shell was not served"; exit 1; }
+
+          # The learner page must be unable to reach any external host. This is
+          # what makes "the browser never talks to a feedback gateway or to
+          # GitHub" structural rather than a matter of discipline, and it can
+          # only be checked here: under `npm run preview` the document comes
+          # from Vite, so the served document is the production path.
+          curl -fsSI http://127.0.0.1:8000/ | tr -d '\r' > headers.txt
+          grep -qi "connect-src 'self'" headers.txt || {
+            echo "::error::the served SPA document carries no connect-src 'self' policy"; exit 1; }
+          echo "served SPA document restricts connections to same-origin"
+
+          # A default learner deployment must have no feedback destination and
+          # no credential to reach one with.
+          curl -fsS http://127.0.0.1:8000/api/v1/feedback -o feedback.json
+          python - <<'PY'
+          import json, sys
+          status = json.load(open("feedback.json"))
+          print("feedback status in container:", status["sync"]["status"])
+          if status["sending_configured"] is not False:
+              sys.exit("the default container is configured to send feedback")
+          if status["consent_state"] != "not_asked":
+              sys.exit("the default container starts with consent already recorded")
+          if status["module_feedback"] or status["course_feedback"]:
+              sys.exit("the default container fabricated feedback records")
+          print("feedback is local-only, unconsented, and empty by default")
+          PY
+
+          # And the image itself must hold no GitHub authority of any kind.
+          if docker compose exec -T academy env | grep -q 'NORNYX_FEEDBACK_GITHUB'; then
+            echo "::error::the learner container exposes a feedback GitHub variable"; exit 1
+          fi
+          if docker compose exec -T academy sh -c 'ls /app' | grep -qx 'gateway'; then
+            echo "::error::the learner image contains the feedback gateway"; exit 1
+          fi
+          echo "learner container holds no GitHub credential and no gateway"
 
           # The real governance engine must work INSIDE the container, not just
           # in the test harness: ungoverned publishes 1/1, governed 0/0.

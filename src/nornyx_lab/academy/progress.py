@@ -608,6 +608,39 @@ class SQLiteLearnerRecordRepository:
             advanced_standing=standing,
         )
 
+    def assessment_outcome(
+        self, module_id: str
+    ) -> tuple[ModuleStatus, int, float | None, bool | None]:
+        """Status, attempt count, best score, and whether any attempt passed.
+
+        Exists so a caller that needs to *describe* a module's assessment state
+        does not have to re-derive it from the dashboard, where "passed" is not
+        separable from "complete" — a module with a passed assessment but no
+        execution reports ``in_progress``, and reading pass/fail out of that
+        would be a guess.
+
+        Strictly a read. Unlike every other method here it does not call
+        ``_ensure_row``: an absent module is reported as untouched rather than
+        being materialised, so describing a module cannot leave a trace in the
+        learner record. ``passed`` is ``None`` when no attempt exists, which is
+        not the same claim as ``False``.
+        """
+
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM module_progress WHERE learner_id = ? AND module_id = ?",
+                (self.learner_id, module_id),
+            ).fetchone()
+            if row is None:
+                return ModuleStatus.NOT_STARTED, 0, None, None
+            attempts = int(row["assessment_attempts"])
+            return (
+                self._status(row),
+                attempts,
+                row["best_score"],
+                None if not attempts else bool(row["assessment_passed"]),
+            )
+
     def assessment_history(self) -> tuple[dict[str, Any], ...]:
         with self._lock, self._connect() as connection:
             rows = connection.execute(

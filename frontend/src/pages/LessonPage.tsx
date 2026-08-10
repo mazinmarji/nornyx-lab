@@ -4,6 +4,7 @@ import { academyApi, toErrorMessage } from "../api/client";
 import { AssessmentPanel } from "../components/AssessmentPanel";
 import { ContentBlocks, Findings } from "../components/ContentBlocks";
 import { ErrorNotice, InfoNotice, LoadingState } from "../components/Feedback";
+import { ModuleFeedbackCard } from "../components/LearnerFeedback";
 import { AdvancedLessonControls, hasLessonConfiguration, initialAdvancedConfiguration, LessonInteraction } from "../components/LessonInteraction";
 import { StatusBadge } from "../components/StatusBadge";
 import {
@@ -18,7 +19,7 @@ import {
 import { useAsyncTask } from "../components/useAsyncTask";
 import { useAcademy } from "../context/AcademyContext";
 import { useMode } from "../context/ModeContext";
-import type { LessonTeaching, StructuredLabRun } from "../types";
+import type { FeedbackStatus, LessonTeaching, StructuredLabRun } from "../types";
 
 const repairDefaults = {
   authorization: true,
@@ -84,6 +85,9 @@ export function LessonPage() {
   const [teaching, setTeaching] = useState<LessonTeaching | null>(null);
   const [teachingError, setTeachingError] = useState<string | null>(null);
   const [prediction, setPrediction] = useState<string | null>(null);
+  // Fetched lazily and only after a run: a learner who never reaches the
+  // feedback card should not have caused a request for it.
+  const [feedbackStatus, setFeedbackStatus] = useState<FeedbackStatus | null>(null);
 
   useEffect(() => setConfiguration(initialLessonConfiguration(moduleId)), [moduleId]);
   useEffect(() => {
@@ -107,7 +111,13 @@ export function LessonPage() {
     if (!module) return;
     const configured = hasLessonConfiguration(module.id) ? configuration : undefined;
     const result = await task.run(() => academyApi.runModule(module.id, configured));
-    if (result) await refreshProgress().catch(() => undefined);
+    if (result) {
+      await refreshProgress().catch(() => undefined);
+      // Optional instrumentation must never be able to break the lesson, so a
+      // failure to read feedback state is swallowed and the card simply starts
+      // from an unknown state.
+      academyApi.feedbackStatus().then(setFeedbackStatus).catch(() => undefined);
+    }
   }
 
   const hasRun = Boolean(task.data);
@@ -263,6 +273,18 @@ export function LessonPage() {
           <p>Run the lesson first. The questions are about what you just watched happen, so they only appear once there is something to have watched.{explore ? "" : ""}</p>
         </InfoNotice>
       )}
+
+      {/* Last, and only after the lesson has actually been run. Feedback is
+          research instrumentation about a lesson the learner has been through —
+          asking earlier would interrupt the teaching and measure nothing. */}
+      {hasRun ? (
+        <ModuleFeedbackCard
+          moduleId={module.id}
+          moduleTitle={explore || !teaching ? module.title : teaching.plain_title}
+          status={feedbackStatus}
+          onStatus={setFeedbackStatus}
+        />
+      ) : null}
     </div>
   );
 }

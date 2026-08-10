@@ -203,6 +203,37 @@ The default runtime is deliberately pinned to released `nornyx==1.11.0` and
 `nornyx-agentic-adapters==0.3.0`. The latest authoritative `main` audited for this release is
 recorded separately; unreleased behavior is never silently advertised as installed behavior.
 
+## Optional learner feedback
+
+After a lesson, and again for the course as a whole, a learner can answer a
+short optional set of questions about how it felt. Skipping has no effect on
+anything.
+
+Feedback is **research instrumentation, not competence evidence**. It never
+influences scoring, module completion, concept mastery, capstone eligibility, or
+advanced standing — a regression compares identical work rated 1/5 against the
+same work rated 5/5 and requires byte-identical competence output.
+
+It is saved on the learner's computer first and stays there unless the learner
+explicitly opts in. Nothing is pre-checked, learning works with no internet, and
+a delivery failure can neither block a lesson nor lose a rating. The application
+does not persist IP addresses, and Nornyx Lab does not intentionally collect
+name, email, GitHub identity, device information, or assessment answers — so the
+feature is described as **pseudonymous**, never as anonymous: a learner can type
+anything into a comment box, and hosting and GitHub keep their own logs.
+
+External delivery goes through a separate hosted gateway that holds the only
+GitHub credential in the architecture. A learner installation contains none, and
+the browser cannot reach any external host at all.
+
+**The gateway is implemented and deployment-ready; public feedback
+synchronisation is not yet operational.** No instance has been provisioned and
+no production URL exists in this repository. The default deployment ships with
+no feedback endpoint and no credential.
+
+Full design, privacy boundary, and claims audit:
+[docs/LEARNER_FEEDBACK.md](docs/LEARNER_FEEDBACK.md).
+
 ## Optional live model
 
 Offline deterministic planning is the default because it makes governance deltas reproducible.
@@ -242,6 +273,7 @@ journey, Docker build, and Linux/Windows Python coverage.
 - [Original-lab migration map](docs/MIGRATION_MAP.md)
 - [Curriculum coverage matrix](docs/CURRICULUM_COVERAGE.md)
 - [Nornyx compatibility and upgrade policy](docs/NORNYX_COMPATIBILITY.md)
+- [Learner feedback and validation](docs/LEARNER_FEEDBACK.md) — data collected, consent, gateway architecture, claims audit
 - [Security and sandbox boundary](docs/SECURITY.md)
 - [Honest assurance statement](docs/ASSURANCE.md)
 - [Development, deployment, and testing](docs/DEVELOPMENT.md)
