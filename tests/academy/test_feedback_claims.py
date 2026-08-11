@@ -229,6 +229,68 @@ def test_no_learner_facing_state_exposes_internal_detail() -> None:
             assert leak not in message.lower(), f"a learner state leaks internals: {message}"
 
 
+def test_the_single_replica_scope_of_one_issue_per_session_is_stated() -> None:
+    """The guarantee is per process, and saying otherwise would be an overclaim.
+
+    Serialising synchronisation closes the race inside one gateway. It is not
+    distributed coordination, so any document that promises one issue per
+    session has to say where that promise stops.
+    """
+
+    for path in (FEEDBACK_DOC, GATEWAY_README):
+        flat = _flat(path).lower()
+        assert "single-replica" in flat or "single replica" in flat, (
+            f"{path.name} promises one issue per session without naming the scope"
+        )
+        assert "replicas" in flat
+
+
+@pytest.mark.parametrize("path", [FEEDBACK_DOC, GATEWAY_README, SECURITY])
+def test_no_document_claims_exactly_once_creation_across_replicas(path) -> None:
+    flat = _flat(path).lower()
+    for overclaim in (
+        "exactly-once across replicas",
+        "exactly once across replicas",
+        "distributed coordination guarantees",
+        "guarantees one issue per session across",
+    ):
+        assert overclaim not in flat, f"{path.name} claims cross-replica exactly-once"
+
+
+def test_the_inertness_claim_covers_the_whole_wire_surface_or_is_narrowed() -> None:
+    """The old absolute sentence was true of comments and not of the rest.
+
+    Timestamps and version strings reached the rendered summary bounded only by
+    length. Now every caller-supplied string either has a Markdown-inert syntax
+    or is fenced — and the wording has to say which claim is being made.
+    """
+
+    for path in (FEEDBACK_DOC, GATEWAY_README, SECURITY):
+        flat = _flat(path)
+        assert "no learner-authored character is ever emitted as Markdown" not in flat, (
+            f"{path.name} still carries the unqualified inertness sentence"
+        )
+
+    canonical = _flat(FEEDBACK_DOC)
+    assert "every caller-supplied string either has a syntax" in canonical
+    assert "or is emitted only inside a fenced block" in canonical
+
+
+def test_the_evidence_expiry_behaviour_of_feedback_context_is_documented() -> None:
+    flat = _flat(FEEDBACK_DOC)
+    assert "Assessment context obeys evidence expiry" in flat
+    assert "assessment_evidence_revision" in flat
+    # The null-is-not-false distinction is the one an analyst can most easily
+    # get wrong, so it has to be stated rather than implied.
+    assert "different claim from" in flat
+
+
+def test_the_gateway_digest_verification_is_documented() -> None:
+    flat = _flat(FEEDBACK_DOC)
+    assert "does not trust the digest it receives" in flat
+    assert "digest_mismatch" in flat
+
+
 def test_one_canonical_document_owns_the_architecture_prose() -> None:
     """The same architecture explained in four files drifts in three of them."""
 

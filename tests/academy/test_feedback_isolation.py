@@ -287,7 +287,14 @@ def test_the_assessment_outcome_accessor_is_read_only(tmp_path) -> None:
     database = tmp_path / "read-only.db"
     repository = SQLiteLearnerRecordRepository(database)
     before = database.read_bytes()
-    assert repository.assessment_outcome("F0") == (ModuleStatus.NOT_STARTED, 0, None, None)
+    outcome = repository.assessment_outcome("F0")
+    assert (outcome.status, outcome.attempts, outcome.best_score, outcome.passed) == (
+        ModuleStatus.NOT_STARTED,
+        0,
+        None,
+        None,
+    )
+    assert outcome.evidence_revision is None
     assert database.read_bytes() == before, "describing a module changed the learner record"
 
 

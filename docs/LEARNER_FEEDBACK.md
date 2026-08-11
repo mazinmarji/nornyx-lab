@@ -87,8 +87,10 @@ Never accepted from the browser. Derived at the moment a rating is stored:
 |---|---|
 | feedback schema id, session id, record id, timestamps | this backend |
 | module id | the route, validated against the catalog |
-| module status, assessment score, pass/fail, attempt count | the learner record |
-| competence semantic revision | `content/competence.json` |
+| module status | the learner record |
+| assessment score, pass/fail, attempt count | admissible assessment attempts only |
+| current competence revision | `content/competence.json` |
+| revision the reported evidence was earned under | the governing admissible attempt |
 | academy, Nornyx, adapter, API, content versions | installed package metadata |
 | session elapsed seconds | server clock, session open → record written |
 | learning path id | **always null** — see below |
@@ -96,6 +98,34 @@ Never accepted from the browser. Derived at the moment a rating is stored:
 `learning_path_id` stays null because every module belongs to at least two
 authored paths and this installation records no chosen path. There is no
 authoritative answer, so no answer is given. Unknown data stays unknown.
+
+**Assessment context obeys evidence expiry.** The score, pass/fail, and attempt
+count summarise only attempts the current competence contract still admits --
+derived the same way concept mastery is, not read from the `module_progress`
+aggregate. That aggregate accumulates across every attempt ever made with no
+memory of the semantics each was earned under, so reading it would publish a
+pass earned under a superseded revision as an assessment result under today's
+meaning of that assessment. When nothing is admissible the fields are `null`,
+which means *no current evidence* and is a different claim from `false`.
+
+Two revisions are reported because they are two different facts:
+`competence_revision` is what an assessment means today, and
+`assessment_evidence_revision` is what the reported evidence was actually earned
+under. They differ only when a prior revision was explicitly declared
+compatible. Historical rows are never rewritten -- expiry is about admissibility,
+not deletion.
+
+`module_status` deliberately does **not** expire. Completion is activity
+evidence; only the competence claim expires. A record showing `complete` with no
+admissible assessment evidence is stating the truth: the learner did the work,
+under rules that have since changed.
+
+**Course feedback carries a different context.** It has no module status, module
+score, or module pass/fail -- not even a placeholder -- because a course-level
+rating has no module for those to be facts about, and a placeholder in a
+research record is indistinguishable from an observation. It carries the
+curriculum-wide admissible attempt total, the competence revision, the learning
+path (null), and the session elapsed time.
 
 The request models carry perception fields only and forbid unknown fields, so a
 modified client that posts `assessment_score` gets a 422 rather than having it
@@ -198,7 +228,8 @@ sent, the response says exactly that and does not imply a recall.
 
 ## Synchronisation and idempotency
 
-One issue per feedback session. Never one per module.
+One issue per feedback session, never one per module — a **single-replica**
+guarantee, for the reasons set out under *Concurrency* below.
 
 ```
 Session
@@ -213,7 +244,20 @@ same issue body and a retry is indistinguishable from a first attempt.
 
 `payload_digest = sha256(canonical JSON of the payload minus its sync envelope)`.
 The academy skips the call entirely when the digest matches the last confirmed
-delivery. At the gateway:
+delivery.
+
+**The gateway does not trust the digest it receives.** `sync.payload_digest` is
+a field in an unauthenticated request, and content identity decides whether a
+payload is a no-op, an update, or a create -- so accepting the sender's value
+would let a stale digest suppress a real update, or let one payload claim
+another's identity. After validation the gateway canonicalises the parsed
+payload with the same three rules the Academy uses (drop `sync`, sort keys, no
+insignificant whitespace), recomputes SHA-256, and refuses a mismatch with
+`422 digest_mismatch` before touching GitHub or the synchronisation store. Every
+downstream decision uses the recomputed value. A committed real-Academy payload
+in the gateway suite keeps the two canonicalisations provably in step.
+
+At the gateway:
 
 | Situation | Action |
 |---|---|
@@ -229,9 +273,24 @@ identity with the full session UUID in a body marker. The issues listing is used
 rather than the search API because search indexing lags, and a lagging index is
 precisely how a retry produces a duplicate.
 
+**Concurrency, and the exact scope of the guarantee.** Lookup, recovery, create,
+and remember are not one atomic step, so two simultaneous requests for the same
+previously unseen session could both decide to create. Synchronisation is
+therefore serialised per feedback session, and
+`gateway/tests/test_concurrency.py` first *demonstrates* the duplicate against
+the unserialised sequence before requiring the application to prevent it.
+
+That guarantee is **within one gateway process**. One issue per session holds
+for the single-replica deployment this gateway documents. It is not distributed
+coordination: two replicas sharing an intake repository could still race on a
+session's first write, and nothing here claims otherwise. Exactly-once creation
+across replicas would need genuinely shared coordination, which is not
+implemented.
+
 Covered by executable tests: timeout, ambiguous timeout after remote create,
 retry, process restart, gateway database loss, 401, 403, 404, 422, 5xx,
-malformed response, and repeated identical sync.
+malformed response, repeated identical sync, forged digest, stale digest, and
+two simultaneous first writes.
 
 There is **no retry loop inside a learner HTTP request**. One attempt, one
 honest answer, and an explicit "try again" control.
@@ -263,17 +322,34 @@ Every field arriving at the gateway is hostile input. Comments are stored and
 transmitted **exactly as typed** — sanitising them would destroy their research
 value — and are made inert at the point of rendering instead.
 
-The whole argument is one sentence: **no learner-authored character is ever
-emitted as Markdown.** Learner text appears only inside a fenced code block
-whose fence is computed to be one backtick longer than the longest backtick run
-in the text, so the text cannot close its own fence. GitHub does not parse
-mentions, issue references, or Markdown inside a fenced block.
+The claim, stated precisely: **every caller-supplied string either has a syntax
+that carries no meaning in Markdown, or is emitted only inside a fenced block.**
+No caller-supplied character reaches a position where Markdown would interpret
+it.
 
-Everything outside a fence is generated from values Pydantic has already
-constrained to enums, bounded integers, or a strict identifier pattern. The
-issue title is derived from the session UUID alone; labels, repository, and
-issue state come from deployment configuration. There is no field a learner can
-write that reaches a position where it could be interpreted.
+The two halves:
+
+* **Free text is fenced.** Comments appear only inside a fenced code block whose
+  fence is computed to be one backtick longer than the longest backtick run in
+  the text, so the text cannot close its own fence. GitHub does not parse
+  mentions, issue references, or Markdown inside a fenced block.
+* **Everything else has a syntax.** Timestamps must parse as timezone-aware
+  ISO-8601 instants -- parsed, not pattern-guessed. Versions and competence
+  revisions match a character set that excludes backticks, newlines, brackets,
+  pipes, and the at sign. Identifiers, ratings, enums, counts, and the digest
+  were already constrained. A value outside its syntax is a malformed payload
+  and is refused, not escaped.
+
+This covers the *whole* wire surface, not only the comment fields. An earlier
+version of this feature bounded timestamps and versions by length alone, which
+left a caller able to put a backtick, a newline, a mention, or a Markdown link
+into the summary a maintainer reads.
+`gateway/tests/test_wire_surface_inertness.py` enumerates every string-valued
+position in a real payload and attacks each with the same hostile corpus, so a
+field added later is attacked automatically rather than being quietly exempt.
+
+The issue title is derived from the session UUID alone; labels, repository, and
+issue state come from deployment configuration.
 
 Tested against `@maintainer`, `@codex`, `#123`, HTML and `<script>` tags, triple
 and quadruple backticks, shell commands, `${{ secrets.GITHUB_TOKEN }}`,
@@ -359,6 +435,13 @@ enforced before parsing, bounded text fields, numeric ranges, enums,
 deterministic UUID validation, an explicit outbound timeout, idempotency, and
 logs that carry a truncated session id and an outcome and nothing else.
 
+The limiter forgets clients. Buckets are swept globally on a schedule rather
+than only when the same address returns, so an address seen once and never again
+disappears; the bucket count is hard-bounded with deterministic
+least-recently-active eviction; and access is mutex-guarded because Uvicorn
+dispatches the endpoint on worker threads. That is what makes "client addresses
+are held transiently" a property of the code rather than an intention.
+
 Explicitly **not** here, and belonging at the reverse proxy or cloud edge: TLS
 termination, WAF rules, network-level DDoS protection, IP reputation, and
 durable rate limiting across replicas. The in-process limiter is a fixed window
@@ -408,11 +491,16 @@ Every significant claim this feature makes, classified against its evidence.
 | Nothing is transmitted before explicit consent | implemented and tested | `test_nothing_is_transmitted_before_explicit_consent` (zero transport calls) |
 | A learner installation holds no GitHub credential | implemented and tested | credential-symbol scan over shipped files; Dockerfile and `.dockerignore` checks |
 | The backend derives authoritative context the browser cannot author | implemented and tested | `test_a_browser_cannot_author_its_own_academy_context` (13 forged fields) |
-| The gateway creates one issue per session and updates it thereafter | implemented and tested | gateway idempotency suite against a substituted GitHub boundary |
+| The gateway creates one issue per session and updates it thereafter, **within a single replica** | implemented and tested | gateway idempotency suite plus a barrier-based concurrency test that first demonstrates the duplicate |
 | Retry and restart do not duplicate | implemented and tested | ambiguous-timeout and lost-database recovery tests |
-| Learner free text stays inert | implemented and tested | 20-case hostile corpus, fence oracle with a negative control |
+| Two simultaneous first writes do not duplicate | implemented and tested, single replica only | `test_concurrency.py`; the unserialised sequence is shown to duplicate first |
+| Exactly-once creation across multiple gateway replicas | **not implemented** | no shared coordination exists; stated as a limitation |
+| The gateway verifies the payload digest itself | implemented and tested | forged, stale, and per-field mutation attacks; a real-Academy golden payload |
+| Feedback assessment context obeys evidence expiry | implemented and tested | `test_feedback_evidence_expiry.py`, including the pass-under-A-report-under-B attack |
+| Every caller-supplied string is inert, not only free text | implemented and tested | full wire-surface sweep over every string position, plus the 20-case free-text corpus; both oracles have negative controls |
 | A pre-H1 database migrates without altering evidence | implemented and tested | `test_feedback_migration.py` against literal pre-H1 DDL |
 | The application does not persist IP addresses | implemented and tested | no column exists; gateway store holds only session→issue |
+| Client addresses are held only transiently | implemented and tested | global sweep, bounded buckets, deterministic eviction, 5,000-key retention test |
 | The gateway is deployed and receiving feedback | **not implemented** | no gateway has been provisioned; stated as such above |
 | Feedback is anonymous | **not claimed** | free text, network metadata, and GitHub retention all preclude it |
 | Feedback measures educational effectiveness | **not claimed** | the summary response carries its own interpretation limit |
@@ -440,6 +528,12 @@ Every significant claim this feature makes, classified against its evidence.
   fences. That is how it behaves and how the body is constructed; it is not a
   guarantee this repository can enforce on GitHub's renderer.
 * The in-process rate limiter does not survive a restart or coordinate across
-  replicas.
+  replicas. It is bounded and does forget clients, but it is a per-process
+  control, not a distributed one.
+* **One issue per session is a single-replica guarantee.** Synchronisation is
+  serialised per session within one gateway process. Two replicas sharing an
+  intake repository could still both create on a session's first write. Closing
+  that would need shared coordination, which is not implemented and is not
+  claimed.
 * Recovery scans a bounded number of pages of labelled issues. An intake
   repository with a very large number of labelled issues should be rotated.

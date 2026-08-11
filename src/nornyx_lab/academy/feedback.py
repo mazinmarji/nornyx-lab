@@ -44,6 +44,7 @@ from typing import Any
 
 from .competence import CompetenceContract, EvidenceFamily
 from .feedback_client import FeedbackTransport, TransportResult
+from .progress import AdmissibleAssessment
 from .schemas import (
     API_VERSION,
     CONSENT_DOCUMENT_VERSION,
@@ -54,6 +55,7 @@ from .schemas import (
     DestinationVisibility,
     FeedbackAcademyContext,
     FeedbackConsentState,
+    FeedbackCourseContext,
     FeedbackDeletionResponse,
     FeedbackDifficulty,
     FeedbackRecommendation,
@@ -66,7 +68,6 @@ from .schemas import (
     ModuleFeedbackRecord,
     ModuleFeedbackRequest,
     ModuleFeedbackSummary,
-    ModuleStatus,
 )
 from .versions import academy_version, adapter_version, nornyx_version
 
@@ -95,16 +96,6 @@ def payload_digest(payload: dict[str, Any]) -> str:
     body = {key: value for key, value in payload.items() if key != "sync"}
     encoded = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
-
-
-@dataclass(frozen=True)
-class AssessmentOutcome:
-    """The assessment facts a feedback record is bound to, read from the learner record."""
-
-    status: ModuleStatus
-    attempts: int
-    best_score: float | None
-    passed: bool | None
 
 
 @dataclass(frozen=True)
@@ -204,6 +195,7 @@ class SQLiteFeedbackRepository:
                     assessment_passed INTEGER,
                     assessment_attempts INTEGER NOT NULL DEFAULT 0,
                     competence_revision TEXT,
+                    assessment_evidence_revision TEXT,
                     learning_path_id TEXT,
                     session_elapsed_seconds INTEGER,
                     academy_version TEXT NOT NULL,
@@ -228,10 +220,7 @@ class SQLiteFeedbackRepository:
                     most_confusing_module TEXT,
                     missing_topic TEXT,
                     comments TEXT,
-                    module_status TEXT NOT NULL,
-                    assessment_score REAL,
-                    assessment_passed INTEGER,
-                    assessment_attempts INTEGER NOT NULL DEFAULT 0,
+                    total_assessment_attempts INTEGER NOT NULL DEFAULT 0,
                     competence_revision TEXT,
                     learning_path_id TEXT,
                     session_elapsed_seconds INTEGER,
@@ -259,6 +248,88 @@ class SQLiteFeedbackRepository:
                     ON module_feedback (session_id, module_id);
                 """
             )
+            self._reshape_pre_release_tables(connection)
+
+    @staticmethod
+    def _columns(connection: sqlite3.Connection, table: str) -> list[str]:
+        return [row[1] for row in connection.execute(f"PRAGMA table_info({table})")]
+
+    def _reshape_pre_release_tables(self, connection: sqlite3.Connection) -> None:
+        """Bring a database written by an earlier build of this unshipped feature up to date.
+
+        ``CREATE TABLE IF NOT EXISTS`` is a no-op against a table that already
+        exists, so a development database created before these columns settled
+        keeps the old shape and every insert fails. The feedback tables have
+        never appeared in a released version, so there is no production data at
+        stake — but a developer's database is worth not destroying, so the
+        course table is rebuilt by copying the columns that survived rather than
+        dropped.
+
+        Nothing here touches a learner-evidence table.
+        """
+
+        module_columns = self._columns(connection, "module_feedback")
+        if "assessment_evidence_revision" not in module_columns:
+            connection.execute(
+                "ALTER TABLE module_feedback ADD COLUMN assessment_evidence_revision TEXT"
+            )
+
+        course_columns = self._columns(connection, "course_feedback")
+        if "total_assessment_attempts" in course_columns:
+            return
+        # The old shape carried module-shaped placeholders that were never true
+        # of a course-level rating. They are dropped rather than migrated: a
+        # fabricated value has no correct destination.
+        connection.executescript(
+            """
+            ALTER TABLE course_feedback RENAME TO course_feedback_pre_release;
+
+            CREATE TABLE course_feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                learner_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                overall_clarity INTEGER NOT NULL,
+                progression INTEGER NOT NULL,
+                usefulness INTEGER NOT NULL,
+                final_confidence INTEGER NOT NULL,
+                overall_difficulty TEXT NOT NULL,
+                recommend TEXT NOT NULL,
+                most_helpful_module TEXT,
+                most_confusing_module TEXT,
+                missing_topic TEXT,
+                comments TEXT,
+                total_assessment_attempts INTEGER NOT NULL DEFAULT 0,
+                competence_revision TEXT,
+                learning_path_id TEXT,
+                session_elapsed_seconds INTEGER,
+                academy_version TEXT NOT NULL,
+                nornyx_version TEXT NOT NULL,
+                adapter_version TEXT NOT NULL,
+                content_version TEXT NOT NULL,
+                UNIQUE (session_id)
+            );
+
+            INSERT INTO course_feedback (
+                id, session_id, learner_id, created_at, overall_clarity, progression,
+                usefulness, final_confidence, overall_difficulty, recommend,
+                most_helpful_module, most_confusing_module, missing_topic, comments,
+                total_assessment_attempts, competence_revision, learning_path_id,
+                session_elapsed_seconds, academy_version, nornyx_version,
+                adapter_version, content_version
+            )
+            SELECT
+                id, session_id, learner_id, created_at, overall_clarity, progression,
+                usefulness, final_confidence, overall_difficulty, recommend,
+                most_helpful_module, most_confusing_module, missing_topic, comments,
+                assessment_attempts, competence_revision, learning_path_id,
+                session_elapsed_seconds, academy_version, nornyx_version,
+                adapter_version, content_version
+            FROM course_feedback_pre_release;
+
+            DROP TABLE course_feedback_pre_release;
+            """
+        )
 
     # ------------------------------------------------------------------ session
     def active_session(self) -> sqlite3.Row | None:
@@ -371,9 +442,9 @@ class SQLiteFeedbackRepository:
                     session_id, learner_id, module_id, created_at, clarity, confidence,
                     difficulty, self_assessment, comment, module_status, assessment_score,
                     assessment_passed, assessment_attempts, competence_revision,
-                    learning_path_id, session_elapsed_seconds, academy_version,
-                    nornyx_version, adapter_version, content_version
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    assessment_evidence_revision, learning_path_id, session_elapsed_seconds,
+                    academy_version, nornyx_version, adapter_version, content_version
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (session_id, module_id) DO UPDATE SET
                     created_at = excluded.created_at,
                     clarity = excluded.clarity,
@@ -386,6 +457,7 @@ class SQLiteFeedbackRepository:
                     assessment_passed = excluded.assessment_passed,
                     assessment_attempts = excluded.assessment_attempts,
                     competence_revision = excluded.competence_revision,
+                    assessment_evidence_revision = excluded.assessment_evidence_revision,
                     learning_path_id = excluded.learning_path_id,
                     session_elapsed_seconds = excluded.session_elapsed_seconds,
                     academy_version = excluded.academy_version,
@@ -408,6 +480,7 @@ class SQLiteFeedbackRepository:
                     None if context.assessment_passed is None else int(context.assessment_passed),
                     context.assessment_attempts,
                     context.competence_revision,
+                    context.assessment_evidence_revision,
                     context.learning_path_id,
                     context.session_elapsed_seconds,
                     academy_version(),
@@ -439,10 +512,10 @@ class SQLiteFeedbackRepository:
                     session_id, learner_id, created_at, overall_clarity, progression,
                     usefulness, final_confidence, overall_difficulty, recommend,
                     most_helpful_module, most_confusing_module, missing_topic, comments,
-                    module_status, assessment_score, assessment_passed, assessment_attempts,
-                    competence_revision, learning_path_id, session_elapsed_seconds,
-                    academy_version, nornyx_version, adapter_version, content_version
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    total_assessment_attempts, competence_revision, learning_path_id,
+                    session_elapsed_seconds, academy_version, nornyx_version,
+                    adapter_version, content_version
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (session_id) DO UPDATE SET
                     created_at = excluded.created_at,
                     overall_clarity = excluded.overall_clarity,
@@ -455,10 +528,7 @@ class SQLiteFeedbackRepository:
                     most_confusing_module = excluded.most_confusing_module,
                     missing_topic = excluded.missing_topic,
                     comments = excluded.comments,
-                    module_status = excluded.module_status,
-                    assessment_score = excluded.assessment_score,
-                    assessment_passed = excluded.assessment_passed,
-                    assessment_attempts = excluded.assessment_attempts,
+                    total_assessment_attempts = excluded.total_assessment_attempts,
                     competence_revision = excluded.competence_revision,
                     learning_path_id = excluded.learning_path_id,
                     session_elapsed_seconds = excluded.session_elapsed_seconds,
@@ -481,10 +551,7 @@ class SQLiteFeedbackRepository:
                     request.most_confusing_module,
                     request.missing_topic,
                     request.comments,
-                    context.module_status.value,
-                    context.assessment_score,
-                    None if context.assessment_passed is None else int(context.assessment_passed),
-                    context.assessment_attempts,
+                    context.total_assessment_attempts,
                     context.competence_revision,
                     context.learning_path_id,
                     context.session_elapsed_seconds,
@@ -725,7 +792,7 @@ class FeedbackService:
         repository: SQLiteFeedbackRepository,
         *,
         configuration: FeedbackConfiguration,
-        assessment_outcome: Callable[[str], AssessmentOutcome],
+        assessment_outcome: Callable[[str], AdmissibleAssessment],
         content_version: str,
         transport: FeedbackTransport | None = None,
         competence: CompetenceContract | None = None,
@@ -764,6 +831,7 @@ class FeedbackService:
             assessment_passed=outcome.passed,
             assessment_attempts=outcome.attempts,
             competence_revision=self._competence.revision(EvidenceFamily.ASSESSMENT),
+            assessment_evidence_revision=outcome.evidence_revision,
             # Every module belongs to more than one authored path and this
             # installation records no chosen path, so there is no authoritative
             # value. Unknown stays unknown rather than being inferred.
@@ -773,19 +841,17 @@ class FeedbackService:
 
     def _course_context(
         self, *, session_started_at: str, total_attempts: int
-    ) -> FeedbackAcademyContext:
+    ) -> FeedbackCourseContext:
         """Course feedback is about the whole curriculum, so it binds to no module.
 
-        ``module_status`` is therefore ``not_started`` as a structural
-        placeholder rather than a claim, and score and pass/fail are null: there
-        is no single assessment this rating is about.
+        It therefore carries no module status, module score, or module pass/fail
+        — not even a placeholder. A structural ``not_started`` would sit in the
+        research record looking exactly like an observed fact about a module,
+        and there is no module for it to be a fact about.
         """
 
-        return FeedbackAcademyContext(
-            module_status=ModuleStatus.NOT_STARTED,
-            assessment_score=None,
-            assessment_passed=None,
-            assessment_attempts=total_attempts,
+        return FeedbackCourseContext(
+            total_assessment_attempts=total_attempts,
             competence_revision=self._competence.revision(EvidenceFamily.ASSESSMENT),
             learning_path_id=None,
             session_elapsed_seconds=self._elapsed(session_started_at),
@@ -999,7 +1065,7 @@ class FeedbackService:
                         "missing_topic": course["missing_topic"],
                         "comments": course["comments"],
                     },
-                    "academy_context": _context_payload(course),
+                    "academy_context": _course_context_payload(course),
                 }
             ),
         }
@@ -1135,12 +1201,26 @@ def _distribution(values: Iterable[str]) -> dict[str, int]:
 
 
 def _context_payload(row: Any) -> dict[str, Any]:
+    """The module-level provenance of one stored row, as transmitted."""
+
     passed = row["assessment_passed"]
     return {
         "module_status": row["module_status"],
         "assessment_score": row["assessment_score"],
         "assessment_passed": None if passed is None else bool(passed),
         "assessment_attempts": int(row["assessment_attempts"]),
+        "competence_revision": row["competence_revision"],
+        "assessment_evidence_revision": row["assessment_evidence_revision"],
+        "learning_path_id": row["learning_path_id"],
+        "session_elapsed_seconds": row["session_elapsed_seconds"],
+    }
+
+
+def _course_context_payload(row: Any) -> dict[str, Any]:
+    """Course-level provenance. No module fields, not even empty ones."""
+
+    return {
+        "total_assessment_attempts": int(row["total_assessment_attempts"]),
         "competence_revision": row["competence_revision"],
         "learning_path_id": row["learning_path_id"],
         "session_elapsed_seconds": row["session_elapsed_seconds"],
@@ -1149,6 +1229,10 @@ def _context_payload(row: Any) -> dict[str, Any]:
 
 def _academy_context(row: Any) -> FeedbackAcademyContext:
     return FeedbackAcademyContext.model_validate(_context_payload(row))
+
+
+def _course_context(row: Any) -> FeedbackCourseContext:
+    return FeedbackCourseContext.model_validate(_course_context_payload(row))
 
 
 def _module_record(row: Any) -> ModuleFeedbackRecord:
@@ -1179,7 +1263,7 @@ def _course_record(row: Any) -> CourseFeedbackRecord:
         most_confusing_module=row["most_confusing_module"],
         missing_topic=row["missing_topic"],
         comments=row["comments"],
-        academy_context=_academy_context(row),
+        academy_context=_course_context(row),
     )
 
 
@@ -1187,7 +1271,6 @@ __all__ = [
     "BASE_CONSENT_DISCLOSURE",
     "DESTINATION_DISCLOSURE",
     "LEARNER_MESSAGES",
-    "AssessmentOutcome",
     "FeedbackConfiguration",
     "FeedbackService",
     "SQLiteFeedbackRepository",

@@ -25,7 +25,6 @@ from .assessments import AssessmentService
 from .catalog import CurriculumRepository
 from .contracts import ContractWorkbenchError, get_contract, list_contracts, validate_workbench
 from .feedback import (
-    AssessmentOutcome,
     FeedbackConfiguration,
     FeedbackService,
     SQLiteFeedbackRepository,
@@ -192,9 +191,7 @@ def create_app(
     app.state.feedback = FeedbackService(
         app.state.feedback_repository,
         configuration=feedback_configuration or _feedback_configuration(),
-        assessment_outcome=lambda module_id: AssessmentOutcome(
-            *app.state.progress.assessment_outcome(module_id)
-        ),
+        assessment_outcome=lambda module_id: app.state.progress.assessment_outcome(module_id),
         content_version=app.state.catalog.version,
         transport=feedback_transport,
     )
@@ -476,7 +473,12 @@ def create_app(
         for value in (request.most_helpful_module, request.most_confusing_module):
             if value is not None and value not in known:
                 raise HTTPException(status_code=422, detail=f"unknown curriculum module {value!r}")
-        attempts = sum(item.assessment_attempts for item in dashboard().modules)
+        # Counted from admissible evidence, module by module, rather than from
+        # the dashboard aggregate: the aggregate sums every attempt ever made,
+        # including ones the current competence contract no longer admits.
+        attempts = sum(
+            app.state.progress.assessment_outcome(module_id).attempts for module_id in module_ids()
+        )
         return app.state.feedback.submit_course_feedback(request, total_attempts=attempts)
 
     @app.post(

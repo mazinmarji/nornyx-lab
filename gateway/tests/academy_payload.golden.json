@@ -1,0 +1,66 @@
+{
+  "course_feedback": {
+    "academy_context": {
+      "competence_revision": "assessment.2026-08-a",
+      "learning_path_id": null,
+      "session_elapsed_seconds": 0,
+      "total_assessment_attempts": 1
+    },
+    "created_at": "2026-08-11T17:06:35.676247Z",
+    "perception": {
+      "comments": "Course level note.",
+      "final_confidence": 3,
+      "missing_topic": null,
+      "most_confusing_module": null,
+      "most_helpful_module": "F0",
+      "overall_clarity": 4,
+      "overall_difficulty": "right_level",
+      "progression": 5,
+      "recommend": "yes",
+      "usefulness": 4
+    },
+    "record_id": 1
+  },
+  "module_feedback": [
+    {
+      "academy_context": {
+        "assessment_attempts": 1,
+        "assessment_evidence_revision": "assessment.2026-08-a",
+        "assessment_passed": true,
+        "assessment_score": 1.0,
+        "competence_revision": "assessment.2026-08-a",
+        "learning_path_id": null,
+        "module_status": "complete",
+        "session_elapsed_seconds": 0
+      },
+      "created_at": "2026-08-11T17:06:35.481683Z",
+      "module_id": "F0",
+      "perception": {
+        "clarity": 4,
+        "comment": "Backticks ` and an @mention and #123 and <b>html</b>.",
+        "confidence": 3,
+        "difficulty": "right_level",
+        "self_assessment": "understood"
+      },
+      "record_id": 1
+    }
+  ],
+  "runtime": {
+    "academy_version": "2.0.0",
+    "adapter_version": "0.3.0",
+    "api_version": "v1",
+    "content_version": "2026.08.1",
+    "nornyx_version": "1.11.0"
+  },
+  "schema_id": "nornyx.academy.learner_feedback.v1",
+  "session": {
+    "course_record_count": 1,
+    "created_at": "2026-08-11T17:06:35.481683Z",
+    "module_record_count": 1,
+    "session_id": "ceba9607-a862-43c8-9f48-ff8baa4482eb"
+  },
+  "sync": {
+    "generated_at": "2026-08-11T17:06:35.842610Z",
+    "payload_digest": "sha256:3751172a2b6e545bbd8d6d2bf954c8746d435243f7c169baeab79181b1dbf3cc"
+  }
+}

@@ -23,10 +23,22 @@ feedback is saved locally and never sent.
 1. receives a versioned `nornyx.academy.learner_feedback.v1` payload;
 2. validates it as hostile external input — enums, ranges, length caps, unknown
    fields refused;
-3. renders it into an issue body in which no learner-authored character is
-   emitted as Markdown;
-4. creates or updates exactly one issue per feedback session;
-5. returns a minimal status that does not name the intake repository.
+3. renders it into an issue body in which every caller-supplied string either
+   has a syntax that carries no meaning in Markdown or sits inside a fence;
+4. recomputes the payload digest and refuses one that does not match;
+5. creates or updates exactly one issue per feedback session, **per replica**;
+6. returns a minimal status that does not name the intake repository.
+
+### Scope of "one issue per session"
+
+Synchronisation is serialised per feedback session **within one process**. That
+makes the guarantee real for the single-replica deployment described here: two
+simultaneous first writes for the same session cannot both create.
+
+It is **not** distributed coordination. Two replicas sharing an intake
+repository could still race on a session's first write and produce two issues.
+Run one replica, or add genuinely shared coordination before scaling out — this
+service does not provide it and does not claim to.
 
 ## What it must not do
 
@@ -69,9 +81,13 @@ alone. With no repository and token configured the service still starts, reports
 `github_configured: false` on `/health`, and refuses feedback with
 `503 github_not_configured` rather than attempting an unauthenticated write.
 
+Run **one replica** unless you have added shared coordination: the one-issue-per-
+session guarantee is per process (see above).
+
 Put TLS termination, WAF rules, network-level DDoS protection, and durable rate
 limiting in front of it. The in-process limiter is a fixed window in memory: it
-does not survive a restart and does not coordinate across replicas.
+is bounded and does expire clients, but it does not survive a restart and does
+not coordinate across replicas.
 
 ## Endpoints
 

@@ -10,8 +10,6 @@ anything. Feedback is data.
 from __future__ import annotations
 
 import logging
-import time
-from collections import deque
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -20,7 +18,9 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from .concurrency import KeyedLocks, RateLimiter
 from .config import SCHEMA_ID, GatewayConfig, load_config
+from .digest import DigestMismatch, verified_digest
 from .github import GitHubError, GitHubSink, UrllibGitHubSink
 from .models import AcceptedResponse, ErrorResponse, FeedbackPayload, HealthResponse
 from .store import SyncStore
@@ -97,41 +97,6 @@ async def _send_error(send: Send, status: int, code: str, message: str) -> None:
     await send({"type": "http.response.body", "body": body})
 
 
-class RateLimiter:
-    """A fixed-window counter, in memory only.
-
-    Proportionate, not comprehensive. It exists so a single misbehaving client
-    cannot trivially exhaust the GitHub rate budget; it is not a substitute for
-    the reverse proxy or cloud edge controls the deployment guide asks for.
-
-    The client address is used as a bucket key and is never written to the
-    database, never logged, and never returned. It exists only for as long as
-    its window.
-    """
-
-    def __init__(self, *, per_minute: int, clock: Callable[[], float] = time.monotonic) -> None:
-        self.per_minute = per_minute
-        self._clock = clock
-        self._hits: dict[str, deque[float]] = {}
-
-    def allow(self, key: str) -> bool:
-        if self.per_minute <= 0:
-            return True
-        now = self._clock()
-        window = self._hits.setdefault(key, deque())
-        while window and now - window[0] >= 60.0:
-            window.popleft()
-        if len(window) >= self.per_minute:
-            return False
-        window.append(now)
-        # Opportunistic cleanup: without this the map grows once per distinct
-        # client address for the lifetime of the process.
-        if len(self._hits) > 4096:
-            for stale in [key for key, hits in self._hits.items() if not hits]:
-                del self._hits[stale]
-        return True
-
-
 def create_app(
     *,
     config: GatewayConfig | None = None,
@@ -161,6 +126,10 @@ def create_app(
     app.state.store = store or SyncStore(settings.database_path)
     app.state.sink = sink
     app.state.limiter = RateLimiter(per_minute=settings.rate_limit_per_minute)
+    # Synchronisation for one session must not interleave with itself. Held
+    # across lookup, recovery, create/update, and remember — the whole sequence
+    # that decides whether an issue already exists.
+    app.state.session_locks = KeyedLocks()
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_body_bytes)
 
     def resolve_sink() -> GitHubSink:
@@ -192,6 +161,21 @@ def create_app(
             return _json_error(429, "rate_limited", "Too many requests. Try again shortly.")
 
         session_id = payload.session.session_id
+
+        # The submitted digest is a field in an unauthenticated request. Derive
+        # the real one and refuse a mismatch before anything is written
+        # anywhere, so a forged or stale digest can neither suppress an update
+        # nor claim another session's identity.
+        try:
+            digest = verified_digest(payload)
+        except DigestMismatch:
+            LOGGER.warning("rejected session %s: payload digest mismatch", session_id[:8])
+            return _json_error(
+                422,
+                "digest_mismatch",
+                "The payload does not match the digest submitted with it.",
+            )
+
         if not settings.github_configured:
             LOGGER.warning("feedback rejected: this deployment has no GitHub destination")
             return _json_error(
@@ -201,12 +185,14 @@ def create_app(
             )
 
         try:
-            result = synchronise(
-                payload,
-                sink=resolve_sink(),
-                store=app.state.store,
-                now=clock(),
-            )
+            with app.state.session_locks.hold(session_id):
+                result = synchronise(
+                    payload,
+                    sink=resolve_sink(),
+                    store=app.state.store,
+                    now=clock(),
+                    digest=digest,
+                )
         except GitHubError as exc:
             # Only the classified code is reported. A GitHub error body can name
             # the intake repository, and a learner installation must not receive
@@ -235,4 +221,4 @@ def _json_error(status: int, code: str, message: str) -> JSONResponse:
     )
 
 
-__all__ = ["SCHEMA_ID", "BodySizeLimitMiddleware", "RateLimiter", "create_app"]
+__all__ = ["SCHEMA_ID", "BodySizeLimitMiddleware", "create_app"]

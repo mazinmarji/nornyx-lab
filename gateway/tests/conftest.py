@@ -89,6 +89,15 @@ def sink() -> FakeGitHub:
 
 
 def digest_of(payload: dict[str, Any]) -> str:
+    """The Academy's rule, written out independently of the gateway's implementation.
+
+    Deliberately not a call into ``nornyx_feedback_gateway.digest``: a fixture
+    that computes the digest with the code under test would make every
+    "correct digest is accepted" assertion vacuous. This is the third statement
+    of the same three rules — drop ``sync``, sort keys, no insignificant
+    whitespace — and the tests fail if the gateway's differs from it.
+    """
+
     body = copy.deepcopy(payload)
     body.pop("sync", None)
     encoded = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -135,6 +144,7 @@ def make_payload(
                     "assessment_passed": True,
                     "assessment_attempts": 1,
                     "competence_revision": "assessment.2026-08-10",
+                    "assessment_evidence_revision": "assessment.2026-08-10",
                     "learning_path_id": None,
                     "session_elapsed_seconds": 320,
                 },
@@ -157,10 +167,7 @@ def make_payload(
                     "comments": None,
                 },
                 "academy_context": {
-                    "module_status": "complete",
-                    "assessment_score": None,
-                    "assessment_passed": None,
-                    "assessment_attempts": 3,
+                    "total_assessment_attempts": 3,
                     "competence_revision": "assessment.2026-08-10",
                     "learning_path_id": None,
                     "session_elapsed_seconds": 1800,

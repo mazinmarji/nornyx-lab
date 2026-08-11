@@ -907,11 +907,18 @@ class FeedbackConsentRequest(AcademyModel):
 
 
 class FeedbackAcademyContext(AcademyModel):
-    """Server-derived provenance for one feedback record.
+    """Server-derived provenance for one module feedback record.
 
     Every field here is read from the learner record, the competence contract,
     or installed package metadata at the moment the rating is stored. None of it
     is accepted from the browser.
+
+    The assessment fields obey evidence expiry. They summarise only attempts the
+    current competence contract still admits, so a pass earned under a revision
+    that has since been superseded is reported as *no current evidence* rather
+    than being paired with today's meaning of the assessment. ``None`` for score
+    and pass means "nothing currently admissible", which is a different claim
+    from ``False``.
 
     ``learning_path_id`` is always ``None`` in this release. Every module belongs
     to at least two authored paths, and this installation does not record a
@@ -922,11 +929,37 @@ class FeedbackAcademyContext(AcademyModel):
     module_status: ModuleStatus
     assessment_score: float | None = Field(default=None, ge=0, le=1)
     assessment_passed: bool | None = None
+    #: Attempts under admissible revisions — the population the score and pass
+    #: summarise, not the learner's lifetime attempt count.
     assessment_attempts: int = Field(default=0, ge=0)
+    #: What an assessment means *today*.
     competence_revision: str | None = None
+    #: What the reported evidence was actually earned under. Equal to
+    #: ``competence_revision`` in the ordinary case; different when an
+    #: explicitly declared compatible prior revision is being counted; ``None``
+    #: when there is no admissible evidence at all.
+    assessment_evidence_revision: str | None = None
     learning_path_id: str | None = None
     #: Wall-clock seconds between opening the feedback session and this record,
     #: measured by the server clock. It is not a measure of study time.
+    session_elapsed_seconds: int | None = Field(default=None, ge=0)
+
+
+class FeedbackCourseContext(AcademyModel):
+    """Server-derived provenance for a course-level feedback record.
+
+    Deliberately not the module context. Course feedback is about the whole
+    curriculum, so a module status, a module score, and a module pass/fail have
+    no referent — and filling them with a placeholder would put values that look
+    like observed facts into a research record. The fields that *are* meaningful
+    at course level are the ones present here.
+    """
+
+    #: Assessment attempts across the curriculum, counting only those under
+    #: admissible revisions.
+    total_assessment_attempts: int = Field(default=0, ge=0)
+    competence_revision: str | None = None
+    learning_path_id: str | None = None
     session_elapsed_seconds: int | None = Field(default=None, ge=0)
 
 
@@ -955,7 +988,7 @@ class CourseFeedbackRecord(AcademyModel):
     most_confusing_module: str | None = None
     missing_topic: str | None = None
     comments: str | None = None
-    academy_context: FeedbackAcademyContext
+    academy_context: FeedbackCourseContext
 
 
 class FeedbackSyncState(AcademyModel):

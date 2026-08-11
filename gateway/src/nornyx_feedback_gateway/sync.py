@@ -40,9 +40,21 @@ def synchronise(
     sink: GitHubSink,
     store: SyncStore,
     now: str,
+    digest: str,
 ) -> SyncResult:
+    """Write the session to GitHub, at most once.
+
+    ``digest`` is supplied by the caller and is the value the gateway
+    *recomputed* from the payload, never the one the payload carried. Content
+    identity decides whether this is a no-op, an update, or a create, so it must
+    not be a number the sender chose.
+
+    Callers must hold this session's lock: the read-decide-write sequence below
+    is not atomic, and two concurrent first-time requests for one session would
+    otherwise both find nothing and both create.
+    """
+
     session_id = payload.session.session_id
-    digest = payload.sync.payload_digest
     known = store.lookup(session_id)
 
     if known is not None and known.payload_digest == digest:

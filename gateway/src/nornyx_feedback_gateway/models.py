@@ -14,9 +14,17 @@ client can state whatever it likes here. Analysis must treat it accordingly.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_validator,
+)
 
 from .config import SCHEMA_ID
 
@@ -30,9 +38,33 @@ Identifier = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9._
 UUID_PATTERN = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 SessionId = Annotated[str, StringConstraints(pattern=UUID_PATTERN)]
 
-Timestamp = Annotated[str, StringConstraints(min_length=4, max_length=40)]
-Version = Annotated[str, StringConstraints(min_length=1, max_length=64)]
-Revision = Annotated[str, StringConstraints(min_length=1, max_length=128)]
+
+def _instant(value: str) -> str:
+    """Require an actual timezone-aware ISO-8601 instant, not a timestamp-shaped string.
+
+    Checking length or "looks like a date" leaves a field that reaches the
+    rendered issue summary accepting arbitrary text. Parsing it is both the
+    stronger validation and the more honest one: a timestamp that cannot be
+    read as a moment in time is not a timestamp.
+    """
+
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError("must be an ISO-8601 timestamp") from exc
+    if parsed.tzinfo is None:
+        raise ValueError("must carry a timezone offset")
+    return value
+
+
+#: A real instant. Bounded first so a pathological string never reaches the parser.
+Timestamp = Annotated[str, StringConstraints(min_length=4, max_length=40), AfterValidator(_instant)]
+
+#: Version and revision identifiers reach the rendered summary, so their syntax
+#: is constrained to characters that carry no meaning in Markdown. This is not
+#: sanitisation — a value outside the set is a malformed payload and is refused.
+Version = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$")]
+Revision = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:+-]{0,127}$")]
 Digest = Annotated[str, StringConstraints(pattern=r"^sha256:[0-9a-f]{64}$")]
 
 Comment = Annotated[str, StringConstraints(max_length=2000)]
@@ -49,16 +81,57 @@ MAX_MODULE_RECORDS = 64
 
 
 class Wire(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    """Strict in both directions.
+
+    ``extra="forbid"`` refuses fields nobody declared; ``strict=True`` refuses
+    values of the wrong type rather than quietly coercing them. Coercion matters
+    here beyond tidiness: the gateway recomputes the payload digest from what it
+    parsed, so a silently rewritten value would produce a digest that no longer
+    matches the sender's — and the honest answer to "this is not the payload you
+    digested" is refusal, not repair.
+
+    Pydantic's one strict-mode concession, accepting an integer for a float, is
+    kept: JSON has a single number type and refusing ``0`` for a score would be
+    refusing valid JSON.
+    """
+
+    model_config = ConfigDict(extra="forbid", strict=True)
 
 
 class AcademyContext(Wire):
-    """What the learner's installation says was true when the rating was given."""
+    """What the learner's installation says was true when a module rating was given.
+
+    ``assessment_passed`` has three meanings, not two. ``true`` and ``false``
+    are judgements under semantics that currently apply; ``null`` means the
+    installation held no admissible evidence — for instance because the pass
+    was earned under a competence revision that has since been superseded.
+    Analysis must not read ``null`` as ``false``.
+
+    ``competence_revision`` is what an assessment means today;
+    ``assessment_evidence_revision`` is what the reported evidence was actually
+    earned under. They differ only when a prior revision was explicitly declared
+    compatible.
+    """
 
     module_status: Literal["not_started", "in_progress", "needs_review", "complete"]
     assessment_score: float | None = Field(default=None, ge=0, le=1)
     assessment_passed: bool | None = None
     assessment_attempts: int = Field(ge=0, le=10_000)
+    competence_revision: Revision | None = None
+    assessment_evidence_revision: Revision | None = None
+    learning_path_id: Identifier | None = None
+    session_elapsed_seconds: int | None = Field(default=None, ge=0, le=60 * 60 * 24 * 30)
+
+
+class CourseAcademyContext(Wire):
+    """Provenance for a course-level rating.
+
+    Deliberately carries no module status, score, or pass/fail. Course feedback
+    is about the whole curriculum, so those fields would have no referent, and a
+    placeholder in a research record is indistinguishable from an observation.
+    """
+
+    total_assessment_attempts: int = Field(ge=0, le=1_000_000)
     competence_revision: Revision | None = None
     learning_path_id: Identifier | None = None
     session_elapsed_seconds: int | None = Field(default=None, ge=0, le=60 * 60 * 24 * 30)
@@ -97,7 +170,7 @@ class CourseFeedbackRecord(Wire):
     record_id: int = Field(ge=1)
     created_at: Timestamp
     perception: CoursePerception
-    academy_context: AcademyContext
+    academy_context: CourseAcademyContext
 
 
 class SessionInfo(Wire):
@@ -138,6 +211,27 @@ class FeedbackPayload(Wire):
     course_feedback: CourseFeedbackRecord | None = None
     sync: SyncInfo
 
+    @model_validator(mode="after")
+    def _counts_describe_the_contents(self) -> FeedbackPayload:
+        """The declared counts must be true of the payload that carries them.
+
+        Type-shaped JSON is not the same as coherent JSON. A session claiming
+        three module records while carrying one is either a broken client or a
+        deliberate one, and in the rendered issue the summary line would
+        contradict the table beneath it. Refuse rather than pick a winner.
+        """
+
+        if self.session.module_record_count != len(self.module_feedback):
+            raise ValueError(
+                "session.module_record_count does not match the module_feedback entries"
+            )
+        expected_course = int(self.course_feedback is not None)
+        if self.session.course_record_count != expected_course:
+            raise ValueError(
+                "session.course_record_count does not match the presence of course_feedback"
+            )
+        return self
+
 
 class AcceptedResponse(Wire):
     """Deliberately minimal.
@@ -170,6 +264,7 @@ class HealthResponse(Wire):
 __all__ = [
     "MAX_MODULE_RECORDS",
     "AcademyContext",
+    "CourseAcademyContext",
     "AcceptedResponse",
     "CourseFeedbackRecord",
     "CoursePerception",

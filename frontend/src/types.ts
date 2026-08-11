@@ -673,12 +673,35 @@ export interface CourseFeedbackRequest {
   comments?: string | null;
 }
 
-/** Server-derived. Read-only from the browser's point of view. */
+/**
+ * Server-derived provenance for one module rating. Read-only from the browser.
+ *
+ * The assessment fields obey evidence expiry: they summarise only attempts the
+ * current competence contract still admits. `assessment_passed === null` means
+ * "no currently admissible evidence" — which is a different claim from `false`,
+ * and must not be rendered or analysed as one.
+ */
 export interface FeedbackAcademyContext {
   module_status: ModuleStatus;
   assessment_score: number | null;
   assessment_passed: boolean | null;
+  /** Attempts under admissible revisions, not the lifetime attempt count. */
   assessment_attempts: number;
+  /** What an assessment means today. */
+  competence_revision: string | null;
+  /** What the reported evidence was actually earned under. */
+  assessment_evidence_revision: string | null;
+  learning_path_id: string | null;
+  session_elapsed_seconds: number | null;
+}
+
+/**
+ * Course-level provenance. Deliberately carries no module status, score, or
+ * pass/fail: course feedback is about the whole curriculum, so those fields
+ * would have no referent and a placeholder would look like an observation.
+ */
+export interface FeedbackCourseContext {
+  total_assessment_attempts: number;
   competence_revision: string | null;
   learning_path_id: string | null;
   session_elapsed_seconds: number | null;
@@ -709,7 +732,7 @@ export interface CourseFeedbackRecord {
   most_confusing_module: string | null;
   missing_topic: string | null;
   comments: string | null;
-  academy_context: FeedbackAcademyContext;
+  academy_context: FeedbackCourseContext;
 }
 
 export interface FeedbackSyncState {

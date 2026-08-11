@@ -183,6 +183,7 @@ describe("course feedback page", () => {
               assessment_passed: true,
               assessment_attempts: 1,
               competence_revision: "assessment.2026-08-10",
+              assessment_evidence_revision: "assessment.2026-08-10",
               learning_path_id: null,
               session_elapsed_seconds: 300,
             },
