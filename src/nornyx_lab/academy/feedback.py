@@ -501,7 +501,7 @@ class SQLiteFeedbackRepository:
         *,
         session_id: str,
         request: CourseFeedbackRequest,
-        context: FeedbackAcademyContext,
+        context: FeedbackCourseContext,
         content_version: str,
     ) -> int:
         now = self._clock()

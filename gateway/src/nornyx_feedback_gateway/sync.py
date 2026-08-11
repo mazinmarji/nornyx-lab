@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from .github import GitHubSink
+from .identity import derive_marker
 from .models import FeedbackPayload
 from .render import issue_body, issue_title, session_marker
 from .store import SyncStore
@@ -54,8 +55,10 @@ def synchronise(
     otherwise both find nothing and both create.
     """
 
-    session_id = payload.session.session_id
-    known = store.lookup(session_id)
+    # Everything below works on the derived marker. The session UUID stops
+    # here: it is not stored, not rendered, and not sent to GitHub.
+    marker = derive_marker(payload.session.session_id)
+    known = store.lookup(marker)
 
     if known is not None and known.payload_digest == digest:
         # Identical payload for a session already written. Doing nothing is the
@@ -64,23 +67,21 @@ def synchronise(
         return SyncResult("unchanged", known.issue_number)
 
     body = issue_body(payload)
-    title = issue_title(session_id)
+    title = issue_title(marker)
 
     if known is not None:
         sink.update_issue(number=known.issue_number, body=body)
-        store.remember(
-            session_id=session_id, issue_number=known.issue_number, digest=digest, now=now
-        )
+        store.remember(marker=marker, issue_number=known.issue_number, digest=digest, now=now)
         return SyncResult("updated", known.issue_number)
 
-    recovered = sink.find_issue(title=title, marker=session_marker(session_id))
+    recovered = sink.find_issue(title=title, marker=session_marker(marker))
     if recovered is not None:
         sink.update_issue(number=recovered, body=body)
-        store.remember(session_id=session_id, issue_number=recovered, digest=digest, now=now)
+        store.remember(marker=marker, issue_number=recovered, digest=digest, now=now)
         return SyncResult("updated", recovered)
 
     number = sink.create_issue(title=title, body=body)
-    store.remember(session_id=session_id, issue_number=number, digest=digest, now=now)
+    store.remember(marker=marker, issue_number=number, digest=digest, now=now)
     return SyncResult("created", number)
 
 

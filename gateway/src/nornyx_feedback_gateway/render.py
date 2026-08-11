@@ -36,6 +36,7 @@ import re
 from typing import Any
 
 from .digest import compute_digest
+from .identity import derive_marker, title_fragment
 from .models import FeedbackPayload
 
 #: Lets a later synchronisation find the issue that already represents a session
@@ -50,19 +51,22 @@ _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _BACKTICK_RUN = re.compile(r"`+")
 
 
-def session_marker(session_id: str) -> str:
-    return f"<!-- {MARKER_PREFIX} {session_id} -->"
+def session_marker(marker: str) -> str:
+    """The recovery comment, carrying the derived marker and never the UUID."""
+
+    return f"<!-- {MARKER_PREFIX} {marker} -->"
 
 
-def issue_title(session_id: str) -> str:
+def issue_title(marker: str) -> str:
     """A deterministic, learner-independent title.
 
-    Derived only from the session UUID, so the same session always produces the
-    same title and recovery can match on it exactly. Learner text never reaches
-    this string.
+    Derived from the *public marker*, not the session UUID, so the title cannot
+    be used to reconstruct the identifier the gateway accepts as a write key.
+    The same session still always produces the same title, which is what lets
+    recovery match on it. Learner text never reaches this string.
     """
 
-    return f"[Learner Feedback] Session {session_id[:8]}"
+    return f"[Learner Feedback] Session {title_fragment(marker)}"
 
 
 def normalise(text: str) -> str:
@@ -99,11 +103,25 @@ def _score(value: float | None) -> str:
 def payload_document(payload: FeedbackPayload) -> dict[str, Any]:
     """The machine-readable object embedded in the issue body.
 
-    This is the payload exactly as received, minus nothing and plus nothing, so
-    a maintainer reading the issue sees what the installation actually sent.
+    The payload as received, with **one deliberate transformation**: the private
+    ``session.session_id`` is removed and replaced by ``session.session_marker``,
+    the one-way derivation of it. Everything else — every rating, every comment,
+    every context field — is exactly what the installation sent.
+
+    The substitution is why this is not described as "the exact payload
+    received". The session UUID is the write key for an unauthenticated intake,
+    and publishing it in an issue that may live in a public repository would
+    publish the means to overwrite that issue.
+
+    The digest is unaffected: it is computed over the payload as received, so
+    both sides still agree on content identity.
     """
 
-    return payload.model_dump(mode="json", exclude_none=False)
+    document = payload.model_dump(mode="json", exclude_none=False)
+    session = document["session"]
+    session.pop("session_id", None)
+    session["session_marker"] = derive_marker(payload.session.session_id)
+    return document
 
 
 def _module_rows(payload: FeedbackPayload) -> list[str]:
@@ -153,8 +171,9 @@ def issue_body(payload: FeedbackPayload) -> str:
 
     session = payload.session
     runtime = payload.runtime
+    marker = derive_marker(session.session_id)
     parts: list[str] = [
-        session_marker(session.session_id),
+        session_marker(marker),
         "",
         "## Learner feedback session",
         "",
@@ -162,7 +181,9 @@ def issue_body(payload: FeedbackPayload) -> str:
         "learner's explicit consent. **This is research instrumentation, not evidence of "
         "learner competence, and not a measurement of educational effectiveness.**",
         "",
-        f"- Session: `{session.session_id}`",
+        # The derived marker, never the identifier the gateway accepts as a
+        # write key. A reader can correlate records; they cannot replay one.
+        f"- Session marker: `{marker}`",
         f"- Opened: `{session.created_at}`",
         f"- Module records: {session.module_record_count}",
         f"- Course records: {session.course_record_count}",

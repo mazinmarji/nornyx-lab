@@ -21,7 +21,9 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class SessionRecord:
-    session_id: str
+    #: The derived public marker, never the session UUID. The gateway has no
+    #: reason to persist a write key, so it does not.
+    session_marker: str
     issue_number: int
     payload_digest: str
     created_at: str
@@ -43,10 +45,21 @@ class SyncStore:
 
     def _initialize(self) -> None:
         with self._lock, self._connect() as connection:
+            existing = {
+                row[1] for row in connection.execute("PRAGMA table_info(feedback_sessions)")
+            }
+            if existing and "session_marker" not in existing:
+                # A pre-release store keyed by the raw session UUID. Dropped
+                # rather than migrated, deliberately: the point of the change is
+                # that the gateway does not hold write keys, so carrying the old
+                # ones forward would defeat it. Nothing is lost that matters —
+                # this table is a cache, and an unknown session is recovered from
+                # GitHub by its marker.
+                connection.execute("DROP TABLE feedback_sessions")
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS feedback_sessions (
-                    session_id TEXT PRIMARY KEY,
+                    session_marker TEXT PRIMARY KEY,
                     issue_number INTEGER NOT NULL,
                     payload_digest TEXT NOT NULL,
                     created_at TEXT NOT NULL,
@@ -55,34 +68,34 @@ class SyncStore:
                 """
             )
 
-    def lookup(self, session_id: str) -> SessionRecord | None:
+    def lookup(self, marker: str) -> SessionRecord | None:
         with self._lock, self._connect() as connection:
             row = connection.execute(
-                "SELECT * FROM feedback_sessions WHERE session_id = ?", (session_id,)
+                "SELECT * FROM feedback_sessions WHERE session_marker = ?", (marker,)
             ).fetchone()
         if row is None:
             return None
         return SessionRecord(
-            session_id=row["session_id"],
+            session_marker=row["session_marker"],
             issue_number=row["issue_number"],
             payload_digest=row["payload_digest"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
 
-    def remember(self, *, session_id: str, issue_number: int, digest: str, now: str) -> None:
+    def remember(self, *, marker: str, issue_number: int, digest: str, now: str) -> None:
         with self._lock, self._connect() as connection:
             connection.execute(
                 """
                 INSERT INTO feedback_sessions (
-                    session_id, issue_number, payload_digest, created_at, updated_at
+                    session_marker, issue_number, payload_digest, created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT (session_id) DO UPDATE SET
+                ON CONFLICT (session_marker) DO UPDATE SET
                     issue_number = excluded.issue_number,
                     payload_digest = excluded.payload_digest,
                     updated_at = excluded.updated_at
                 """,
-                (session_id, issue_number, digest, now, now),
+                (marker, issue_number, digest, now, now),
             )
 
 

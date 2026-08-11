@@ -153,6 +153,43 @@ The browser never supplies the identifier: the backend uses its own open
 session, so client-side forgery is not something to validate against — it is
 not possible through the API.
 
+### The write key is never published
+
+Because the intake is unauthenticated by design, presenting a session's UUID is
+what lets a caller overwrite that session's issue. So the UUID must not appear
+in the issue — and it used to, three times over: in the summary line, in the
+HTML recovery marker, and in the embedded JSON. Against a public intake
+repository that published the exact locator needed to overwrite the record.
+
+Two identifiers are now kept apart:
+
+| | Value | Who sees it |
+|---|---|---|
+| **Write key** | the session `uuid4` | the learner's installation and the gateway, only |
+| **Public marker** | `sha256(uuid)` | everything written to GitHub |
+
+Only the marker reaches GitHub: the issue title carries its first twelve hex
+characters, the recovery comment carries it in full, the summary line reports it
+as *Session marker*, and the embedded JSON carries `session.session_marker` in
+place of `session.session_id`. The gateway's own database is keyed on the marker
+too, so no component downstream of the Academy stores a value that authorises a
+write.
+
+Recovery still works because derivation is deterministic — an incoming UUID
+always produces the same marker, so a gateway that has lost its database can
+still find the issue that already represents the session. That is also why the
+derivation is a plain SHA-256 rather than an HMAC under a gateway-held key: a
+secret that must be backed up to keep recovery working is a secret that will
+eventually be lost. A `uuid4` has 122 bits of entropy, so the marker is not
+reversible by search, and publishing it does not let a reader reconstruct the
+key.
+
+Because of that substitution the JSON embedded in the issue is **not** a
+verbatim copy of the payload received, and is not described as one. Exactly one
+field is transformed; every rating, comment, and context value is what the
+installation sent. The digest is unaffected — it is computed over the payload as
+received, so both sides still agree on content identity.
+
 ## Privacy terminology
 
 This feature is **not** described as anonymous, and the product does not use
@@ -333,8 +370,13 @@ The two halves:
   fence is computed to be one backtick longer than the longest backtick run in
   the text, so the text cannot close its own fence. GitHub does not parse
   mentions, issue references, or Markdown inside a fenced block.
-* **Everything else has a syntax.** Timestamps must parse as timezone-aware
-  ISO-8601 instants -- parsed, not pattern-guessed. Versions and competence
+* **Everything else has a syntax.** Timestamps must match an explicit ASCII
+  form — `YYYY-MM-DDTHH:MM:SS[.ffffff](Z|±HH:MM)` — *and then* parse to a real
+  timezone-aware instant. Both halves are needed, and parsing alone is not
+  enough: `datetime.fromisoformat` accepts any single character as the
+  date/time separator, so ``2026-08-11`12:00:00+00:00`` is a valid instant that
+  would have closed its own code span in the rendered summary, and the newline
+  variant would have escaped the line entirely. Versions and competence
   revisions match a character set that excludes backticks, newlines, brackets,
   pipes, and the at sign. Identifiers, ratings, enums, counts, and the digest
   were already constrained. A value outside its syntax is a malformed payload
@@ -513,15 +555,16 @@ Every significant claim this feature makes, classified against its evidence.
   values. The gateway is designed on that assumption; the corpus is
   self-reported and should be read that way.
 * Because the intake is unauthenticated by design — no accounts, no learner
-  identity — anyone who learns a session identifier can post a payload carrying
-  it and overwrite that session's issue. Session identifiers are `uuid4`, are
-  never displayed to anyone but the learner whose session it is, and are not
-  returned by the gateway, so this requires the identifier to leak first. The
-  mitigation is that the intake is a **raw research feed**, not a system of
-  record: a maintainer aggregates from it into an evidence-backed engineering
-  issue, and should treat any single session as unverified. Adding
-  authentication would mean building learner accounts, which this feature
-  deliberately does not do.
+  identity — anyone holding a session's `uuid4` can post a payload carrying it
+  and overwrite that session's issue. What the published record no longer does
+  is hand them that value: GitHub receives only the one-way marker, the gateway
+  stores only the marker, and the gateway never returns either. The UUID exists
+  in the learner's own installation and in transit to the gateway, so the
+  residual exposure is a compromised installation or a broken TLS path, not a
+  reader of the intake repository. The wider mitigation is unchanged: the intake
+  is a **raw research feed**, not a system of record, and a maintainer should
+  treat any single session as unverified. Adding authentication would mean
+  building learner accounts, which this feature deliberately does not do.
 * Assessment context in a payload is generated by the learner's own
   installation. It is Academy-generated evidence, not independent ground truth.
 * GitHub mention-suppression relies on GitHub not parsing Markdown inside code

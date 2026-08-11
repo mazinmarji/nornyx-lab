@@ -18,7 +18,7 @@ import json
 import re
 
 import pytest
-from conftest import SESSION_ID, FakeGitHub, digest_of, make_payload
+from conftest import EXPECTED_TITLE, SESSION_MARKER, FakeGitHub, digest_of, make_payload
 from fastapi.testclient import TestClient
 
 from nornyx_feedback_gateway.app import create_app
@@ -117,8 +117,8 @@ def test_hostile_comments_are_preserved_verbatim_but_only_inside_a_fence(
 @pytest.mark.parametrize("hostile", HOSTILE, ids=range(len(HOSTILE)))
 def test_hostile_comments_never_control_the_title_or_the_labels(config, sink, hostile) -> None:
     _post(hostile, sink, config)
-    assert sink.issues[1]["title"] == issue_title(SESSION_ID)
-    assert sink.issues[1]["title"] == "[Learner Feedback] Session 7f21ac1e"
+    assert sink.issues[1]["title"] == issue_title(SESSION_MARKER)
+    assert sink.issues[1]["title"] == EXPECTED_TITLE
 
 
 def test_a_comment_cannot_close_its_own_fence() -> None:
@@ -165,7 +165,7 @@ def test_the_machine_readable_payload_round_trips_the_learner_text(config, sink)
 
 def test_the_session_marker_is_present_for_recovery(config, sink) -> None:
     body = _post("fine", sink, config)
-    assert f"<!-- nornyx-feedback-session: {SESSION_ID} -->" in body
+    assert f"<!-- nornyx-feedback-session: {SESSION_MARKER} -->" in body
 
 
 def test_rendering_is_deterministic_for_the_same_payload() -> None:

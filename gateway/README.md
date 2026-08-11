@@ -24,10 +24,21 @@ feedback is saved locally and never sent.
 2. validates it as hostile external input — enums, ranges, length caps, unknown
    fields refused;
 3. renders it into an issue body in which every caller-supplied string either
-   has a syntax that carries no meaning in Markdown or sits inside a fence;
+   has a syntax that carries no meaning in Markdown or sits inside a fence, and
+   in which the session's write key is replaced by a one-way public marker;
 4. recomputes the payload digest and refuses one that does not match;
 5. creates or updates exactly one issue per feedback session, **per replica**;
 6. returns a minimal status that does not name the intake repository.
+
+### The session write key is never published
+
+The intake is unauthenticated, so a session's UUID is what authorises
+overwriting that session's issue. It is therefore never written to GitHub. The
+issue carries `sha256(uuid)` instead — in the title, in the recovery comment, in
+the summary, and in the embedded JSON — and the gateway's database is keyed on
+that marker too. Derivation is deterministic, so recovery after database loss
+still works; it is a plain digest rather than a keyed MAC precisely so it does
+not depend on gateway-held state that a redeploy would lose.
 
 ### Scope of "one issue per session"
 

@@ -21,6 +21,12 @@ from nornyx_feedback_gateway.store import SyncStore
 
 SESSION_ID = "7f21ac1e-4b3d-4c2a-9f10-2b5d6e7a8c90"
 
+#: What GitHub is allowed to see. Computed here from the same one-way rule the
+#: gateway uses, so a test asserting "the UUID is absent and the marker present"
+#: is comparing against an independently derived value.
+SESSION_MARKER = hashlib.sha256(SESSION_ID.encode("utf-8")).hexdigest()
+EXPECTED_TITLE = f"[Learner Feedback] Session {SESSION_MARKER[:12]}"
+
 
 class FakeGitHub:
     """An in-memory stand-in for the issue surface the gateway actually uses."""

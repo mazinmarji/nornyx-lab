@@ -39,13 +39,30 @@ UUID_PATTERN = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 SessionId = Annotated[str, StringConstraints(pattern=UUID_PATTERN)]
 
 
-def _instant(value: str) -> str:
-    """Require an actual timezone-aware ISO-8601 instant, not a timestamp-shaped string.
+#: The lexical form, fixed before anything is parsed.
+#:
+#: Parsing alone is not sufficient, and this is the subtle part.
+#: ``datetime.fromisoformat`` accepts **any single character** as the date/time
+#: separator — backtick, newline, ``@``, ``|``, a non-breaking space, U+2028 —
+#: so ``2026-08-11`12:00:00+00:00`` is a perfectly valid timezone-aware instant
+#: as far as Python is concerned. That value then reaches the rendered summary
+#: inside a code span, where the backtick closes the span early and the rest of
+#: the timestamp becomes interpreted Markdown. The newline variant escapes the
+#: line altogether.
+#:
+#: So the alphabet is pinned first: literal ``T``, literal ``:``, ASCII digits,
+#: an optional fractional part, and either ``Z`` or a numeric offset. Nothing in
+#: that set carries meaning in Markdown, whatever a parser would tolerate.
+ISO_INSTANT_PATTERN = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$"
 
-    Checking length or "looks like a date" leaves a field that reaches the
-    rendered issue summary accepting arbitrary text. Parsing it is both the
-    stronger validation and the more honest one: a timestamp that cannot be
-    read as a moment in time is not a timestamp.
+
+def _instant(value: str) -> str:
+    """The semantic half, after the lexical half has fixed the alphabet.
+
+    The pattern guarantees the shape; this guarantees the value is a real moment
+    — rejecting month 13, day 45, hour 99 — and that it carries a timezone.
+    Both are needed: the pattern alone would admit impossible dates, and the
+    parse alone admits hostile separators.
     """
 
     try:
@@ -57,8 +74,11 @@ def _instant(value: str) -> str:
     return value
 
 
-#: A real instant. Bounded first so a pathological string never reaches the parser.
-Timestamp = Annotated[str, StringConstraints(min_length=4, max_length=40), AfterValidator(_instant)]
+Timestamp = Annotated[
+    str,
+    StringConstraints(min_length=20, max_length=40, pattern=ISO_INSTANT_PATTERN),
+    AfterValidator(_instant),
+]
 
 #: Version and revision identifiers reach the rendered summary, so their syntax
 #: is constrained to characters that carry no meaning in Markdown. This is not

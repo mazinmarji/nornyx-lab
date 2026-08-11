@@ -87,11 +87,19 @@ designed so the learner installation holds no external authority:
 - the gateway injects its token at runtime, never as a build argument, and never
   returns, logs, or persists it. An unconfigured gateway fails closed;
 - every caller-supplied string in the payload either has a syntax that carries no
-  meaning in Markdown — parsed timestamps, constrained versions, revisions and
-  identifiers — or is emitted only inside a code fence sized so it cannot close
-  its own fence. Learner free text is stored and transmitted exactly as typed and
-  made inert at rendering rather than edited. Issue title, labels, repository,
-  and state come from configuration alone;
+  meaning in Markdown — timestamps pinned to an explicit ASCII form *and then*
+  parsed, constrained versions, revisions and identifiers — or is emitted only
+  inside a code fence sized so it cannot close its own fence. Pinning the
+  timestamp form matters because `datetime.fromisoformat` accepts any single
+  character as the date/time separator, so a parseable instant could otherwise
+  carry a backtick or a newline into the rendered summary. Learner free text is
+  stored and transmitted exactly as typed and made inert at rendering rather
+  than edited. Issue title, labels, repository, and state come from
+  configuration alone;
+- the session identifier that authorises overwriting a feedback issue is never
+  published. GitHub receives a one-way `sha256` marker derived from it, in the
+  title, the recovery comment, the summary and the embedded JSON, and the
+  gateway's own store is keyed on the marker as well;
 - the gateway recomputes the payload digest from what it parsed and refuses a
   mismatch before any GitHub or store operation, so an unauthenticated sender
   cannot choose the content identity used for idempotency;

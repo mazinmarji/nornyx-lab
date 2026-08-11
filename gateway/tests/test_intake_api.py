@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 import pytest
-from conftest import SESSION_ID, FakeGitHub, digest_of, make_payload
+from conftest import EXPECTED_TITLE, SESSION_ID, FakeGitHub, digest_of, make_payload
 from fastapi.testclient import TestClient
 
 from nornyx_feedback_gateway.app import create_app
@@ -45,7 +45,7 @@ def test_a_valid_payload_creates_exactly_one_issue(config, sink) -> None:
     assert body["issue_number"] == 1
     assert body["destination_visibility"] == "private"
     assert len(sink.issues) == 1
-    assert sink.issues[1]["title"] == "[Learner Feedback] Session 7f21ac1e"
+    assert sink.issues[1]["title"] == EXPECTED_TITLE
 
 
 def test_the_same_payload_twice_does_not_create_a_second_issue(config, sink) -> None:

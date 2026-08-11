@@ -15,7 +15,7 @@ import asyncio
 import logging
 
 import pytest
-from conftest import make_payload
+from conftest import SESSION_MARKER, make_payload
 from fastapi.testclient import TestClient
 
 from nornyx_feedback_gateway.app import BodySizeLimitMiddleware, RateLimiter, create_app
@@ -143,9 +143,11 @@ def test_no_learner_text_or_credential_reaches_the_log_stream(config, sink, capl
     assert TOKEN not in logged
     assert "nornyx-lab-feedback-intake" not in logged
     assert "testclient" not in logged, "the client address reached the log"
-    # What it *should* say: a truncated session id and an outcome.
-    assert "7f21ac1e" in logged
+    # What it *should* say: a truncated *marker* and an outcome. Not the UUID —
+    # a write key has no business in a log file either.
+    assert SESSION_MARKER[:8] in logged
     assert "created" in logged
+    assert "7f21ac1e" not in logged
 
 
 def test_a_failure_logs_the_classified_code_and_nothing_more(config, sink, caplog) -> None:

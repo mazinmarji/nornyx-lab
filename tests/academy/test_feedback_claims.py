@@ -291,6 +291,43 @@ def test_the_gateway_digest_verification_is_documented() -> None:
     assert "digest_mismatch" in flat
 
 
+def test_the_write_key_versus_public_marker_split_is_documented() -> None:
+    """The published record must not carry the value that authorises writing to it."""
+
+    canonical = _flat(FEEDBACK_DOC)
+    assert "The write key is never published" in canonical
+    assert "session_marker" in canonical
+    assert "sha256" in canonical.lower()
+
+    gateway = _flat(GATEWAY_README)
+    assert "never written to GitHub" in gateway or "never published" in gateway
+
+
+def test_the_embedded_issue_json_is_not_claimed_to_be_verbatim() -> None:
+    """One field is deliberately substituted, so "exact payload" would be false."""
+
+    canonical = _flat(FEEDBACK_DOC)
+    assert "not** a verbatim copy" in canonical or "not a verbatim copy" in canonical
+
+    for path in (FEEDBACK_DOC, GATEWAY_README, SECURITY):
+        flat = _flat(path)
+        for overclaim in (
+            "the exact payload received",
+            "exactly as received, minus nothing",
+        ):
+            assert overclaim not in flat, f"{path.name} claims the issue JSON is verbatim"
+
+
+def test_the_timestamp_syntax_requirement_is_documented() -> None:
+    """Parsing alone was the defect; the docs have to say why it was not enough."""
+
+    canonical = _flat(FEEDBACK_DOC)
+    assert "fromisoformat" in canonical
+    assert "separator" in canonical
+    security = _flat(SECURITY)
+    assert "fromisoformat" in security
+
+
 def test_one_canonical_document_owns_the_architecture_prose() -> None:
     """The same architecture explained in four files drifts in three of them."""
 

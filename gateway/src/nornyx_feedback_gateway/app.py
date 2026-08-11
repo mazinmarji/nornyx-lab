@@ -22,6 +22,7 @@ from .concurrency import KeyedLocks, RateLimiter
 from .config import SCHEMA_ID, GatewayConfig, load_config
 from .digest import DigestMismatch, verified_digest
 from .github import GitHubError, GitHubSink, UrllibGitHubSink
+from .identity import derive_marker
 from .models import AcceptedResponse, ErrorResponse, FeedbackPayload, HealthResponse
 from .store import SyncStore
 from .sync import synchronise
@@ -160,7 +161,11 @@ def create_app(
         if not app.state.limiter.allow(client):
             return _json_error(429, "rate_limited", "Too many requests. Try again shortly.")
 
-        session_id = payload.session.session_id
+        # The write key is used for exactly one thing here — deriving the
+        # marker — and then nothing downstream touches it. Locks, logs, the
+        # store, and everything sent to GitHub key on the marker instead.
+        marker = derive_marker(payload.session.session_id)
+        logged = marker[:8]
 
         # The submitted digest is a field in an unauthenticated request. Derive
         # the real one and refuse a mismatch before anything is written
@@ -169,7 +174,7 @@ def create_app(
         try:
             digest = verified_digest(payload)
         except DigestMismatch:
-            LOGGER.warning("rejected session %s: payload digest mismatch", session_id[:8])
+            LOGGER.warning("rejected session %s: payload digest mismatch", logged)
             return _json_error(
                 422,
                 "digest_mismatch",
@@ -185,7 +190,7 @@ def create_app(
             )
 
         try:
-            with app.state.session_locks.hold(session_id):
+            with app.state.session_locks.hold(marker):
                 result = synchronise(
                     payload,
                     sink=resolve_sink(),
@@ -197,13 +202,13 @@ def create_app(
             # Only the classified code is reported. A GitHub error body can name
             # the intake repository, and a learner installation must not receive
             # deployment detail, a stack trace, or a raw upstream response.
-            LOGGER.warning("github boundary failed for session %s: %s", session_id[:8], exc.code)
+            LOGGER.warning("github boundary failed for session %s: %s", logged, exc.code)
             status = 503 if exc.retryable else 502
             return _json_error(status, exc.code, "The feedback destination did not accept it.")
 
         # Safe log: a truncated session id and an outcome. No text, no context,
         # no client address, no credential.
-        LOGGER.info("session %s %s issue %d", session_id[:8], result.status, result.issue_number)
+        LOGGER.info("session %s %s issue %d", logged, result.status, result.issue_number)
         return AcceptedResponse(
             status=result.status,
             issue_number=result.issue_number,
