@@ -19,9 +19,10 @@ Two halves, and an earlier version of this file only had the first:
   meaning. A value outside its syntax is a malformed payload and never reaches
   this module.
 
-The title is derived from the session UUID alone. Labels, repository, and issue
-state come from deployment configuration. There is therefore no field a caller
-can write that reaches a position where it could be interpreted.
+The title is derived from a prefix of the public correlation marker, never from
+the session UUID. Labels, repository, and issue state come from deployment
+configuration. There is therefore no field a caller can write that reaches a
+position where it could be interpreted.
 
 This is a *rendering* boundary, not a sanitiser: values are refused or fenced,
 never edited into safety. Nothing is stripped from the learner's words except
@@ -166,7 +167,12 @@ def issue_body(payload: FeedbackPayload) -> str:
     """Render the complete issue body.
 
     Two parts, in the order a human wants them: a readable summary built only
-    from constrained values, then the exact payload as JSON for analysis.
+    from constrained values, then the payload as JSON for analysis.
+
+    The JSON is the payload as received with exactly one substitution —
+    ``session.session_id`` is replaced by ``session.session_marker`` — so it is
+    not a verbatim copy and is not described as one. See ``payload_document``
+    for why the private write key must not be published.
     """
 
     session = payload.session

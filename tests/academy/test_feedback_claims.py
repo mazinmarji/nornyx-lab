@@ -9,6 +9,7 @@ that the feedback is anonymous, and that the gateway is deployed.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -316,6 +317,83 @@ def test_the_embedded_issue_json_is_not_claimed_to_be_verbatim() -> None:
             "exactly as received, minus nothing",
         ):
             assert overclaim not in flat, f"{path.name} claims the issue JSON is verbatim"
+
+
+#: Prose the UUID -> marker redesign made false. Each of these described the
+#: architecture accurately before that change, which is exactly why they
+#: survived it — they read as correct to anyone not checking against the code.
+PRE_MARKER_FORMULATIONS = (
+    "full session UUID",
+    "raw session UUID",
+    "session UUID alone",
+    "truncated session id",
+    "truncated session identifier",
+    "derived from the session UUID",
+    "the exact payload as JSON",
+)
+
+#: Everywhere the redesign has to be described consistently.
+MARKER_SURFACES = (
+    FEEDBACK_DOC,
+    GATEWAY_README,
+    SECURITY,
+    REPOSITORY / "gateway" / "src" / "nornyx_feedback_gateway" / "render.py",
+    REPOSITORY / "gateway" / "src" / "nornyx_feedback_gateway" / "app.py",
+    REPOSITORY / "gateway" / "src" / "nornyx_feedback_gateway" / "sync.py",
+    REPOSITORY / "gateway" / "src" / "nornyx_feedback_gateway" / "identity.py",
+)
+
+
+@pytest.mark.parametrize("path", MARKER_SURFACES, ids=lambda p: p.name)
+@pytest.mark.parametrize("stale", PRE_MARKER_FORMULATIONS)
+def test_pre_marker_prose_cannot_return(path, stale) -> None:
+    """Documentation drifts back. This is the ratchet."""
+
+    flat = _flat(path)
+    assert stale not in flat, (
+        f"{path.name} describes the pre-marker architecture: {stale!r}. GitHub sees "
+        "only sha256(uuid); the raw identifier is a private write key."
+    )
+
+
+def test_the_recovery_description_names_the_marker_not_the_uuid() -> None:
+    """Recovery is where the stale wording hid longest, so pin the correction."""
+
+    flat = _flat(FEEDBACK_DOC)
+    assert "confirms identity against the full marker" in flat
+    assert "raw UUID is never written to GitHub" in flat
+
+
+def test_the_title_is_documented_as_deriving_from_the_marker() -> None:
+    canonical = _flat(FEEDBACK_DOC)
+    assert "title is derived from a prefix of the public correlation marker" in canonical
+    render = _flat(REPOSITORY / "gateway" / "src" / "nornyx_feedback_gateway" / "render.py")
+    assert "prefix of the public correlation marker" in render
+
+
+def test_the_structural_properties_behind_the_prose_still_hold() -> None:
+    """The prose is only worth policing if the behaviour it describes is real.
+
+    Asserted structurally rather than by reading more text: the title really is
+    built from the marker, the rendered document really does re-key the session,
+    and the derivation really is one-way.
+    """
+
+    sys.path.insert(0, str(REPOSITORY / "gateway" / "src"))
+    try:
+        from nornyx_feedback_gateway.identity import derive_marker, title_fragment
+        from nornyx_feedback_gateway.render import issue_title, session_marker
+    finally:
+        sys.path.remove(str(REPOSITORY / "gateway" / "src"))
+
+    session = "7f21ac1e-4b3d-4c2a-9f10-2b5d6e7a8c90"
+    marker = derive_marker(session)
+
+    assert session not in issue_title(marker)
+    assert title_fragment(marker) in issue_title(marker)
+    assert session not in session_marker(marker)
+    assert marker in session_marker(marker)
+    assert marker != session
 
 
 def test_the_timestamp_syntax_requirement_is_documented() -> None:

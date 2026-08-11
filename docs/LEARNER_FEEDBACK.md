@@ -305,10 +305,20 @@ At the gateway:
 
 The third row is the one that matters. A create can succeed on GitHub and still
 fail to reach the gateway — a timeout after the write, a restart in between.
-Recovery lists labelled issues, matches the deterministic title, and confirms
-identity with the full session UUID in a body marker. The issues listing is used
-rather than the search API because search indexing lags, and a lagging index is
-precisely how a retry produces a duplicate.
+Recovery runs entirely on the derived marker:
+
+```
+incoming private session UUID
+  → gateway derives sha256(uuid), the public marker
+  → lists labelled issues and matches the deterministic title,
+    whose fragment is a prefix of that marker
+  → confirms identity against the full marker in the body comment
+  → updates the issue it found
+```
+
+The raw UUID is never written to GitHub, so recovery never looks for one. The
+issues listing is used rather than the search API because search indexing lags,
+and a lagging index is precisely how a retry produces a duplicate.
 
 **Concurrency, and the exact scope of the guarantee.** Lookup, recovery, create,
 and remember are not one atomic step, so two simultaneous requests for the same
@@ -390,8 +400,9 @@ into the summary a maintainer reads.
 position in a real payload and attacks each with the same hostile corpus, so a
 field added later is attacked automatically rather than being quietly exempt.
 
-The issue title is derived from the session UUID alone; labels, repository, and
-issue state come from deployment configuration.
+The issue title is derived from a prefix of the public correlation marker;
+recovery verifies the full marker in the body. Labels, repository, and issue
+state come from deployment configuration.
 
 Tested against `@maintainer`, `@codex`, `#123`, HTML and `<script>` tags, triple
 and quadruple backticks, shell commands, `${{ secrets.GITHUB_TOKEN }}`,
@@ -474,8 +485,9 @@ Gateway deployment:
 A public endpoint is untrusted internet input. Proportionate, in the service:
 strict schema validation with unknown fields forbidden, a streamed body-size cap
 enforced before parsing, bounded text fields, numeric ranges, enums,
-deterministic UUID validation, an explicit outbound timeout, idempotency, and
-logs that carry a truncated session id and an outcome and nothing else.
+deterministic UUID validation of the incoming write key, an explicit outbound
+timeout, idempotency, and logs that carry a prefix of the derived public marker
+and an outcome — never the session identifier itself.
 
 The limiter forgets clients. Buckets are swept globally on a schedule rather
 than only when the same address returns, so an address seen once and never again

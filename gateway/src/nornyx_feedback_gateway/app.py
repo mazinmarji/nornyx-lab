@@ -206,8 +206,10 @@ def create_app(
             status = 503 if exc.retryable else 502
             return _json_error(status, exc.code, "The feedback destination did not accept it.")
 
-        # Safe log: a truncated session id and an outcome. No text, no context,
-        # no client address, no credential.
+        # Safe log: a prefix of the derived public marker and an outcome. Not the
+        # session identifier — that is a write key, and a log file is not a
+        # place to keep one. No text, no context, no client address, no
+        # credential either.
         LOGGER.info("session %s %s issue %d", logged, result.status, result.issue_number)
         return AcceptedResponse(
             status=result.status,
