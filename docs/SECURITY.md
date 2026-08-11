@@ -66,6 +66,58 @@ Do not expose the local service to an untrusted network while using an in-memory
 or remote deployment, add TLS, authentication, secret-manager integration, CSRF protection,
 rate limits, tenant-isolated storage, and an outbound policy before enabling live mode.
 
+## Learner feedback and the GitHub credential boundary
+
+Optional learner feedback adds the academy's only outbound data path. It is
+designed so the learner installation holds no external authority:
+
+- the browser sends learner perception only; scores, statuses, versions, the
+  competence revision, and the session identifier are derived server-side, and a
+  request carrying any of them is rejected rather than silently stripped;
+- nothing is transmitted before an explicit, never-pre-checked opt-in, and the
+  consent state is read from the database rather than from the request;
+- the local write commits before any network call and is never rolled back by a
+  delivery failure;
+- the outbound endpoint must be HTTPS outside loopback, carries an explicit
+  timeout, and refuses redirects;
+- **no GitHub credential exists in the learner distribution.** The hosted
+  feedback gateway is a separate project under `gateway/`, is not copied into
+  the production image, is excluded by `.dockerignore`, and is the only holder
+  of GitHub write authority;
+- the gateway injects its token at runtime, never as a build argument, and never
+  returns, logs, or persists it. An unconfigured gateway fails closed;
+- every caller-supplied string in the payload either has a syntax that carries no
+  meaning in Markdown — timestamps pinned to an explicit ASCII form *and then*
+  parsed, constrained versions, revisions and identifiers — or is emitted only
+  inside a code fence sized so it cannot close its own fence. Pinning the
+  timestamp form matters because `datetime.fromisoformat` accepts any single
+  character as the date/time separator, so a parseable instant could otherwise
+  carry a backtick or a newline into the rendered summary. Learner free text is
+  stored and transmitted exactly as typed and made inert at rendering rather
+  than edited. Issue title, labels, repository, and state come from
+  configuration alone;
+- the session identifier that authorises overwriting a feedback issue is never
+  published. GitHub receives a one-way `sha256` marker derived from it, in the
+  title, the recovery comment, the summary and the embedded JSON, and the
+  gateway's own store is keyed on the marker as well;
+- the gateway recomputes the payload digest from what it parsed and refuses a
+  mismatch before any GitHub or store operation, so an unauthenticated sender
+  cannot choose the content identity used for idempotency;
+- synchronisation is serialised per feedback session, which makes one issue per
+  session a real guarantee for a single gateway replica and is documented as
+  exactly that — there is no distributed coordination and none is claimed;
+- no CI job requires a real GitHub credential; the GitHub boundary is
+  substituted in every test, and a repository invariant fails if a workflow ever
+  references a secret;
+- the application does not persist IP addresses. The gateway holds a client
+  address transiently in memory as a rate-limit key only.
+
+Feedback is not described as anonymous. A learner can type identifying
+information into a comment box, hosting and network infrastructure process
+metadata this application does not control, and GitHub applies its own
+retention. See [LEARNER_FEEDBACK.md](LEARNER_FEEDBACK.md) for the full boundary,
+the exact fields collected and excluded, and the claims audit.
+
 ## Browser and API controls
 
 - same-origin UI and API; no wildcard CORS;

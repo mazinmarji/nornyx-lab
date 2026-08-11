@@ -1146,3 +1146,38 @@ tbody th { color: var(--ink-900); }
 .remediation-status { margin: 0.8rem 0 0; padding: 0.5rem 0.7rem; background: var(--amber-soft); border-radius: 6px; color: var(--ink-800); font-size: 0.87rem; }
 .remediation-provenance { margin: 0.6rem 0 0; color: var(--ink-600); font-size: 0.8rem; }
 .remediation-none { margin-top: 0.7rem; color: var(--ink-600); font-size: 0.87rem; font-style: italic; }
+
+/* ----------------------------------------------- learner feedback (H1)
+   Deliberately quiet. Feedback is optional and sits after the lesson, so it
+   uses the secondary surface and never competes with the teaching or the
+   assessment for attention. */
+.feedback-invite { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; margin: 2rem 0 0; padding: 1.1rem 1.3rem; background: var(--surface-cool); border: 1px dashed var(--line); }
+.feedback-invite p { margin: 0; max-width: 62ch; font-size: 0.92rem; }
+.feedback-card { margin: 2rem 0 0; padding: 1.6rem; background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--teal); }
+.feedback-card .muted { max-width: 68ch; }
+.feedback-scale { margin: 1.3rem 0; padding: 0; border: 0; }
+.feedback-scale legend { padding: 0; margin-bottom: 0.55rem; font-weight: 700; font-size: 0.95rem; }
+.feedback-scale-options { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.feedback-chip { display: grid; min-width: 92px; gap: 0.15rem; padding: 0.55rem 0.7rem; background: var(--surface-cool); border: 1px solid var(--line); cursor: pointer; text-align: center; }
+.feedback-chip input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.feedback-chip strong { font-size: 1.05rem; }
+.feedback-chip small { color: var(--ink-600); font-size: 0.76rem; }
+.feedback-chip:focus-within { outline: 3px solid var(--teal); outline-offset: 2px; }
+.feedback-chip-on { background: var(--teal-soft); border-color: #93cdbd; }
+.feedback-chip-on small { color: var(--ink-900); }
+.feedback-comment { display: grid; gap: 0.35rem; margin: 1.3rem 0; }
+.feedback-comment > span { font-weight: 700; font-size: 0.95rem; }
+.feedback-comment textarea { width: 100%; padding: 0.6rem; border: 1px solid var(--line); font: inherit; }
+.feedback-comment small { color: var(--ink-600); font-size: 0.8rem; }
+.feedback-state { margin: 1rem 0; padding: 0.7rem 0.9rem; border: 1px solid #93cdbd; background: var(--teal-soft); font-size: 0.9rem; }
+.feedback-state-warning { border-color: #e1bd77; background: var(--amber-soft); }
+.feedback-consent { margin: 1.2rem 0; padding: 1rem 1.1rem; background: var(--surface-cool); border: 1px solid var(--line); }
+.feedback-consent details { margin-bottom: 0.8rem; }
+.feedback-consent summary { cursor: pointer; font-weight: 700; font-size: 0.92rem; }
+.feedback-consent ul { margin: 0.7rem 0 0; padding-left: 1.1rem; }
+.feedback-consent li { margin-bottom: 0.5rem; font-size: 0.88rem; color: var(--ink-600); }
+.feedback-record-list { margin: 0.8rem 0; padding: 0; list-style: none; }
+.feedback-record-list li { display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: space-between; padding: 0.55rem 0; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
+.dashboard-feedback { margin-top: 1.5rem; }
+.feedback-page .feedback-card { margin-top: 1.5rem; }
+.path-feedback-invite { margin: 0.9rem 0 0; padding: 0.6rem 0.8rem; background: var(--surface-cool); border: 1px dashed var(--line); font-size: 0.85rem; }

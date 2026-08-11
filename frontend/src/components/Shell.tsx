@@ -12,6 +12,7 @@ const primary = [
   ["/dashboard", "My dashboard"],
   ["/glossary", "What the words mean"],
   ["/paths", "Learning paths"],
+  ["/feedback", "Give feedback"],
 ] as const;
 
 const explore = [

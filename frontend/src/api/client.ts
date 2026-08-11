@@ -5,15 +5,20 @@ import type {
   ContractMutation,
   ContractSummary,
   ContractValidation,
+  CourseFeedbackRequest,
   CurriculumCatalog,
   Dashboard,
   DemoOptions,
   DemoStory,
+  FeedbackDeletionResponse,
+  FeedbackStatus,
+  FeedbackSubmissionResponse,
   Glossary,
   RemediationRegistry,
   Health,
   LessonTeaching,
   LiveModelSettingsResponse,
+  ModuleFeedbackRequest,
   Orientation,
   PlatformInfo,
   PublicAssessment,
@@ -130,6 +135,31 @@ export const academyApi = {
       method: "PUT",
       body: JSON.stringify(settings),
     }),
+  // ------------------------------------------------------- learner feedback
+  // Optional research instrumentation. These calls reach the local academy
+  // service only; the browser has no path to any external destination, and the
+  // page's Content-Security-Policy (`connect-src 'self'`) makes that structural
+  // rather than a matter of discipline.
+  feedbackStatus: () => request<FeedbackStatus>("/feedback"),
+  submitModuleFeedback: (moduleId: string, body: ModuleFeedbackRequest) =>
+    request<FeedbackSubmissionResponse>(`/feedback/modules/${encode(moduleId)}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  submitCourseFeedback: (body: CourseFeedbackRequest) =>
+    request<FeedbackSubmissionResponse>("/feedback/course", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  setFeedbackConsent: (granted: boolean) =>
+    request<FeedbackStatus>("/feedback/consent", {
+      method: "POST",
+      body: JSON.stringify({ granted }),
+    }),
+  syncFeedback: () => request<FeedbackStatus>("/feedback/sync", { method: "POST" }),
+  deleteFeedback: () =>
+    request<FeedbackDeletionResponse>("/feedback", { method: "DELETE" }),
+
   resetProgress: () => request<Dashboard>("/progress/reset", { method: "POST" }),
   exportProgress: () => request<Record<string, unknown>>("/progress/export"),
   capstone: () => request<CapstoneDefinition>("/capstone"),

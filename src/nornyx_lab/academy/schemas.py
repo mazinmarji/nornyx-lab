@@ -11,7 +11,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, StrictBool
 
 API_VERSION = "v1"
 
@@ -795,6 +795,298 @@ class NamedConcept(AcademyModel):
     plain_name: str
     formal_term: str
     definition: str = ""
+
+
+# ------------------------------------------------------- learner feedback (H1)
+# Research instrumentation. None of these types is competence evidence, and no
+# field on any of them is read by assessment scoring, module completion, concept
+# mastery, capstone eligibility, or advanced standing.
+#
+# The split below is the whole safety design of the feature: the *Request*
+# models carry learner perception and nothing else, so there is no field a
+# browser could set to state a score, a version, or a competence revision. Every
+# contextual value is derived on the server and appears only on the *Record*
+# models, which the browser can read but never write.
+
+FEEDBACK_SCHEMA_ID = "nornyx.academy.learner_feedback.v1"
+
+#: Bumped whenever the consent wording changes. Stored with each consent event
+#: so a grant records which words the learner actually agreed to.
+CONSENT_DOCUMENT_VERSION = "2026.08.1"
+
+
+class FeedbackDifficulty(str, Enum):
+    TOO_EASY = "too_easy"
+    RIGHT_LEVEL = "right_level"
+    TOO_HARD = "too_hard"
+
+
+class FeedbackUnderstanding(str, Enum):
+    UNDERSTOOD = "understood"
+    PARTLY_UNDERSTOOD = "partly_understood"
+    STILL_CONFUSED = "still_confused"
+
+
+class FeedbackRecommendation(str, Enum):
+    YES = "yes"
+    MAYBE = "maybe"
+    NO = "no"
+
+
+class FeedbackConsentState(str, Enum):
+    """Three states, and only one of them permits transmission."""
+
+    NOT_ASKED = "not_asked"
+    GRANTED = "granted"
+    REVOKED = "revoked"
+
+
+class FeedbackSyncStatus(str, Enum):
+    NOT_CONFIGURED = "not_configured"
+    NO_CONSENT = "no_consent"
+    NEVER_ATTEMPTED = "never_attempted"
+    SYNCED = "synced"
+    FAILED = "failed"
+
+
+class DestinationVisibility(str, Enum):
+    """What the operator has told this installation about the destination.
+
+    ``UNKNOWN`` is the default and is not a failure: an installation genuinely
+    cannot see how the maintainers configured their intake repository, and
+    saying so is better than guessing. The consent copy renders each case
+    differently.
+    """
+
+    PUBLIC = "public"
+    PRIVATE = "private"
+    UNKNOWN = "unknown"
+
+
+class ModuleFeedbackRequest(AcademyModel):
+    """Everything the browser is allowed to say about a module.
+
+    Deliberately five fields. Adding an ``assessment_score`` or a
+    ``module_status`` here would let a modified client author the very context
+    the record exists to preserve, so those live only on the response.
+    """
+
+    clarity: int = Field(ge=1, le=5)
+    confidence: int = Field(ge=1, le=5)
+    difficulty: FeedbackDifficulty
+    self_assessment: FeedbackUnderstanding
+    comment: str | None = Field(default=None, max_length=2000)
+
+
+class CourseFeedbackRequest(AcademyModel):
+    overall_clarity: int = Field(ge=1, le=5)
+    progression: int = Field(ge=1, le=5)
+    usefulness: int = Field(ge=1, le=5)
+    final_confidence: int = Field(ge=1, le=5)
+    overall_difficulty: FeedbackDifficulty
+    recommend: FeedbackRecommendation
+    most_helpful_module: str | None = Field(default=None, max_length=32)
+    most_confusing_module: str | None = Field(default=None, max_length=32)
+    missing_topic: str | None = Field(default=None, max_length=2000)
+    comments: str | None = Field(default=None, max_length=4000)
+
+
+class FeedbackConsentRequest(AcademyModel):
+    """No default, and no coercion. Consent is a decision, not a truthy value.
+
+    ``StrictBool`` rather than ``bool`` on purpose, and deliberately unlike the
+    rating fields above. Pydantic's ordinary mode reads ``"yes"``, ``"true"``
+    and ``1`` as ``True``, which is a sensible convenience for a rating and the
+    wrong answer for the one field in this feature whose misreading causes a
+    learner's words to leave their computer. A rating read loosely is a slightly
+    wrong number; consent read loosely is an irreversible transmission, so this
+    field requires a real JSON boolean and rejects anything else.
+    """
+
+    granted: StrictBool
+
+
+class FeedbackAcademyContext(AcademyModel):
+    """Server-derived provenance for one module feedback record.
+
+    Every field here is read from the learner record, the competence contract,
+    or installed package metadata at the moment the rating is stored. None of it
+    is accepted from the browser.
+
+    The assessment fields obey evidence expiry. They summarise only attempts the
+    current competence contract still admits, so a pass earned under a revision
+    that has since been superseded is reported as *no current evidence* rather
+    than being paired with today's meaning of the assessment. ``None`` for score
+    and pass means "nothing currently admissible", which is a different claim
+    from ``False``.
+
+    ``learning_path_id`` is always ``None`` in this release. Every module belongs
+    to at least two authored paths, and this installation does not record a
+    chosen one, so there is no authoritative answer — and an inferred one would
+    be manufactured provenance.
+    """
+
+    module_status: ModuleStatus
+    assessment_score: float | None = Field(default=None, ge=0, le=1)
+    assessment_passed: bool | None = None
+    #: Attempts under admissible revisions — the population the score and pass
+    #: summarise, not the learner's lifetime attempt count.
+    assessment_attempts: int = Field(default=0, ge=0)
+    #: What an assessment means *today*.
+    competence_revision: str | None = None
+    #: What the reported evidence was actually earned under. Equal to
+    #: ``competence_revision`` in the ordinary case; different when an
+    #: explicitly declared compatible prior revision is being counted; ``None``
+    #: when there is no admissible evidence at all.
+    assessment_evidence_revision: str | None = None
+    learning_path_id: str | None = None
+    #: Wall-clock seconds between opening the feedback session and this record,
+    #: measured by the server clock. It is not a measure of study time.
+    session_elapsed_seconds: int | None = Field(default=None, ge=0)
+
+
+class FeedbackCourseContext(AcademyModel):
+    """Server-derived provenance for a course-level feedback record.
+
+    Deliberately not the module context. Course feedback is about the whole
+    curriculum, so a module status, a module score, and a module pass/fail have
+    no referent — and filling them with a placeholder would put values that look
+    like observed facts into a research record. The fields that *are* meaningful
+    at course level are the ones present here.
+    """
+
+    #: Assessment attempts across the curriculum, counting only those under
+    #: admissible revisions.
+    total_assessment_attempts: int = Field(default=0, ge=0)
+    competence_revision: str | None = None
+    learning_path_id: str | None = None
+    session_elapsed_seconds: int | None = Field(default=None, ge=0)
+
+
+class ModuleFeedbackRecord(AcademyModel):
+    record_id: int
+    module_id: str
+    created_at: str
+    clarity: int
+    confidence: int
+    difficulty: FeedbackDifficulty
+    self_assessment: FeedbackUnderstanding
+    comment: str | None = None
+    academy_context: FeedbackAcademyContext
+
+
+class CourseFeedbackRecord(AcademyModel):
+    record_id: int
+    created_at: str
+    overall_clarity: int
+    progression: int
+    usefulness: int
+    final_confidence: int
+    overall_difficulty: FeedbackDifficulty
+    recommend: FeedbackRecommendation
+    most_helpful_module: str | None = None
+    most_confusing_module: str | None = None
+    missing_topic: str | None = None
+    comments: str | None = None
+    academy_context: FeedbackCourseContext
+
+
+class FeedbackSyncState(AcademyModel):
+    """What this installation knows about delivery. Never what the UI hopes."""
+
+    status: FeedbackSyncStatus
+    attempts: int = Field(default=0, ge=0)
+    last_attempt_at: str | None = None
+    last_success_at: str | None = None
+    #: A coarse classification such as ``timeout`` or ``unreachable``. Never a
+    #: raw HTTP body, stack trace, URL, or filesystem path.
+    last_error_code: str | None = None
+    #: Opaque to the learner installation and deliberately not the intake
+    #: repository's name.
+    remote_reference: str | None = None
+    pending_changes: bool = False
+
+
+class FeedbackStatus(AcademyModel):
+    """The single source of truth the browser renders.
+
+    The browser never composes its own success message. Everything a learner is
+    told about saving, consent, and delivery comes from this object, so the UI
+    cannot say "sent" while the backend disagrees.
+    """
+
+    api_version: str = API_VERSION
+    schema_id: str = FEEDBACK_SCHEMA_ID
+    session_id: str
+    session_started_at: str
+    consent_state: FeedbackConsentState
+    consent_at: str | None = None
+    consent_document_version: str = CONSENT_DOCUMENT_VERSION
+    #: True when this installation has an endpoint to send to at all. False is a
+    #: statement about installation configuration, not about the learner.
+    sending_configured: bool = False
+    destination_visibility: DestinationVisibility = DestinationVisibility.UNKNOWN
+    sync: FeedbackSyncState
+    module_feedback: tuple[ModuleFeedbackRecord, ...] = ()
+    course_feedback: CourseFeedbackRecord | None = None
+    #: Plain-language state for the learner, produced by the server.
+    learner_message: str = ""
+    #: What consent would authorise, in the words the learner sees before opting in.
+    consent_disclosure: tuple[str, ...] = ()
+
+
+class FeedbackSubmissionResponse(AcademyModel):
+    """Saving locally and sending onward are reported separately, always."""
+
+    saved: bool
+    record_id: int
+    status: FeedbackStatus
+
+
+class FeedbackDeletionResponse(AcademyModel):
+    deleted_module_records: int = Field(ge=0)
+    deleted_course_records: int = Field(ge=0)
+    #: True when at least one of the deleted records had already been sent.
+    previously_submitted_externally: bool = False
+    #: Stated whenever anything had already left the installation. Deleting a
+    #: local copy is not a remote deletion and must never be reported as one.
+    limitation: str = ""
+    status: FeedbackStatus
+
+
+class ModuleFeedbackSummary(AcademyModel):
+    module_id: str
+    #: Always reported. A mean over two responses is not a finding.
+    sample_count: int = Field(ge=0)
+    average_clarity: float | None = None
+    average_confidence: float | None = None
+    difficulty_distribution: dict[str, int] = Field(default_factory=dict)
+    understanding_distribution: dict[str, int] = Field(default_factory=dict)
+    assessment_pass_rate: float | None = Field(default=None, ge=0, le=1)
+    #: High self-reported confidence recorded alongside a failed assessment.
+    #: An investigation signal, not proof of anything about the learner.
+    confidence_pass_mismatch: int = Field(default=0, ge=0)
+
+
+class CourseFeedbackSummary(AcademyModel):
+    sample_count: int = Field(ge=0)
+    average_overall_clarity: float | None = None
+    average_progression: float | None = None
+    average_usefulness: float | None = None
+    recommendation_distribution: dict[str, int] = Field(default_factory=dict)
+
+
+class FeedbackSummary(AcademyModel):
+    """Counts for this installation only, with the interpretation limits attached."""
+
+    api_version: str = API_VERSION
+    modules: tuple[ModuleFeedbackSummary, ...] = ()
+    course: CourseFeedbackSummary
+    interpretation_limit: str = (
+        "These are counts of what learners reported about their own experience on this "
+        "installation. They are not measurements of teaching quality, learner competence, or "
+        "educational effectiveness, and they support no causal conclusion."
+    )
 
 
 class LessonTeaching(AcademyModel):

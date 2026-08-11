@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nornyx-feedback-gateway"
+version = "0.1.0"
+description = "Hosted intake that relays consented Nornyx Academy learner feedback into a GitHub issue."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Mazin Marji" }]
+
+# Deliberately tiny. This service receives untrusted internet input and holds the
+# only GitHub write credential in the architecture, so its dependency surface is
+# kept to the web framework and its validator. Outbound HTTP uses the standard
+# library, so there is no third-party client between a learner's words and the
+# GitHub API.
+dependencies = [
+  "fastapi==0.141.1",
+  "pydantic==2.12.5",
+  "uvicorn[standard]==0.52.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  # Starlette 1.4's TestClient prefers the maintained HTTPX2 continuation, the
+  # same choice the parent repository documents.
+  "httpx2==2.7.0",
+  "pytest==9.1.1",
+  "ruff==0.16.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]

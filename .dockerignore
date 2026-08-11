@@ -19,3 +19,4 @@ frontend/test-results
 dist
 build
 *.egg-info
+gateway/

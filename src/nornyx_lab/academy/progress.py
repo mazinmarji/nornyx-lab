@@ -27,6 +27,31 @@ def _utc_now() -> str:
 
 
 @dataclass(frozen=True)
+class AdmissibleAssessment:
+    """A module's assessment state as the *current* competence contract reads it.
+
+    Two revisions matter and they are not the same thing. The contract's
+    current revision says what an assessment means today; ``evidence_revision``
+    says what the evidence being reported was actually earned under. They are
+    usually equal; when they differ the prior revision was explicitly declared
+    compatible, and a reader can see that rather than having to assume it.
+
+    ``passed`` is ``None`` when no admissible attempt exists — which is not the
+    same claim as ``False``. ``False`` means "tried under semantics that still
+    apply and did not pass"; ``None`` means "nothing currently admissible to
+    judge".
+    """
+
+    status: ModuleStatus
+    #: Attempts under admissible revisions — the population ``best_score`` and
+    #: ``passed`` summarise, not the learner's lifetime attempt count.
+    attempts: int
+    best_score: float | None
+    passed: bool | None
+    evidence_revision: str | None
+
+
+@dataclass(frozen=True)
 class _ConceptEvidence:
     """Concept evidence split by what the current contract can still accept.
 
@@ -606,6 +631,82 @@ class SQLiteLearnerRecordRepository:
             concepts_requiring_redemonstration=tuple(redemonstrate),
             capstone_status=(capstone.status if capstone else ModuleStatus.NOT_STARTED),
             advanced_standing=standing,
+        )
+
+    def assessment_outcome(self, module_id: str) -> AdmissibleAssessment:
+        """A module's assessment state, read under the *current* competence contract.
+
+        The aggregate columns on ``module_progress`` cannot answer this. They
+        accumulate across every attempt ever made, with no memory of the
+        semantics each was earned under, so ``best_score`` and
+        ``assessment_passed`` there would happily pair a pass earned under a
+        superseded revision with today's meaning of that assessment. That is
+        precisely the false claim the competence contract exists to prevent.
+
+        So the answer is derived the same way concept mastery is: from the
+        recorded attempts, admitting only those whose revision the contract
+        still accepts. When nothing is admissible the result is *unknown* —
+        ``None`` for score and pass — never a resurrected old outcome.
+
+        ``status`` is deliberately still the stored aggregate. Module status is
+        content completion, which is activity evidence and does not expire;
+        only the competence claim does. Keeping the two separate here is the
+        same distinction the dashboard already draws.
+
+        Strictly a read. Unlike every other method here it does not call
+        ``_ensure_row``: an absent module is reported as untouched rather than
+        being materialised, so describing a module cannot leave a trace in the
+        learner record.
+        """
+
+        with self._lock, self._connect() as connection:
+            progress = connection.execute(
+                "SELECT * FROM module_progress WHERE learner_id = ? AND module_id = ?",
+                (self.learner_id, module_id),
+            ).fetchone()
+            attempts = connection.execute(
+                """
+                SELECT score, passed, competence_revision
+                FROM assessment_attempts
+                WHERE learner_id = ? AND module_id = ?
+                ORDER BY created_at, id
+                """,
+                (self.learner_id, module_id),
+            ).fetchall()
+
+        status = ModuleStatus.NOT_STARTED if progress is None else self._status(progress)
+        admissible = [
+            row
+            for row in attempts
+            if self._competence.admits(
+                EvidenceFamily.ASSESSMENT, row["competence_revision"]
+            ).admissible
+        ]
+        if not admissible:
+            # There may well be attempts on file. None of them means anything
+            # under the semantics in force today, and saying "no current
+            # evidence" is the only honest reading of that.
+            return AdmissibleAssessment(
+                status=status,
+                attempts=0,
+                best_score=None,
+                passed=None,
+                evidence_revision=None,
+            )
+
+        passed_rows = [row for row in admissible if row["passed"]]
+        # The governing attempt: the best passing attempt if the learner ever
+        # passed under admissible semantics, otherwise simply their best. Ties
+        # resolve to the earliest, because the query is ordered and ``max`` is
+        # stable — so the reported revision is deterministic.
+        population = passed_rows or admissible
+        governing = max(population, key=lambda row: row["score"] or 0.0)
+        return AdmissibleAssessment(
+            status=status,
+            attempts=len(admissible),
+            best_score=max((row["score"] for row in admissible), default=None),
+            passed=bool(passed_rows),
+            evidence_revision=governing["competence_revision"],
         )
 
     def assessment_history(self) -> tuple[dict[str, Any], ...]:

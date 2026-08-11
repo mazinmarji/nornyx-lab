@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-from importlib import metadata
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -25,6 +24,12 @@ from .advanced import AdvancedInputError, run_advanced_module
 from .assessments import AssessmentService
 from .catalog import CurriculumRepository
 from .contracts import ContractWorkbenchError, get_contract, list_contracts, validate_workbench
+from .feedback import (
+    FeedbackConfiguration,
+    FeedbackService,
+    SQLiteFeedbackRepository,
+)
+from .feedback_client import FeedbackTransport
 from .foundations import FoundationInputError, run_foundation
 from .pedagogy import PedagogyRepository
 from .progress import SQLiteLearnerRecordRepository
@@ -39,15 +44,23 @@ from .schemas import (
     ContractSummary,
     ContractValidation,
     ContractWorkbenchRequest,
+    CourseFeedbackRequest,
     CurriculumCatalog,
     CurriculumModule,
     Dashboard,
     DemoOptions,
+    DestinationVisibility,
+    FeedbackConsentRequest,
+    FeedbackDeletionResponse,
+    FeedbackStatus,
+    FeedbackSubmissionResponse,
+    FeedbackSummary,
     Glossary,
     Health,
     LessonTeaching,
     LiveModelSettingsRequest,
     LiveModelSettingsResponse,
+    ModuleFeedbackRequest,
     Orientation,
     PlatformInfo,
     ProgressExport,
@@ -60,6 +73,7 @@ from .schemas import (
 )
 from .settings import LiveModelSettingsStore
 from .structured import run_structured_lab
+from .versions import package_version as _package_version
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_DB_PATH = REPOSITORY_ROOT / ".nornyx-lab" / "academy.db"
@@ -90,11 +104,32 @@ class SPAStaticFiles(StaticFiles):
             return await super().get_response("index.html", scope)
 
 
-def _package_version(distribution: str, fallback: str) -> str:
+def _feedback_configuration() -> FeedbackConfiguration:
+    """Read the non-secret feedback configuration from the environment.
+
+    There is no credential to read. A learner installation is configured with, at
+    most, the address of a gateway; GitHub authority lives only in that gateway.
+    An unset endpoint is a fully supported state, not a degraded one: feedback
+    still works, it simply stays on this computer.
+    """
+
+    endpoint = (os.environ.get("NORNYX_FEEDBACK_ENDPOINT") or "").strip() or None
+    raw_visibility = (os.environ.get("NORNYX_FEEDBACK_DESTINATION_VISIBILITY") or "").strip()
     try:
-        return metadata.version(distribution)
-    except metadata.PackageNotFoundError:
-        return fallback
+        visibility = DestinationVisibility(raw_visibility)
+    except ValueError:
+        # An installation cannot see how the maintainers configured their intake
+        # repository. Unknown is the honest default and the consent copy says so.
+        visibility = DestinationVisibility.UNKNOWN
+    try:
+        timeout = float(os.environ.get("NORNYX_FEEDBACK_TIMEOUT_SECONDS", "10"))
+    except ValueError:
+        timeout = 10.0
+    return FeedbackConfiguration(
+        endpoint=endpoint,
+        destination_visibility=visibility,
+        timeout_seconds=max(1.0, min(timeout, 60.0)),
+    )
 
 
 def _compatibility() -> dict[str, Any]:
@@ -115,6 +150,8 @@ def create_app(
     *,
     database_path: str | Path | None = None,
     frontend_dist: str | Path | None = None,
+    feedback_configuration: FeedbackConfiguration | None = None,
+    feedback_transport: FeedbackTransport | None = None,
 ) -> FastAPI:
     """Create an independently testable academy service."""
 
@@ -145,6 +182,19 @@ def create_app(
         module_concepts={module.id: module.concepts for module in app.state.catalog.modules()},
     )
     app.state.live_settings = LiveModelSettingsStore()
+
+    # Learner feedback shares the database file and nothing else. It is
+    # constructed after the learner record and reads from it; the learner record
+    # has no reference to feedback in either direction, which is what keeps
+    # perception out of every competence derivation.
+    app.state.feedback_repository = SQLiteFeedbackRepository(resolved_database)
+    app.state.feedback = FeedbackService(
+        app.state.feedback_repository,
+        configuration=feedback_configuration or _feedback_configuration(),
+        assessment_outcome=lambda module_id: app.state.progress.assessment_outcome(module_id),
+        content_version=app.state.catalog.version,
+        transport=feedback_transport,
+    )
 
     def module_ids() -> tuple[str, ...]:
         return tuple(module.id for module in app.state.catalog.modules())
@@ -385,6 +435,89 @@ def create_app(
     )
     def export_progress() -> ProgressExport:
         return app.state.progress.export(module_ids())
+
+    # ------------------------------------------------------- learner feedback
+    # Research instrumentation. Every endpoint below writes to feedback tables
+    # only, and no response any of them returns is consulted by scoring,
+    # completion, mastery, capstone eligibility, or advanced standing.
+    #
+    # Note what the request models do *not* accept: a score, a status, a version,
+    # a competence revision, a session identifier, or a timestamp. The browser
+    # states how the lesson felt; the server states everything else.
+
+    @app.get(f"/api/{API_VERSION}/feedback", response_model=FeedbackStatus, tags=["feedback"])
+    def feedback_status() -> FeedbackStatus:
+        return app.state.feedback.status()
+
+    @app.post(
+        f"/api/{API_VERSION}/feedback/modules/{{module_id}}",
+        response_model=FeedbackSubmissionResponse,
+        tags=["feedback"],
+    )
+    def submit_module_feedback(
+        module_id: str, request: ModuleFeedbackRequest
+    ) -> FeedbackSubmissionResponse:
+        try:
+            app.state.catalog.module(module_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=_detail(exc)) from exc
+        return app.state.feedback.submit_module_feedback(module_id, request)
+
+    @app.post(
+        f"/api/{API_VERSION}/feedback/course",
+        response_model=FeedbackSubmissionResponse,
+        tags=["feedback"],
+    )
+    def submit_course_feedback(request: CourseFeedbackRequest) -> FeedbackSubmissionResponse:
+        known = set(module_ids())
+        for value in (request.most_helpful_module, request.most_confusing_module):
+            if value is not None and value not in known:
+                raise HTTPException(status_code=422, detail=f"unknown curriculum module {value!r}")
+        # Counted from admissible evidence, module by module, rather than from
+        # the dashboard aggregate: the aggregate sums every attempt ever made,
+        # including ones the current competence contract no longer admits.
+        attempts = sum(
+            app.state.progress.assessment_outcome(module_id).attempts for module_id in module_ids()
+        )
+        return app.state.feedback.submit_course_feedback(request, total_attempts=attempts)
+
+    @app.post(
+        f"/api/{API_VERSION}/feedback/consent",
+        response_model=FeedbackStatus,
+        tags=["feedback"],
+    )
+    def set_feedback_consent(request: FeedbackConsentRequest) -> FeedbackStatus:
+        return app.state.feedback.set_consent(granted=request.granted)
+
+    @app.post(f"/api/{API_VERSION}/feedback/sync", response_model=FeedbackStatus, tags=["feedback"])
+    def sync_feedback() -> FeedbackStatus:
+        """One bounded delivery attempt, requested explicitly.
+
+        Never a retry loop: a learner pressing "try again" gets one attempt and
+        an honest answer, not a request that blocks behind a backoff schedule.
+        """
+
+        return app.state.feedback.sync_now()
+
+    @app.delete(
+        f"/api/{API_VERSION}/feedback",
+        response_model=FeedbackDeletionResponse,
+        tags=["feedback"],
+    )
+    def delete_feedback() -> FeedbackDeletionResponse:
+        """Delete local feedback only. Progress is untouched, and so is anything already sent."""
+
+        return app.state.feedback.delete_local_feedback()
+
+    @app.get(
+        f"/api/{API_VERSION}/feedback/summary",
+        response_model=FeedbackSummary,
+        tags=["feedback"],
+    )
+    def feedback_summary() -> FeedbackSummary:
+        """Counts for this installation. Maintainer instrumentation, not a learner view."""
+
+        return app.state.feedback.summary()
 
     @app.get(
         f"/api/{API_VERSION}/contracts",

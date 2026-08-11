@@ -39,6 +39,13 @@ labs/*/claim_register.json
 # Author-side scratch from scripts/build_contracts.py --verify
 .build-verify/
 
+# JUnit reports. CI writes these so a failing job can upload them as an
+# artifact; they are run output, never source.
+pytest-*.xml
+
+# The feedback gateway's local synchronisation store.
+gateway/*.db
+
 # Probe files a lab writes beside a contract. These are always cleaned up in a
 # `finally`, but an interrupted run can leave one behind — and a stray .nyx in
 # contracts/ would be picked up by the build script.

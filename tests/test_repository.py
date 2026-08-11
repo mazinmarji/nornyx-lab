@@ -279,3 +279,111 @@ def test_no_lab_claims_tier_3():
         source = (meta.path / "lab.py").read_text(encoding="utf-8")
         for phrase in ("we are Tier 3", "achieves Tier 3", "is Tier 3"):
             assert phrase not in source, f"lab {meta.id} claims Tier 3"
+
+
+# ------------------------------------------------------ tests that actually run
+def _workflow():
+    import yaml
+
+    return yaml.safe_load((ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
+
+
+def _all_run_commands(job) -> str:
+    return "\n".join(str(step.get("run", "")) for step in job.get("steps", []))
+
+
+def test_every_feedback_test_file_is_collected_by_a_ci_job():
+    """A test file that CI never collects is documentation, not a gate.
+
+    This repository has already been bitten by exactly that. The academy
+    feedback suites live under `tests/academy/`, which `backend-fast` collects
+    wholesale, and the gateway lives in its own distribution that nothing else
+    collects — so it needs a job of its own, and this asserts it has one.
+    """
+
+    academy_files = sorted((ROOT / "tests" / "academy").glob("test_feedback*.py"))
+    assert academy_files, "the H1 academy suites are missing entirely"
+
+    workflow = _workflow()
+    jobs = workflow["jobs"]
+
+    backend = _all_run_commands(jobs["backend-fast"])
+    assert "pytest tests/academy" in backend, (
+        "backend-fast no longer collects tests/academy, so the H1 feedback suites "
+        "would silently stop running"
+    )
+
+    gateway_job = jobs.get("feedback-gateway")
+    assert gateway_job is not None, (
+        "the feedback gateway is a separate distribution; without its own CI job "
+        "none of its tests execute"
+    )
+    assert any(
+        step.get("working-directory") == "gateway" and "pytest" in str(step.get("run", ""))
+        for step in gateway_job["steps"]
+    ), "the feedback-gateway job does not actually run pytest in gateway/"
+
+
+def test_the_feedback_gateway_tests_exist_and_are_non_empty():
+    gateway_tests = sorted((ROOT / "gateway" / "tests").glob("test_*.py"))
+    assert gateway_tests, "gateway/tests contains no test modules"
+    for path in gateway_tests:
+        assert "def test_" in path.read_text(encoding="utf-8"), f"{path.name} defines no tests"
+
+
+def test_every_suite_with_a_no_skip_gate_still_has_one():
+    """Silent skips are how a green run stops meaning anything.
+
+    Each serial suite asserts zero skips from its own JUnit report. A new job
+    that runs tests without that assertion can go quietly yellow forever.
+    """
+
+    jobs = _workflow()["jobs"]
+    for name in (
+        "backend-fast",
+        "legacy-regression",
+        "structured-migration",
+        "feedback-gateway",
+    ):
+        commands = _all_run_commands(jobs[name])
+        assert "pytest skipped" in commands, f"job '{name}' has no no-silent-skip gate"
+
+
+def test_no_ci_job_requires_a_real_github_credential():
+    """The gateway holds GitHub authority. CI must never need it to pass."""
+
+    workflow = _workflow()
+    rendered = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    for job_name, job in workflow["jobs"].items():
+        for step in job.get("steps", []):
+            for key, value in (step.get("env") or {}).items():
+                assert "NORNYX_FEEDBACK_GITHUB_TOKEN" not in key, (
+                    f"job '{job_name}' injects a feedback GitHub token"
+                )
+                assert "NORNYX_FEEDBACK_GITHUB_TOKEN" not in str(value)
+    # `secrets.` may legitimately appear nowhere in this workflow at all.
+    assert "secrets." not in rendered, (
+        "CI references a repository secret; the feedback boundary is designed so no job needs one"
+    )
+
+
+def test_no_committed_file_carries_a_github_credential_pattern():
+    import re
+
+    pattern = re.compile(r"gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}")
+    proc = subprocess.run(
+        ["git", "ls-files"], cwd=str(ROOT), capture_output=True, text=True, encoding="utf-8"
+    )
+    assert proc.returncode == 0, proc.stderr
+    offenders = []
+    for relative in proc.stdout.splitlines():
+        path = ROOT / relative
+        if not path.is_file() or path.suffix in {".png", ".jpg", ".ico", ".woff2"}:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        if pattern.search(text):
+            offenders.append(relative)
+    assert not offenders, f"committed files contain a GitHub credential pattern: {offenders}"
