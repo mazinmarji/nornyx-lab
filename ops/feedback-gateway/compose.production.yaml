@@ -1,0 +1,55 @@
+# Production topology for the Nornyx feedback gateway on a Docker host.
+#
+#   Internet HTTPS (reverse proxy / edge — TLS terminates there, not here)
+#         ↓
+#   one gateway replica          ← this file
+#         ↓
+#   persistent /var/lib/nornyx-feedback
+#         ↓
+#   private GitHub intake repository
+#
+# Single replica is a correctness requirement, not a sizing choice: the
+# one-issue-per-session guarantee is per process (gateway/README.md). Two
+# things enforce it here: `deploy.replicas: 1`, and `container_name`, which
+# makes `--scale gateway=2` a hard error instead of a quiet violation.
+#
+# No secret appears in this file, in an env file, or in an image layer.
+# NORNYX_FEEDBACK_GITHUB_TOKEN comes from the deployment environment at
+# `up` time and exists only inside the running container.
+#
+# The published port binds to loopback: this service must only be reachable
+# through the TLS-terminating proxy in front of it, never plain HTTP on a
+# public interface. NORNYX_FEEDBACK_BIND_PORT exists so a staging rehearsal
+# can run beside anything already using 8080.
+
+name: nornyx-feedback-gateway
+
+services:
+  gateway:
+    image: nornyx-feedback-gateway:0.1.0
+    build:
+      context: ../../gateway
+      dockerfile: Dockerfile
+    container_name: nornyx-feedback-gateway
+    ports:
+      - "127.0.0.1:${NORNYX_FEEDBACK_BIND_PORT:-8080}:8080"
+    environment:
+      NORNYX_FEEDBACK_GITHUB_REPOSITORY: ${NORNYX_FEEDBACK_GITHUB_REPOSITORY:?owner/name of the private intake repository}
+      NORNYX_FEEDBACK_GITHUB_TOKEN: ${NORNYX_FEEDBACK_GITHUB_TOKEN:?runtime secret - inject from the deployment environment, never from a file}
+      NORNYX_FEEDBACK_DESTINATION_VISIBILITY: ${NORNYX_FEEDBACK_DESTINATION_VISIBILITY:?public, private, or unknown - set deliberately}
+      NORNYX_FEEDBACK_DB: /var/lib/nornyx-feedback/gateway.db
+    volumes:
+      - nornyx-feedback:/var/lib/nornyx-feedback
+    deploy:
+      replicas: 1
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+volumes:
+  nornyx-feedback:

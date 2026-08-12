@@ -1,0 +1,49 @@
+# Fly.io deployment for the Nornyx feedback gateway.
+#
+# Deploy from the repository root with the gateway directory as build context:
+#
+#   flyctl deploy gateway --config ops/feedback-gateway/fly.toml
+#
+# Topology this file pins:
+#   - HTTPS only (force_https; Fly's edge terminates TLS for <app>.fly.dev)
+#   - exactly one machine, never stopped, never autoscaled
+#     (a Fly machine count can only grow past the volume count if more
+#     volumes are created; deploy_fly.sh additionally runs `scale count 1`)
+#   - persistent volume mounted at /var/lib/nornyx-feedback
+#   - the GitHub token exists only as a Fly runtime secret:
+#     `flyctl secrets set NORNYX_FEEDBACK_GITHUB_TOKEN=...` — never in this
+#     file, never a build argument.
+
+app = "nornyx-feedback-gateway"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NORNYX_FEEDBACK_GITHUB_REPOSITORY = "mazinmarji/nornyx-lab-feedback"
+  NORNYX_FEEDBACK_DESTINATION_VISIBILITY = "private"
+  NORNYX_FEEDBACK_DB = "/var/lib/nornyx-feedback/gateway.db"
+
+[[mounts]]
+  source = "nornyx_feedback"
+  destination = "/var/lib/nornyx-feedback"
+  initial_size = "1gb"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "3s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
