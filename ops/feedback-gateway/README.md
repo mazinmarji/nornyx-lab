@@ -49,9 +49,19 @@ flyctl auth login          # human step 1: hosting authority
 bash ops/feedback-gateway/deploy_fly.sh
 ```
 
-The script is idempotent: app, volume, deploy, single-machine pin, the
-topology verifier, then a **live credential smoke** — all against the live
-endpoint. On first run it pauses and tells you exactly which
+Prerequisites the script checks before touching anything: `flyctl`
+authenticated, `gh` authenticated (the verifier's repository check and the
+smoke's independent issue fetch deliberately run under the *operator's*
+GitHub authority, not the gateway credential), and `python` 3.11+.
+
+The script is idempotent: app, volume, **volume ownership initialization**,
+deploy, single-machine pin, the topology and runtime-security verifier,
+then a **live credential smoke** — all against the live endpoint. The
+ownership step exists because a fresh Fly volume mounts root-owned and
+shadows the directory the image chowned at build time — docker named
+volumes copy ownership up on first use, which is why the local rehearsal
+needs no such step, but Fly volumes do not — so one idempotent root
+machine chowns the mount to the gateway's uid 999 before the first deploy. On first run it pauses and tells you exactly which
 **fine-grained** GitHub token to mint (human step 2: `Issues: Read and
 write` on the intake repository only, nothing else) and stores it straight
 into Fly's secret store with echo disabled. The token never enters a file,

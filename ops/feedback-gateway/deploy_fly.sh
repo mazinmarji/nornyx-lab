@@ -24,6 +24,11 @@ INTAKE_REPOSITORY="mazinmarji/nornyx-lab-feedback"
 [ -f "$CONFIG" ] || { echo "run from the repository root (missing $CONFIG)" >&2; exit 1; }
 command -v flyctl >/dev/null || { echo "flyctl is not installed: https://fly.io/docs/flyctl/install/" >&2; exit 1; }
 flyctl auth whoami >/dev/null || { echo "not authenticated: run 'flyctl auth login' first" >&2; exit 1; }
+# The verifier's repository check and the smoke's independent issue fetch run
+# under the OPERATOR's GitHub authority, deliberately not the pasted token.
+command -v gh >/dev/null || { echo "gh is not installed: https://cli.github.com/" >&2; exit 1; }
+gh auth status >/dev/null 2>&1 || { echo "gh is not authenticated: run 'gh auth login' first" >&2; exit 1; }
+command -v python >/dev/null || { echo "python 3.11+ is required on PATH" >&2; exit 1; }
 
 echo "==> app"
 if ! flyctl apps list --json | grep -qiE "\"name\": *\"$APP\""; then
@@ -34,6 +39,18 @@ echo "==> persistent volume"
 if ! flyctl volumes list --app "$APP" --json | grep -qiE '"name": *"nornyx_feedback"'; then
   flyctl volumes create nornyx_feedback --app "$APP" --region "$REGION" --size 1 --yes
 fi
+
+echo "==> volume ownership for the non-root gateway"
+# A fresh Fly volume mounts root-owned, shadowing the directory the image
+# chowned at build time (docker named volumes copy ownership up on first
+# use; Fly volumes do not). The gateway runs as uid 999 and could not
+# create its database. One idempotent root machine fixes the mount once;
+# the health check and the live smoke below then prove the fix held.
+flyctl machine run debian:bookworm-slim \
+  --app "$APP" --region "$REGION" --rm --restart no \
+  --volume nornyx_feedback:/var/lib/nornyx-feedback \
+  --command "chown 999:999 /var/lib/nornyx-feedback" \
+  || { echo "volume ownership initialization failed" >&2; exit 1; }
 
 echo "==> GitHub credential"
 if ! flyctl secrets list --app "$APP" | grep -q NORNYX_FEEDBACK_GITHUB_TOKEN; then
@@ -68,7 +85,7 @@ flyctl deploy gateway --config "$CONFIG" --app "$APP" --ha=false
 echo "==> pin exactly one machine"
 flyctl scale count 1 --app "$APP" --yes
 
-echo "==> verify topology against real state"
+echo "==> verify topology and runtime security against real state"
 flyctl machines list --app "$APP" --json > /tmp/fly-machines.json
 python scripts/verify_h1d_provisioning.py \
   --repository "$INTAKE_REPOSITORY" \
@@ -76,6 +93,7 @@ python scripts/verify_h1d_provisioning.py \
   --endpoint "https://$APP.fly.dev" \
   --fly-config "$CONFIG" \
   --fly-machines-json /tmp/fly-machines.json \
+  --fly-app "$APP" \
   --scan-tree .
 
 # /health saying github_configured=true only proves a token is present. This

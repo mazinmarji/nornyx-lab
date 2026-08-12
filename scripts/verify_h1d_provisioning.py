@@ -46,6 +46,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -145,14 +146,24 @@ def check_repository(
 # Endpoint
 
 
+def _fetch_health(health_url: str) -> tuple[int, str]:
+    with urllib.request.urlopen(health_url, timeout=10) as response:  # noqa: S310
+        return response.status, response.read().decode("utf-8")
+
+
 def check_endpoint(
     report: Report,
     endpoint: str,
     expected_visibility: str,
     allow_loopback_http: bool = False,
     expect_github_configured: bool = True,
+    health_fetch: Callable[[str], tuple[int, str]] | None = None,
 ) -> None:
-    """The endpoint must be HTTPS with valid TLS and an honest, secretless /health."""
+    """The endpoint must be HTTPS with valid TLS and an honest, secretless /health.
+
+    ``health_fetch`` is injected by the self-test so the health-honesty checks
+    can be driven with fixture responses; the real path performs the request.
+    """
 
     parsed = urllib.parse.urlsplit(endpoint)
     loopback = parsed.hostname in ("127.0.0.1", "localhost", "::1")
@@ -188,9 +199,7 @@ def check_endpoint(
 
     health_url = endpoint.rstrip("/") + "/health"
     try:
-        with urllib.request.urlopen(health_url, timeout=10) as response:  # noqa: S310
-            body = response.read().decode("utf-8")
-            status = response.status
+        status, body = (health_fetch or _fetch_health)(health_url)
     except (urllib.error.URLError, OSError) as error:
         report.record("health endpoint responds", False, f"{type(error).__name__}: {error}")
         return
@@ -342,10 +351,25 @@ def check_fly_machines(report: Report, machines: list[dict]) -> None:
 # Running container (docker host / staging)
 
 
-def check_running_container(report: Report, container: str) -> None:
-    """The live container must match the topology the files promise."""
+#: Probe executed inside the running service (docker exec / fly ssh): the
+#: database must exist on the volume and carry no credential-shaped bytes.
+DB_PROBE = (
+    "import pathlib,re,sys;"
+    f"data = pathlib.Path({DB_PATH!r}).read_bytes();"
+    r"sys.exit(2 if re.search(rb'ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}', data) else 0)"
+)
 
-    code, output = _run(["docker", "inspect", container])
+Runner = Callable[[list[str]], tuple[int, str]]
+
+
+def check_running_container(report: Report, container: str, runner: Runner = _run) -> None:
+    """The live container must match the topology the files promise.
+
+    ``runner`` is injected by the self-test to drive every probe with fixture
+    output; the real path shells out to docker.
+    """
+
+    code, output = runner(["docker", "inspect", container])
     if code != 0:
         report.record("container running", False, f"docker inspect {container} failed")
         return
@@ -365,7 +389,7 @@ def check_running_container(report: Report, container: str) -> None:
         f"{VOLUME_TARGET} <- {mounts[0].get('Name') if mounts else 'NOTHING'}",
     )
 
-    code, uid = _run(["docker", "exec", container, "id", "-u"])
+    code, uid = runner(["docker", "exec", container, "id", "-u"])
     report.record(
         "container runs non-root",
         code == 0 and uid.strip().isdigit() and int(uid.strip()) != 0,
@@ -373,28 +397,62 @@ def check_running_container(report: Report, container: str) -> None:
     )
 
     image = info.get("Config", {}).get("Image", "")
-    code, history = _run(["docker", "history", "--no-trunc", image])
+    code, history = runner(["docker", "history", "--no-trunc", image])
     report.record(
         "no credential in image history",
         code == 0 and not TOKEN_SHAPE.search(history) and TOKEN_ENV + "=" not in history,
         f"docker history {image}: clean",
     )
 
-    code, logs = _run(["docker", "logs", container])
+    code, logs = runner(["docker", "logs", container])
     token = os.environ.get(TOKEN_ENV, "")
     leaked = bool(token and token in logs) or bool(TOKEN_SHAPE.search(logs))
-    report.record("no credential in container logs", not leaked, "log scan clean")
-
-    probe = (
-        "import pathlib,re,sys;"
-        f"data = pathlib.Path({DB_PATH!r}).read_bytes();"
-        r"sys.exit(2 if re.search(rb'ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}', data) else 0)"
+    report.record(
+        "no credential in container logs",
+        code == 0 and not leaked,
+        "log scan clean" if code == 0 else "docker logs failed - nothing was scanned",
     )
-    code, _ = _run(["docker", "exec", container, "python", "-c", probe])
+
+    code, _ = runner(["docker", "exec", container, "python", "-c", DB_PROBE])
     report.record(
         "database exists on the volume and carries no credential",
         code == 0,
         f"{DB_PATH} present, no token-shaped bytes" if code == 0 else f"probe exit {code}",
+    )
+
+
+def check_fly_runtime(report: Report, app: str, runner: Runner = _run) -> None:
+    """Runtime security proofs for the deployed Fly machine.
+
+    The docker-host checks cannot run against Fly, so the same three proofs
+    go through flyctl: non-root process, database on the volume with no
+    credential-shaped bytes, and no token-shaped content in the service
+    logs. The log scan matches token *shapes* only — this process never
+    holds the real secret value, by design.
+    """
+
+    code, output = runner(["flyctl", "ssh", "console", "--app", app, "-C", "id -u"])
+    uids = [line.strip() for line in output.splitlines() if line.strip().isdigit()]
+    report.record(
+        "fly machine runs non-root",
+        code == 0 and bool(uids) and all(uid != "0" for uid in uids),
+        f"uid={uids[-1] if uids else '?'}" if code == 0 else "fly ssh console failed",
+    )
+
+    code, _ = runner(["flyctl", "ssh", "console", "--app", app, "-C", f'python -c "{DB_PROBE}"'])
+    report.record(
+        "fly database exists on the volume and carries no credential",
+        code == 0,
+        f"{DB_PATH} present, no token-shaped bytes" if code == 0 else f"probe exit {code}",
+    )
+
+    code, logs = runner(["flyctl", "logs", "--app", app, "--no-tail"])
+    report.record(
+        "no token-shaped content in fly logs",
+        code == 0 and not TOKEN_SHAPE.search(logs),
+        "log scan clean (token shapes)"
+        if code == 0
+        else "flyctl logs failed - nothing was scanned",
     )
 
 
@@ -520,6 +578,149 @@ def self_test() -> Report:
     )
     expect("two machines running", broken, healthy)
 
+    # ---- endpoint honesty, driven with injected health responses --------
+    good_health = json.dumps({"github_configured": True, "destination_visibility": "private"})
+
+    def endpoint_with(response_body: str) -> Report:
+        result = Report()
+        check_endpoint(
+            result,
+            "http://127.0.0.1:1/",
+            "private",
+            allow_loopback_http=True,
+            health_fetch=lambda url: (200, response_body),
+        )
+        return result
+
+    broken, healthy = Report(), Report()
+    check_endpoint(broken, "http://intake.example/", "private")
+    check_endpoint(
+        healthy,
+        "http://127.0.0.1:1/",
+        "private",
+        allow_loopback_http=True,
+        health_fetch=lambda url: (200, good_health),
+    )
+    expect("endpoint over plain HTTP off loopback", broken, healthy)
+
+    expect(
+        "health that reports no GitHub destination",
+        endpoint_with(
+            json.dumps({"github_configured": False, "destination_visibility": "private"})
+        ),
+        endpoint_with(good_health),
+    )
+    expect(
+        "token-shaped content in the health response",
+        endpoint_with(
+            json.dumps(
+                {"github_configured": True, "destination_visibility": "private", "note": fake_token}
+            )
+        ),
+        endpoint_with(good_health),
+    )
+
+    # ---- running-container proofs, driven with a fixture docker ---------
+    def fake_docker(overrides: dict[str, tuple[int, str]]) -> Runner:
+        inspect_payload = json.dumps(
+            [
+                {
+                    "State": {"Running": True, "Status": "running"},
+                    "Mounts": [{"Type": "volume", "Name": "vol", "Destination": VOLUME_TARGET}],
+                    "Config": {"Image": "gateway:test"},
+                }
+            ]
+        )
+        base = {
+            "inspect": (0, inspect_payload),
+            "exec-id": (0, "999\n"),
+            "history": (0, "IMAGE CREATED CREATED BY\n<missing> uv sync --frozen\n"),
+            "logs": (0, "INFO: application startup complete\n"),
+            "exec-python": (0, ""),
+        }
+        table = {**base, **overrides}
+
+        def runner(command: list[str]) -> tuple[int, str]:
+            kind = command[1]
+            if kind == "exec":
+                kind = "exec-id" if command[3] == "id" else "exec-python"
+            return table[kind]
+
+        return runner
+
+    def container_with(overrides: dict[str, tuple[int, str]]) -> Report:
+        result = Report()
+        check_running_container(result, "gateway", runner=fake_docker(overrides))
+        return result
+
+    expect("container running as root", container_with({"exec-id": (0, "0\n")}), container_with({}))
+    no_mount = json.dumps(
+        [
+            {
+                "State": {"Running": True, "Status": "running"},
+                "Mounts": [],
+                "Config": {"Image": "gateway:test"},
+            }
+        ]
+    )
+    expect(
+        "container without the volume mount",
+        container_with({"inspect": (0, no_mount)}),
+        container_with({}),
+    )
+    expect(
+        "token-shaped content in container logs",
+        container_with({"logs": (0, f"boot\n{fake_token}\n")}),
+        container_with({}),
+    )
+    expect(
+        "unreadable container logs treated as scanned",
+        container_with({"logs": (1, "configured logging driver does not support reading")}),
+        container_with({}),
+    )
+    expect(
+        "credential in image history",
+        container_with({"history": (0, f"RUN export {TOKEN_ENV}={fake_token}\n")}),
+        container_with({}),
+    )
+    expect(
+        "missing database on the volume",
+        container_with({"exec-python": (1, "FileNotFoundError")}),
+        container_with({}),
+    )
+
+    # ---- fly runtime proofs, driven with a fixture flyctl ---------------
+    def fake_flyctl(overrides: dict[str, tuple[int, str]]) -> Runner:
+        base = {
+            "ssh-id": (0, "Connecting to fdaa:0:1\n999\n"),
+            "ssh-python": (0, ""),
+            "logs": (0, "app[e286] iad [info] INFO: startup complete\n"),
+        }
+        table = {**base, **overrides}
+
+        def runner(command: list[str]) -> tuple[int, str]:
+            if command[1] == "logs":
+                return table["logs"]
+            return table["ssh-id" if command[-1] == "id -u" else "ssh-python"]
+
+        return runner
+
+    def fly_with(overrides: dict[str, tuple[int, str]]) -> Report:
+        result = Report()
+        check_fly_runtime(result, "app", runner=fake_flyctl(overrides))
+        return result
+
+    expect(
+        "fly machine running as root",
+        fly_with({"ssh-id": (0, "Connecting\n0\n")}),
+        fly_with({}),
+    )
+    expect(
+        "token-shaped content in fly logs",
+        fly_with({"logs": (0, f"app[e286] {fake_token}\n")}),
+        fly_with({}),
+    )
+
     return outer
 
 
@@ -547,6 +748,10 @@ def main(argv: list[str] | None = None) -> int:
         help="output of `flyctl machines list --json` for replica verification",
     )
     parser.add_argument("--container", help="running container name to inspect")
+    parser.add_argument(
+        "--fly-app",
+        help="deployed Fly app name for runtime proofs (non-root, database, log scan)",
+    )
     parser.add_argument("--scan-tree", type=Path, help="repository root to scan for secrets")
     arguments = parser.parse_args(argv)
 
@@ -584,6 +789,8 @@ def main(argv: list[str] | None = None) -> int:
         )
     if arguments.container:
         check_running_container(report, arguments.container)
+    if arguments.fly_app:
+        check_fly_runtime(report, arguments.fly_app)
     if arguments.scan_tree:
         scan_tree_for_secrets(report, tracked_files(arguments.scan_tree))
 
