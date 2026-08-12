@@ -49,13 +49,43 @@ flyctl auth login          # human step 1: hosting authority
 bash ops/feedback-gateway/deploy_fly.sh
 ```
 
-The script is idempotent: app, volume, deploy, single-machine pin, then
-`scripts/verify_h1d_provisioning.py` against the live endpoint. On first
-run it pauses and tells you exactly which **fine-grained** GitHub token to
-mint (human step 2: `Issues: Read and write` on the intake repository only,
-nothing else) and stores it straight into Fly's secret store with echo
-disabled. The token never enters a file, a build argument, an image layer,
-or this repository.
+The script is idempotent: app, volume, deploy, single-machine pin, the
+topology verifier, then a **live credential smoke** — all against the live
+endpoint. On first run it pauses and tells you exactly which
+**fine-grained** GitHub token to mint (human step 2: `Issues: Read and
+write` on the intake repository only, nothing else) and stores it straight
+into Fly's secret store with echo disabled. The token never enters a file,
+a build argument, an image layer, or this repository.
+
+## Live credential smoke
+
+`/health` reporting `github_configured=true` proves a token is *present*,
+not that it works. `scripts/smoke_h1d_gateway.py` proves the deployed
+gateway can execute the boundary it was provisioned for, through its real
+production API and schema:
+
+```
+synthetic session UUID
+  → POST valid synthetic payload through the deployed HTTPS gateway
+  → expect `created`
+  → fetch the resulting issue independently (operator gh authority,
+    not the credential under test) and prove: intended intake repo,
+    raw UUID absent, sha256(UUID) marker present, exactly one issue
+  → identical resubmit → `unchanged`, same issue
+  → one field changed, digest recomputed → `updated`, same issue
+  → close the synthetic issue
+```
+
+Any 401/403/404/422/5xx from the gateway, duplicate creation, a wrong
+repository, or an unidentifiable issue exits non-zero and aborts the
+deploy script before it can report the provisioning ready. This is not
+learner acceptance: no consent flow, no UI, no database-loss recovery, no
+revocation, no claim change — only proof the new credential works.
+
+Payload digests are recomputed with a stdlib canonicalisation whose
+fidelity is pre-flighted against the committed golden Academy payload, so
+canonicalisation drift aborts the smoke instead of surfacing as a
+confusing 422.
 
 ## Staging rehearsal on any Docker host
 
@@ -75,6 +105,7 @@ reverse proxy in front.
 
 ```bash
 python scripts/verify_h1d_provisioning.py --self-test   # negative controls
+python scripts/smoke_h1d_gateway.py --self-test         # smoke-checker negative controls
 python scripts/verify_h1d_provisioning.py \
   --repository mazinmarji/nornyx-lab-feedback --expect-visibility private \
   --endpoint https://<host> \

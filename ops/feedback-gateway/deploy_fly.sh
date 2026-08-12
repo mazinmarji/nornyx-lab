@@ -68,7 +68,7 @@ flyctl deploy gateway --config "$CONFIG" --app "$APP" --ha=false
 echo "==> pin exactly one machine"
 flyctl scale count 1 --app "$APP" --yes
 
-echo "==> verify against real state"
+echo "==> verify topology against real state"
 flyctl machines list --app "$APP" --json > /tmp/fly-machines.json
 python scripts/verify_h1d_provisioning.py \
   --repository "$INTAKE_REPOSITORY" \
@@ -78,5 +78,17 @@ python scripts/verify_h1d_provisioning.py \
   --fly-machines-json /tmp/fly-machines.json \
   --scan-tree .
 
+# /health saying github_configured=true only proves a token is present. This
+# proves the deployed gateway can actually write: a synthetic session goes
+# through the production API end to end (created -> unchanged -> updated on
+# one issue, marker present, write key absent) and the issue is then closed.
+# An expired, malformed, wrong-repository, or under-permissioned credential
+# fails here, before anything reports the provisioning ready.
+echo "==> live gateway->GitHub credential smoke (synthetic session, closed afterwards)"
+python scripts/smoke_h1d_gateway.py \
+  --endpoint "https://$APP.fly.dev" \
+  --repository "$INTAKE_REPOSITORY"
+
 echo
+echo "H1-D provisioning verified against real state."
 echo "GATEWAY_ENDPOINT=https://$APP.fly.dev"
