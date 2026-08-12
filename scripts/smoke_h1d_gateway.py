@@ -12,7 +12,10 @@ it was provisioned for, using its real production API and schema:
         absent, ``sha256(UUID)`` marker present, exactly one such issue
       → identical resubmit → ``unchanged``, same issue
       → one field changed, digest recomputed → ``updated``, same issue
-      → close the synthetic issue
+      → close the synthetic issue — and only ever the marker-verified one:
+        the gateway-reported number is never trusted for cleanup, so a
+        misconfigured gateway can never cause this script to close
+        unrelated data in the intended repository
 
 Any 401/403/404/422/5xx from the gateway, a duplicate creation, a wrong
 repository, or an unidentifiable issue fails the run with a non-zero exit,
@@ -30,7 +33,12 @@ rather than as a confusing 422 from the gateway.
 
 ``--self-test`` drives the pass/fail logic with adversarial fixtures — an
 unauthorized gateway reply, a write-key leak, a duplicate issue, a lost
-issue, a wrong issue number — and requires every one to be rejected.
+issue, a wrong issue number — and requires every one to be rejected. It
+also drives the full orchestration against fixture worlds to prove the
+cleanup is safe: a wrong-repository world with a colliding issue number
+must fail with zero close operations, a mutant that trusts the gateway
+number must be caught by that control, and a verified match must close
+exactly the one synthetic issue.
 
 The session UUID is a write key even for a synthetic session, so it is
 never printed; output identifies the session by its public marker prefix.
@@ -46,7 +54,9 @@ import sys
 import urllib.error
 import urllib.request
 import uuid
+from collections.abc import Callable
 from pathlib import Path
+from typing import Protocol
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GOLDEN = REPO_ROOT / "gateway" / "tests" / "academy_payload.golden.json"
@@ -144,8 +154,25 @@ def parse_sync_response(
     return number
 
 
-def find_unique_issue(step: str, listing: list[dict], marker: str) -> int:
-    """Exactly one issue may carry the session's title fragment."""
+def identify_synthetic_issue(step: str, listing: list[dict], marker: str) -> dict:
+    """The one issue in the intended repository that is provably ours.
+
+    Cleanup safety hinges on this function: the gateway-reported issue number
+    is NEVER a cleanup target, because a misconfigured gateway can create its
+    issue in the wrong repository and report a number that belongs to
+    unrelated data in the intended one. Only an issue that carries the full
+    synthetic identity — marker fragment in the title, full marker in the
+    body, the synthetic disclaimer, and the expected label — may ever be
+    closed. Zero matches, several matches, or a partial identity all raise,
+    and the caller must then close nothing: an orphan synthetic issue in a
+    wrongly configured repository is strictly better than closing unrelated
+    data in the intended one.
+
+    Raw-UUID absence is deliberately NOT part of the identity: an issue that
+    leaked the write key is still unmistakably ours (nobody else can derive
+    the marker), and closing it reduces the exposure. UUID absence stays a
+    separate correctness check that fails the smoke without revoking cleanup.
+    """
 
     fragment = marker[:12]
     matches = [issue for issue in listing if fragment in issue.get("title", "")]
@@ -153,9 +180,25 @@ def find_unique_issue(step: str, listing: list[dict], marker: str) -> int:
         len(matches) == 1,
         step,
         f"{len(matches)} issues carry marker fragment {fragment} - "
-        + ("cannot identify the issue" if not matches else "duplicate creation"),
+        + (
+            "cannot identify the synthetic issue, closing nothing"
+            if not matches
+            else "duplicate creation, closing nothing"
+        ),
     )
-    return matches[0]["number"]
+    candidate = matches[0]
+    body = candidate.get("body", "")
+    labels = [label.get("name") for label in candidate.get("labels", [])]
+    require(
+        marker in body
+        and DISCLAIMER.split(" - ")[0] in body
+        and LABEL in labels
+        and isinstance(candidate.get("number"), int),
+        step,
+        f"issue #{candidate.get('number')} matches the title fragment but not the full "
+        "synthetic identity - refusing to treat it as ours, closing nothing",
+    )
+    return candidate
 
 
 def check_issue_privacy(step: str, issue: dict, write_key: str, marker: str) -> None:
@@ -173,6 +216,19 @@ def check_issue_privacy(step: str, issue: dict, write_key: str, marker: str) -> 
 
 # --------------------------------------------------------------------------
 # Transports
+
+#: How the smoke reaches the gateway and GitHub. Injectable so the self-test
+#: can drive the full orchestration — including the cleanup decision — with
+#: fixture worlds and count every close that would have happened.
+PostFeedback = Callable[[dict], tuple[int, str]]
+
+
+class GithubIssues(Protocol):
+    def list_labelled(self) -> list[dict]: ...
+
+    def fetch(self, number: int) -> dict: ...
+
+    def close(self, number: int, succeeded: bool) -> None: ...
 
 
 def post_feedback(endpoint: str, document: dict) -> tuple[int, str]:
@@ -265,44 +321,59 @@ class GithubViaMock:
 # The smoke sequence
 
 
-def run_smoke(endpoint: str, github: GithubViaGh | GithubViaMock, golden_path: Path) -> None:
+def run_smoke(post: PostFeedback, github: GithubIssues, golden_path: Path) -> None:
     golden = json.loads(golden_path.read_text(encoding="utf-8"))
     preflight_digest_fidelity(golden)
 
     payload, write_key, marker = build_synthetic_payload(golden)
     print(f"synthetic session marker {marker[:12]}... (write key not printed)")
 
-    issue: int | None = None
+    # The gateway's reported number is a claim under test. Cleanup may only
+    # ever target the marker-verified issue, so the two are tracked apart and
+    # `verified_cleanup_issue` stays None until independent GitHub-side proof.
+    verified_cleanup_issue: int | None = None
     succeeded = False
     try:
-        status, body = post_feedback(endpoint, payload)
-        issue = parse_sync_response("first synchronisation", status, body, "created")
-        print(f"created issue #{issue}")
+        status, body = post(payload)
+        reported = parse_sync_response("first synchronisation", status, body, "created")
+        print(f"gateway reports created issue #{reported}")
 
-        found = find_unique_issue("issue identification", github.list_labelled(), marker)
+        ours = identify_synthetic_issue("issue identification", github.list_labelled(), marker)
+        verified_cleanup_issue = ours["number"]
         require(
-            found == issue,
+            verified_cleanup_issue == reported,
             "issue identification",
-            f"gateway reported #{issue} but the marker matches #{found}",
+            f"gateway reported #{reported} but the marker-verified issue is "
+            f"#{verified_cleanup_issue}",
         )
-        check_issue_privacy("issue content", github.fetch(issue), write_key, marker)
-        print(f"issue #{issue} verified in the intake repository: marker present, write key absent")
+        check_issue_privacy(
+            "issue content", github.fetch(verified_cleanup_issue), write_key, marker
+        )
+        print(
+            f"issue #{verified_cleanup_issue} verified in the intake repository: "
+            "marker present, write key absent"
+        )
 
-        status, body = post_feedback(endpoint, payload)
-        parse_sync_response("identical resubmit", status, body, "unchanged", expected_issue=issue)
+        status, body = post(payload)
+        parse_sync_response(
+            "identical resubmit", status, body, "unchanged", expected_issue=reported
+        )
         print("identical resubmit: unchanged, same issue")
 
-        status, body = post_feedback(endpoint, mutate_one_field(payload))
-        parse_sync_response("changed resubmit", status, body, "updated", expected_issue=issue)
-        check_issue_privacy("updated issue content", github.fetch(issue), write_key, marker)
+        status, body = post(mutate_one_field(payload))
+        parse_sync_response("changed resubmit", status, body, "updated", expected_issue=reported)
+        check_issue_privacy(
+            "updated issue content", github.fetch(verified_cleanup_issue), write_key, marker
+        )
         print("changed resubmit: updated, same issue, still no write key in the issue")
 
         succeeded = True
     finally:
-        if issue is not None:
-            github.close(issue, succeeded)
+        if verified_cleanup_issue is not None:
+            github.close(verified_cleanup_issue, succeeded)
             print(
-                f"synthetic issue #{issue} closed ({'completed' if succeeded else 'not_planned'})"
+                f"synthetic issue #{verified_cleanup_issue} closed "
+                f"({'completed' if succeeded else 'not_planned'})"
             )
 
     print("LIVE GATEWAY->GITHUB SMOKE PASSED")
@@ -371,11 +442,17 @@ def self_test() -> int:
         ),
         (
             "duplicate creation (two issues carry the marker)",
-            lambda: find_unique_issue("t", [good_issue, dict(good_issue)], marker),
+            lambda: identify_synthetic_issue("t", [good_issue, dict(good_issue)], marker),
         ),
         (
             "cannot identify the issue (empty listing)",
-            lambda: find_unique_issue("t", [], marker),
+            lambda: identify_synthetic_issue("t", [], marker),
+        ),
+        (
+            "marker match without the full synthetic identity",
+            lambda: identify_synthetic_issue(
+                "t", [{**good_issue, "body": "marker-less unrelated body"}], marker
+            ),
         ),
     ]
 
@@ -391,7 +468,7 @@ def self_test() -> int:
 
     try:
         number = parse_sync_response("healthy", 202, created, "created")
-        assert find_unique_issue("healthy", [good_issue], marker) == number
+        assert identify_synthetic_issue("healthy", [good_issue], marker)["number"] == number
         check_issue_privacy("healthy", good_issue, write_key, marker)
         parse_sync_response(
             "healthy",
@@ -405,8 +482,133 @@ def self_test() -> int:
         print(f"[FAIL] healthy sequence wrongly rejected: {error}")
         failures += 1
 
-    print(f"{len(rejections) + 1 - failures}/{len(rejections) + 1} checker controls passed")
+    failures += _cleanup_safety_controls()
+
+    total = len(rejections) + 4
+    print(f"{total - failures}/{total} checker controls passed")
     return 1 if failures else 0
+
+
+class _FakeGithub:
+    """A GitHub whose listing is fixed and whose closes are counted."""
+
+    def __init__(self, listing: list[dict]) -> None:
+        self.listing = listing
+        self.closed: list[int] = []
+
+    def list_labelled(self) -> list[dict]:
+        return self.listing
+
+    def fetch(self, number: int) -> dict:
+        for issue in self.listing:
+            if issue.get("number") == number:
+                return issue
+        raise SmokeFailure(f"fetch: #{number} not in fixture listing")
+
+    def close(self, number: int, succeeded: bool) -> None:
+        self.closed.append(number)
+
+
+def _cleanup_safety_controls() -> int:
+    """The cleanup must never trust the gateway-reported number.
+
+    Three orchestration-level controls drive ``run_smoke`` end to end with
+    fixture worlds and count every close:
+
+    1. wrong repository, colliding number: the gateway reports #7 while the
+       intended repository's #7 is unrelated data — the smoke must fail
+       *and close nothing*;
+    2. mutant kill: the same world under a cleanup policy that blindly
+       trusts the gateway number must close the unrelated issue, proving
+       control 1 discriminates the unsafe behaviour;
+    3. verified match: a healthy world must pass and close exactly the one
+       marker-verified synthetic issue.
+    """
+
+    failures = 0
+
+    def synthetic_world() -> tuple[PostFeedback, dict]:
+        state = {"calls": 0, "document": None}
+
+        def post(document: dict) -> tuple[int, str]:
+            state["calls"] += 1
+            state["document"] = document
+            word = {1: "created", 2: "unchanged"}.get(state["calls"], "updated")
+            return 202, json.dumps({"status": word, "issue_number": 7})
+
+        return post, state
+
+    unrelated = {
+        "number": 7,
+        "title": "Unrelated bug report that happens to be issue seven",
+        "body": "Pre-existing data in the intended repository.",
+        "labels": [{"name": LABEL}],
+    }
+
+    # Control 1: wrong repository, same number -> fail, zero mutations.
+    post, _ = synthetic_world()
+    github = _FakeGithub([unrelated])
+    try:
+        run_smoke(post, github, GOLDEN)
+        print("[FAIL] wrong-repo world was accepted")
+        failures += 1
+    except SmokeFailure:
+        if github.closed:
+            print(f"[FAIL] wrong-repo failure still closed {github.closed} in the intended repo")
+            failures += 1
+        else:
+            print("[PASS] wrong-repo/same-number world fails with close operation count = 0")
+
+    # Control 2: the gateway-number-trusting mutant must be caught by
+    # control 1's assertion — under the mutant, the unrelated issue gets
+    # closed, which is exactly what the real policy is proven not to do.
+    original = globals()["identify_synthetic_issue"]
+    globals()["identify_synthetic_issue"] = lambda step, listing, marker: {"number": 7}
+    try:
+        post, _ = synthetic_world()
+        github = _FakeGithub([unrelated])
+        try:
+            run_smoke(post, github, GOLDEN)
+        except SmokeFailure:
+            pass
+        if github.closed == [7]:
+            print("[PASS] control kills the gateway-number-trusting mutant (it closed #7)")
+        else:
+            print(f"[FAIL] mutant closed {github.closed}; the control cannot discriminate")
+            failures += 1
+    finally:
+        globals()["identify_synthetic_issue"] = original
+
+    # Control 3: a verified match is cleaned up - exactly once, exactly it.
+    post, state = synthetic_world()
+
+    class _ConsistentGithub(_FakeGithub):
+        def list_labelled(self) -> list[dict]:
+            document = state["document"]
+            marker = hashlib.sha256(document["session"]["session_id"].encode("utf-8")).hexdigest()
+            self.listing = [
+                {
+                    "number": 7,
+                    "title": f"[Learner Feedback] Session {marker[:12]}",
+                    "body": f"<!-- marker {marker} -->\n{DISCLAIMER}",
+                    "labels": [{"name": LABEL}],
+                }
+            ]
+            return self.listing
+
+    github = _ConsistentGithub([])
+    try:
+        run_smoke(post, github, GOLDEN)
+        if github.closed == [7]:
+            print("[PASS] verified-match world passes and closes exactly the synthetic issue")
+        else:
+            print(f"[FAIL] verified-match world closed {github.closed}")
+            failures += 1
+    except SmokeFailure as error:
+        print(f"[FAIL] verified-match world wrongly rejected: {error}")
+        failures += 1
+
+    return failures
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -436,7 +638,11 @@ def main(argv: list[str] | None = None) -> int:
         github = GithubViaGh(arguments.repository)
 
     try:
-        run_smoke(arguments.endpoint, github, arguments.golden)
+        run_smoke(
+            lambda document: post_feedback(arguments.endpoint, document),
+            github,
+            arguments.golden,
+        )
     except SmokeFailure as failure:
         print(f"SMOKE FAILED - {failure}", file=sys.stderr)
         return 1

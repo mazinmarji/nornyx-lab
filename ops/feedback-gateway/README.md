@@ -78,7 +78,17 @@ synthetic session UUID
 
 Any 401/403/404/422/5xx from the gateway, duplicate creation, a wrong
 repository, or an unidentifiable issue exits non-zero and aborts the
-deploy script before it can report the provisioning ready. This is not
+deploy script before it can report the provisioning ready.
+
+Cleanup is identity-gated: the smoke never closes the gateway-*reported*
+issue number, only an issue independently proven to carry the full
+synthetic identity (marker fragment in the title, full marker in the body,
+disclaimer, label). A misconfigured gateway that writes to the wrong
+repository therefore fails the smoke with **zero** close operations — an
+orphan synthetic issue there is preferable to touching unrelated data in
+the intended repository. `--self-test` proves this with a
+wrong-repo/colliding-number world (0 closes), a mutant that trusts the
+gateway number (caught), and a verified match (closes exactly one). This is not
 learner acceptance: no consent flow, no UI, no database-loss recovery, no
 revocation, no claim change — only proof the new credential works.
 
